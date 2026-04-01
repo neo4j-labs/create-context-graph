@@ -21,6 +21,11 @@ DOMAIN_ID={{ domain.id }}
 BACKEND_PORT=8000
 FRONTEND_PORT=3000
 
+{% if 'linear' in saas_connectors %}
+# Linear (project management data import)
+LINEAR_API_KEY=your-linear-api-key-here  # From Linear Settings > Security & Access > API
+LINEAR_TEAM=  # Optional: team key to filter import (e.g., ENG)
+{% endif %}
 # CORS — comma-separated origins allowed for frontend (default: http://localhost:3000)
 # CORS_ORIGINS=http://localhost:3000,https://yourdomain.com
 

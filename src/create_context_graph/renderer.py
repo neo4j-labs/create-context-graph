@@ -249,6 +249,7 @@ class ProjectRenderer:
                 "gmail": "gmail_connector",
                 "gcal": "gcal_connector",
                 "salesforce": "salesforce_connector",
+                "linear": "linear_connector",
             }
             for conn_id in self.config.saas_connectors:
                 template_name = connector_templates.get(conn_id)

@@ -14,6 +14,7 @@
 
 """Unit tests for SaaS data connectors."""
 
+import json
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -76,11 +77,11 @@ class TestNormalizedData:
 
 
 class TestConnectorRegistry:
-    def test_all_seven_registered(self):
-        assert len(CONNECTOR_REGISTRY) == 7
+    def test_all_eight_registered(self):
+        assert len(CONNECTOR_REGISTRY) == 8
 
     def test_expected_connectors(self):
-        expected = {"github", "notion", "jira", "slack", "gmail", "gcal", "salesforce"}
+        expected = {"github", "notion", "jira", "slack", "gmail", "gcal", "salesforce", "linear"}
         assert set(CONNECTOR_REGISTRY.keys()) == expected
 
     def test_get_connector(self):
@@ -93,7 +94,7 @@ class TestConnectorRegistry:
 
     def test_list_connectors(self):
         result = list_connectors()
-        assert len(result) == 7
+        assert len(result) == 8
         ids = {c["id"] for c in result}
         assert "github" in ids
 
@@ -272,6 +273,326 @@ class TestSalesforceConnector:
                     "security_token": "test",
                     "domain": "login",
                 })
+
+
+class TestLinearConnector:
+    """Tests for the Linear connector with mocked GraphQL API."""
+
+    def _make_graphql_mock(self, responses: dict):
+        """Create a mock for urllib.request.urlopen that returns different responses
+        based on the GraphQL query content. Keys are matched longest-first to avoid
+        substring collisions (e.g., 'teams' matching inside a 'projects' query)."""
+
+        def mock_urlopen(req):
+            body = req.data.decode()
+            data = json.loads(body)
+            query = data.get("query", "")
+
+            # Match longest key first to avoid substring collisions
+            for key in sorted(responses, key=len, reverse=True):
+                resp = responses[key]
+                if key in query:
+                    response_bytes = json.dumps(resp).encode()
+                    mock_resp = MagicMock()
+                    mock_resp.read.return_value = response_bytes
+                    mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+                    mock_resp.__exit__ = MagicMock(return_value=False)
+                    mock_resp.headers = MagicMock()
+                    mock_resp.headers.get = MagicMock(return_value="100")
+                    return mock_resp
+
+            # Default: empty response
+            response_bytes = json.dumps({"data": {}}).encode()
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = response_bytes
+            mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_resp.headers = MagicMock()
+            mock_resp.headers.get = MagicMock(return_value="100")
+            return mock_resp
+
+        return mock_urlopen
+
+    def _standard_responses(self):
+        """Standard mock responses for a basic Linear workspace.
+
+        Keys use unique substrings from the actual GraphQL queries to avoid
+        ambiguity (e.g., 'projects(first' won't collide with 'teams {').
+        """
+        viewer_resp = {"data": {"viewer": {"id": "user-1", "name": "Test User", "email": "test@test.com"}}}
+        teams_resp = {"data": {"teams": {"nodes": [
+            {"id": "team-1", "name": "Engineering", "key": "ENG", "description": "Engineering team"},
+        ]}}}
+        users_resp = {"data": {"users": {
+            "pageInfo": {"hasNextPage": False, "endCursor": None},
+            "nodes": [
+                {"id": "user-1", "name": "Alice", "displayName": "Alice A", "email": "alice@test.com", "admin": True, "active": True},
+                {"id": "user-2", "name": "Bob", "displayName": "Bob B", "email": "bob@test.com", "admin": False, "active": True},
+            ],
+        }}}
+        team_members_resp = {"data": {"team": {"members": {"nodes": [
+            {"id": "user-1", "name": "Alice", "displayName": "Alice A", "email": "alice@test.com", "admin": True, "active": True},
+            {"id": "user-2", "name": "Bob", "displayName": "Bob B", "email": "bob@test.com", "admin": False, "active": True},
+        ]}}}}
+        labels_resp = {"data": {"issueLabels": {
+            "pageInfo": {"hasNextPage": False, "endCursor": None},
+            "nodes": [
+                {"id": "label-1", "name": "Bug", "color": "#ef4444", "description": "Bug reports"},
+                {"id": "label-2", "name": "Feature", "color": "#22c55e", "description": "Feature requests"},
+            ],
+        }}}
+        projects_resp = {"data": {"projects": {
+            "pageInfo": {"hasNextPage": False, "endCursor": None},
+            "nodes": [{
+                "id": "proj-1", "name": "v2 Launch", "description": "Version 2 launch",
+                "state": "started", "startDate": "2026-01-01", "targetDate": "2026-06-01",
+                "progress": 0.45, "url": "https://linear.app/proj/v2-launch",
+                "lead": {"id": "user-1", "name": "Alice", "displayName": "Alice A", "email": "alice@test.com"},
+                "members": {"nodes": [
+                    {"id": "user-1", "name": "Alice", "displayName": "Alice A", "email": "alice@test.com"},
+                ]},
+                "teams": {"nodes": [{"id": "team-1", "name": "Engineering", "key": "ENG"}]},
+            }],
+        }}}
+        cycles_resp = {"data": {"team": {"cycles": {"nodes": [
+            {"id": "cycle-1", "name": "Sprint 10", "number": 10, "startsAt": "2026-03-25", "endsAt": "2026-04-08", "progress": 0.3, "url": "https://linear.app/cycle/10"},
+        ]}}}}
+        issues_resp = {"data": {"issues": {
+            "pageInfo": {"hasNextPage": False, "endCursor": None},
+            "nodes": [
+                {
+                    "id": "issue-1", "identifier": "ENG-101", "title": "Fix login bug",
+                    "description": "The login page crashes when email contains a plus sign.",
+                    "priority": 2, "priorityLabel": "High", "estimate": 3,
+                    "dueDate": "2026-04-15", "createdAt": "2026-03-20", "updatedAt": "2026-03-28",
+                    "url": "https://linear.app/issue/ENG-101",
+                    "state": {"id": "state-1", "name": "In Progress", "type": "started", "color": "#f59e0b", "position": 2},
+                    "assignee": {"id": "user-1", "name": "Alice", "email": "alice@test.com", "displayName": "Alice A"},
+                    "creator": {"id": "user-2", "name": "Bob", "email": "bob@test.com", "displayName": "Bob B"},
+                    "team": {"id": "team-1", "name": "Engineering", "key": "ENG"},
+                    "project": {"id": "proj-1", "name": "v2 Launch"},
+                    "cycle": {"id": "cycle-1", "number": 10, "name": "Sprint 10", "startsAt": "2026-03-25", "endsAt": "2026-04-08"},
+                    "labels": {"nodes": [{"id": "label-1", "name": "Bug", "color": "#ef4444"}]},
+                    "parent": None,
+                    "children": {"nodes": []},
+                },
+                {
+                    "id": "issue-2", "identifier": "ENG-102", "title": "Add OAuth support",
+                    "description": "Implement OAuth2 login flow.",
+                    "priority": 3, "priorityLabel": "Medium", "estimate": 8,
+                    "dueDate": None, "createdAt": "2026-03-22", "updatedAt": "2026-03-29",
+                    "url": "https://linear.app/issue/ENG-102",
+                    "state": {"id": "state-2", "name": "Backlog", "type": "backlog", "color": "#6b7280", "position": 0},
+                    "assignee": None,
+                    "creator": {"id": "user-1", "name": "Alice", "email": "alice@test.com", "displayName": "Alice A"},
+                    "team": {"id": "team-1", "name": "Engineering", "key": "ENG"},
+                    "project": {"id": "proj-1", "name": "v2 Launch"},
+                    "cycle": None,
+                    "labels": {"nodes": [{"id": "label-2", "name": "Feature", "color": "#22c55e"}]},
+                    "parent": {"id": "issue-1", "identifier": "ENG-101", "title": "Fix login bug"},
+                    "children": {"nodes": []},
+                },
+            ],
+        }}}
+
+        # Keys use unique query substrings to avoid ambiguity
+        return {
+            "viewer": viewer_resp,
+            "issueLabels": labels_resp,
+            "projects(first": projects_resp,
+            "issues(first": issues_resp,
+            "users(first": users_resp,
+            "members": team_members_resp,
+            "cycles": cycles_resp,
+            "teams": teams_resp,
+        }
+
+    def test_credential_prompts(self):
+        conn = get_connector("linear")
+        prompts = conn.get_credential_prompts()
+        assert len(prompts) == 2
+        names = {p["name"] for p in prompts}
+        assert "api_key" in names
+        assert "team_key" in names
+        assert any(p["secret"] for p in prompts)
+
+    @patch("urllib.request.urlopen")
+    def test_authenticate_success(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        # Should not raise
+
+    def test_authenticate_missing_key(self):
+        conn = get_connector("linear")
+        with pytest.raises(ValueError, match="API key is required"):
+            conn.authenticate({"api_key": ""})
+
+    @patch("urllib.request.urlopen")
+    def test_authenticate_invalid_key(self, mock_urlopen):
+        mock_resp = MagicMock()
+        mock_resp.read.return_value = json.dumps({
+            "errors": [{"message": "Authentication failed"}]
+        }).encode()
+        mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+        mock_resp.__exit__ = MagicMock(return_value=False)
+        mock_resp.headers = MagicMock()
+        mock_resp.headers.get = MagicMock(return_value="100")
+        mock_urlopen.return_value = mock_resp
+
+        conn = get_connector("linear")
+        with pytest.raises(ValueError, match="authentication failed"):
+            conn.authenticate({"api_key": "lin_api_bad"})
+
+    @patch("urllib.request.urlopen")
+    def test_fetch_entity_mapping(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        assert isinstance(result, NormalizedData)
+        # Check all expected entity labels exist
+        assert "Person" in result.entities
+        assert "Team" in result.entities
+        assert "Project" in result.entities
+        assert "Cycle" in result.entities
+        assert "Issue" in result.entities
+        assert "Label" in result.entities
+        assert "WorkflowState" in result.entities
+
+    @patch("urllib.request.urlopen")
+    def test_fetch_entity_counts(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        assert len(result.entities["Team"]) == 1
+        assert len(result.entities["Issue"]) == 2
+        assert len(result.entities["Project"]) == 1
+        assert len(result.entities["Cycle"]) == 1
+        assert len(result.entities["Label"]) == 2
+        assert len(result.entities["WorkflowState"]) == 2  # 2 unique states
+
+    @patch("urllib.request.urlopen")
+    def test_fetch_relationships(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        rel_types = {r["type"] for r in result.relationships}
+        assert "ASSIGNED_TO" in rel_types
+        assert "CREATED_BY" in rel_types
+        assert "BELONGS_TO_PROJECT" in rel_types
+        assert "BELONGS_TO_TEAM" in rel_types
+        assert "IN_CYCLE" in rel_types
+        assert "HAS_STATE" in rel_types
+        assert "HAS_LABEL" in rel_types
+        assert "MEMBER_OF" in rel_types
+        assert "CYCLE_FOR" in rel_types
+
+    @patch("urllib.request.urlopen")
+    def test_fetch_child_of_relationship(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        child_rels = [r for r in result.relationships if r["type"] == "CHILD_OF"]
+        assert len(child_rels) == 1
+        assert child_rels[0]["source_label"] == "Issue"
+        assert child_rels[0]["target_label"] == "Issue"
+
+    @patch("urllib.request.urlopen")
+    def test_fetch_documents(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        assert len(result.documents) == 2  # Both issues have descriptions
+        assert all(d["type"] == "linear-issue" for d in result.documents)
+        assert any("ENG-101" in d["title"] for d in result.documents)
+
+    @patch("urllib.request.urlopen")
+    def test_fetch_deduplication(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        # Alice appears as org user, team member, assignee, creator, project lead, project member
+        # But should only be in entities once
+        alice_count = sum(1 for p in result.entities["Person"] if p["name"] == "Alice")
+        assert alice_count == 1
+
+        # Bug label appears in workspace labels and on issue-1
+        bug_count = sum(1 for lbl in result.entities["Label"] if lbl["name"] == "Bug")
+        assert bug_count == 1
+
+    @patch("urllib.request.urlopen")
+    def test_fetch_team_filter(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123", "team_key": "ENG"})
+        result = conn.fetch()
+
+        assert len(result.entities["Team"]) == 1
+        assert result.entities["Team"][0]["key"] == "ENG"
+
+    @patch("urllib.request.urlopen")
+    def test_fetch_team_filter_not_found(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123", "team_key": "NONEXISTENT"})
+        with pytest.raises(ValueError, match="not found"):
+            conn.fetch()
+
+    @patch("urllib.request.urlopen")
+    def test_issue_name_format(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        issue_names = [i["name"] for i in result.entities["Issue"]]
+        assert "ENG-101 Fix login bug" in issue_names
+        assert "ENG-102 Add OAuth support" in issue_names
+
+    @patch("urllib.request.urlopen")
+    def test_priority_labels(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        issues = result.entities["Issue"]
+        high_priority = [i for i in issues if i["identifier"] == "ENG-101"]
+        assert high_priority[0]["priorityLabel"] == "High"
 
 
 # ---------------------------------------------------------------------------

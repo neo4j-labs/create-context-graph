@@ -18,6 +18,7 @@ Create Context Graph can pull data from SaaS services and map it into your Neo4j
 | **Gmail** | Emails, threads, contacts, labels, attachments (metadata) | Google OAuth 2.0 / service account |
 | **Google Calendar** | Events, attendees, calendars, recurring series | Google OAuth 2.0 / service account |
 | **Salesforce** | Accounts, contacts, opportunities, leads, cases, activities | OAuth 2.0 connected app |
+| **Linear** | Issues, projects, cycles, teams, users, labels, workflow states | Personal API key |
 
 ## Selecting Connectors in the Interactive Wizard
 
@@ -41,6 +42,21 @@ create-context-graph my-app \
 ```
 
 You can combine `--connector` with any domain and framework flags. Each connector will prompt for its credentials unless they are already set as environment variables.
+
+### Linear example
+
+Import your Linear workspace data into a context graph:
+
+```bash
+create-context-graph my-project \
+  --domain software-engineering \
+  --framework pydanticai \
+  --connector linear \
+  --linear-api-key lin_api_xxxxx \
+  --linear-team ENG
+```
+
+The `--linear-team` flag is optional. If omitted, all teams in the workspace are imported.
 
 ## Gmail and Google Calendar Setup
 
@@ -105,3 +121,12 @@ These targets read credentials from the `.env` file in the project root.
 1. In Salesforce Setup, go to **App Manager** and create a new Connected App.
 2. Enable OAuth and select scopes: `api`, `refresh_token`, `offline_access`.
 3. Set `SALESFORCE_CLIENT_ID`, `SALESFORCE_CLIENT_SECRET`, `SALESFORCE_USERNAME`, `SALESFORCE_PASSWORD`, and `SALESFORCE_SECURITY_TOKEN` in `.env`.
+
+### Linear
+
+1. Open **Linear Settings > Security & Access > API** (or navigate to `linear.app/settings/api`).
+2. Click **Create key** to generate a personal API key.
+3. Set `LINEAR_API_KEY` in `.env`.
+4. Optionally set `LINEAR_TEAM` to a team URL key (e.g., `ENG`) to limit the import to a single team.
+
+The Linear connector imports issues, projects, cycles, teams, users, labels, and workflow states. Issue descriptions are also imported as documents for semantic search. No external Python package is required — the connector uses Python's built-in `urllib`.

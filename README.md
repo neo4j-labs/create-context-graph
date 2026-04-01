@@ -154,6 +154,7 @@ Import real data from your existing tools instead of (or in addition to) synthet
 | **Gmail** | Emails (last 30 days) | Google Workspace CLI or OAuth2 |
 | **Google Calendar** | Events, attendees (last 90 days) | Google Workspace CLI or OAuth2 |
 | **Salesforce** | Accounts, contacts, opportunities | Username/password |
+| **Linear** | Issues, projects, cycles, teams, users, labels | Personal API key |
 
 Connectors run at scaffold time to populate initial data. They're also generated into your project so you can re-import with `make import`:
 
@@ -239,7 +240,9 @@ Options:
   --framework TEXT          Agent framework (pydanticai, claude-agent-sdk, openai-agents, langgraph, crewai, strands, google-adk, anthropic-tools)
   --demo-data               Generate synthetic demo data
   --custom-domain TEXT      Generate custom domain from description (requires --anthropic-api-key)
-  --connector TEXT          SaaS connector to enable; repeatable (github, slack, jira, notion, gmail, gcal, salesforce)
+  --connector TEXT          SaaS connector to enable; repeatable (github, slack, jira, notion, gmail, gcal, salesforce, linear)
+  --linear-api-key TEXT    Linear API key (required for --connector linear) [env: LINEAR_API_KEY]
+  --linear-team TEXT       Linear team key to filter import (e.g., ENG) [env: LINEAR_TEAM]
   --ingest                  Ingest data into Neo4j after generation
   --neo4j-uri TEXT          Neo4j connection URI [env: NEO4J_URI]
   --neo4j-username TEXT     Neo4j username [env: NEO4J_USERNAME]

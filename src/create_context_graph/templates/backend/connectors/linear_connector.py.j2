@@ -1,0 +1,464 @@
+{% raw %}"""Linear connector — imports issues, projects, cycles, teams, and users."""
+
+from __future__ import annotations
+
+import json
+import time
+import urllib.error
+import urllib.request
+from typing import Any
+
+LINEAR_API_URL = "https://api.linear.app/graphql"
+PRIORITY_LABELS = {0: "No Priority", 1: "Urgent", 2: "High", 3: "Medium", 4: "Low"}
+
+
+class LinearConnector:
+    """Import issues, projects, cycles, and team data from Linear."""
+
+    def __init__(self):
+        self._api_key: str = ""
+        self._team_key: str = ""
+        self._headers: dict[str, str] = {}
+
+    def authenticate(self, credentials: dict[str, str]) -> None:
+        """Authenticate with Linear.
+
+        Args:
+            credentials: dict with keys "api_key" (Linear API key)
+                         and optional "team_key" (team URL key, e.g. "ENG").
+        """
+        api_key = credentials.get("api_key", "")
+        if not api_key:
+            raise ValueError("Linear API key is required")
+
+        self._api_key = api_key
+        self._team_key = credentials.get("team_key", "")
+        self._headers = {
+            "Authorization": api_key,
+            "Content-Type": "application/json",
+        }
+
+        result = self._graphql_request("query { viewer { id name email } }")
+        if "errors" in result:
+            raise ValueError(
+                f"Linear API authentication failed: {result['errors'][0].get('message', 'Unknown error')}"
+            )
+
+    def fetch(self, **kwargs: Any) -> dict:
+        """Fetch issues, projects, cycles, teams, and users from Linear.
+
+        Returns:
+            dict with keys "entities", "relationships", "documents".
+        """
+        if not self._api_key:
+            raise RuntimeError("Call authenticate() first")
+
+        include_comments = kwargs.get("include_comments", False)
+
+        entities: dict[str, list[dict]] = {
+            "Person": [],
+            "Team": [],
+            "Project": [],
+            "Cycle": [],
+            "Issue": [],
+            "Label": [],
+            "WorkflowState": [],
+        }
+        if include_comments:
+            entities["Comment"] = []
+
+        relationships: list[dict] = []
+        documents: list[dict] = []
+
+        seen_users: set[str] = set()
+        seen_labels: set[str] = set()
+        seen_states: set[str] = set()
+
+        def _add_user(user_data: dict) -> str | None:
+            if not user_data or not user_data.get("id"):
+                return None
+            uid = user_data["id"]
+            name = user_data.get("name") or user_data.get("displayName") or "Unknown"
+            if uid not in seen_users:
+                seen_users.add(uid)
+                entities["Person"].append({
+                    "name": name,
+                    "linearId": uid,
+                    "displayName": user_data.get("displayName", name),
+                    "email": user_data.get("email", ""),
+                })
+            return name
+
+        def _add_label(label_data: dict) -> str | None:
+            if not label_data or not label_data.get("id"):
+                return None
+            lid = label_data["id"]
+            name = label_data.get("name", "")
+            if lid not in seen_labels:
+                seen_labels.add(lid)
+                entities["Label"].append({
+                    "name": name,
+                    "linearId": lid,
+                    "color": label_data.get("color", ""),
+                })
+            return name
+
+        def _add_state(state_data: dict) -> str | None:
+            if not state_data or not state_data.get("id"):
+                return None
+            sid = state_data["id"]
+            name = state_data.get("name", "")
+            if sid not in seen_states:
+                seen_states.add(sid)
+                entities["WorkflowState"].append({
+                    "name": name,
+                    "linearId": sid,
+                    "type": state_data.get("type", ""),
+                })
+            return name
+
+        # Fetch teams
+        teams = self._fetch_teams()
+        if self._team_key:
+            teams = [t for t in teams if t.get("key", "").upper() == self._team_key.upper()]
+
+        for team in teams:
+            entities["Team"].append({
+                "name": team.get("name", ""),
+                "linearId": team["id"],
+                "key": team.get("key", ""),
+            })
+
+        # Fetch users and team members
+        for team in teams:
+            team_name = team.get("name", "")
+            members = self._fetch_team_members(team["id"])
+            for member in members:
+                member_name = _add_user(member)
+                if member_name:
+                    relationships.append({
+                        "type": "MEMBER_OF",
+                        "source": member_name,
+                        "source_label": "Person",
+                        "target": team_name,
+                        "target_label": "Team",
+                    })
+
+        # Fetch projects
+        projects = self._fetch_projects()
+        for proj in projects:
+            proj_name = proj.get("name", "")
+            entities["Project"].append({
+                "name": proj_name,
+                "linearId": proj["id"],
+                "description": proj.get("description", ""),
+                "state": proj.get("state", ""),
+                "progress": proj.get("progress", 0),
+                "url": proj.get("url", ""),
+            })
+            lead = proj.get("lead")
+            if lead:
+                lead_name = _add_user(lead)
+                if lead_name:
+                    relationships.append({
+                        "type": "LEADS",
+                        "source": lead_name,
+                        "source_label": "Person",
+                        "target": proj_name,
+                        "target_label": "Project",
+                    })
+
+        # Fetch cycles per team
+        for team in teams:
+            team_name = team.get("name", "")
+            cycles = self._fetch_cycles(team["id"])
+            for cycle in cycles:
+                cycle_name = cycle.get("name") or f"Cycle {cycle.get('number', '?')}"
+                entities["Cycle"].append({
+                    "name": cycle_name,
+                    "linearId": cycle["id"],
+                    "number": cycle.get("number", 0),
+                    "startsAt": cycle.get("startsAt", ""),
+                    "endsAt": cycle.get("endsAt", ""),
+                })
+                relationships.append({
+                    "type": "CYCLE_FOR",
+                    "source": cycle_name,
+                    "source_label": "Cycle",
+                    "target": team_name,
+                    "target_label": "Team",
+                })
+
+        # Fetch issues per team
+        for team in teams:
+            team_name = team.get("name", "")
+            issues = self._fetch_issues(team["id"], include_comments=include_comments)
+
+            for issue in issues:
+                identifier = issue.get("identifier", "")
+                title = issue.get("title", "")
+                issue_name = f"{identifier} {title}" if identifier else title
+                priority = issue.get("priority", 0)
+
+                entities["Issue"].append({
+                    "name": issue_name,
+                    "linearId": issue["id"],
+                    "identifier": identifier,
+                    "title": title,
+                    "priority": priority,
+                    "priorityLabel": PRIORITY_LABELS.get(priority, "No Priority"),
+                    "stateType": issue.get("state", {}).get("type", "") if issue.get("state") else "",
+                    "createdAt": issue.get("createdAt", ""),
+                    "updatedAt": issue.get("updatedAt", ""),
+                    "url": issue.get("url", ""),
+                })
+
+                relationships.append({
+                    "type": "BELONGS_TO_TEAM",
+                    "source": issue_name,
+                    "source_label": "Issue",
+                    "target": team_name,
+                    "target_label": "Team",
+                })
+
+                assignee = issue.get("assignee")
+                if assignee:
+                    assignee_name = _add_user(assignee)
+                    if assignee_name:
+                        relationships.append({
+                            "type": "ASSIGNED_TO",
+                            "source": issue_name,
+                            "source_label": "Issue",
+                            "target": assignee_name,
+                            "target_label": "Person",
+                        })
+
+                creator = issue.get("creator")
+                if creator:
+                    creator_name = _add_user(creator)
+                    if creator_name:
+                        relationships.append({
+                            "type": "CREATED_BY",
+                            "source": issue_name,
+                            "source_label": "Issue",
+                            "target": creator_name,
+                            "target_label": "Person",
+                        })
+
+                project = issue.get("project")
+                if project and project.get("name"):
+                    relationships.append({
+                        "type": "BELONGS_TO_PROJECT",
+                        "source": issue_name,
+                        "source_label": "Issue",
+                        "target": project["name"],
+                        "target_label": "Project",
+                    })
+
+                cycle = issue.get("cycle")
+                if cycle and cycle.get("id"):
+                    cycle_name = cycle.get("name") or f"Cycle {cycle.get('number', '?')}"
+                    relationships.append({
+                        "type": "IN_CYCLE",
+                        "source": issue_name,
+                        "source_label": "Issue",
+                        "target": cycle_name,
+                        "target_label": "Cycle",
+                    })
+
+                state = issue.get("state")
+                if state:
+                    state_name = _add_state(state)
+                    if state_name:
+                        relationships.append({
+                            "type": "HAS_STATE",
+                            "source": issue_name,
+                            "source_label": "Issue",
+                            "target": state_name,
+                            "target_label": "WorkflowState",
+                        })
+
+                issue_labels = issue.get("labels", {}).get("nodes", [])
+                for label in issue_labels:
+                    label_name = _add_label(label)
+                    if label_name:
+                        relationships.append({
+                            "type": "HAS_LABEL",
+                            "source": issue_name,
+                            "source_label": "Issue",
+                            "target": label_name,
+                            "target_label": "Label",
+                        })
+
+                parent = issue.get("parent")
+                if parent and parent.get("identifier"):
+                    parent_id = parent["identifier"]
+                    parent_title = parent.get("title", "")
+                    parent_name = f"{parent_id} {parent_title}" if parent_title else parent_id
+                    relationships.append({
+                        "type": "CHILD_OF",
+                        "source": issue_name,
+                        "source_label": "Issue",
+                        "target": parent_name,
+                        "target_label": "Issue",
+                    })
+
+                if include_comments:
+                    comments = issue.get("comments", {}).get("nodes", [])
+                    for comment in comments:
+                        if not comment.get("id"):
+                            continue
+                        comment_name = f"Comment on {identifier}"
+                        entities["Comment"].append({
+                            "name": comment_name,
+                            "linearId": comment["id"],
+                            "body": comment.get("body", ""),
+                            "createdAt": comment.get("createdAt", ""),
+                        })
+                        relationships.append({
+                            "type": "HAS_COMMENT",
+                            "source": issue_name,
+                            "source_label": "Issue",
+                            "target": comment_name,
+                            "target_label": "Comment",
+                        })
+                        comment_user = comment.get("user")
+                        if comment_user:
+                            comment_author = _add_user(comment_user)
+                            if comment_author:
+                                relationships.append({
+                                    "type": "AUTHORED_BY",
+                                    "source": comment_name,
+                                    "source_label": "Comment",
+                                    "target": comment_author,
+                                    "target_label": "Person",
+                                })
+
+                description = issue.get("description", "")
+                if description and description.strip():
+                    documents.append({
+                        "title": f"{identifier}: {title}",
+                        "content": description,
+                        "type": "linear-issue",
+                        "metadata": {
+                            "identifier": identifier,
+                            "priority": PRIORITY_LABELS.get(priority, "No Priority"),
+                        },
+                    })
+
+        return {
+            "entities": entities,
+            "relationships": relationships,
+            "documents": documents,
+        }
+
+    # --- GraphQL helpers ---
+
+    def _graphql_request(self, query: str, variables: dict | None = None) -> dict:
+        body = json.dumps({"query": query, "variables": variables or {}}).encode()
+        req = urllib.request.Request(
+            LINEAR_API_URL, data=body, headers=self._headers, method="POST",
+        )
+        try:
+            with urllib.request.urlopen(req) as resp:
+                remaining = resp.headers.get("X-RateLimit-Requests-Remaining")
+                if remaining and int(remaining) < 10:
+                    time.sleep(2)
+                return json.loads(resp.read())
+        except urllib.error.HTTPError as e:
+            if e.code == 401:
+                raise ValueError("Invalid Linear API key.")
+            error_body = e.read().decode() if e.fp else ""
+            raise RuntimeError(f"Linear API error ({e.code}): {error_body}")
+
+    def _paginate(self, query: str, variables: dict, data_path: list[str]) -> list[dict]:
+        all_nodes: list[dict] = []
+        cursor = None
+        while True:
+            vars_with_cursor = {**variables}
+            if cursor:
+                vars_with_cursor["cursor"] = cursor
+            result = self._graphql_request(query, vars_with_cursor)
+            data = result.get("data", {})
+            connection = data
+            for key in data_path:
+                connection = connection.get(key, {})
+            all_nodes.extend(connection.get("nodes", []))
+            page_info = connection.get("pageInfo", {})
+            if page_info.get("hasNextPage"):
+                cursor = page_info.get("endCursor")
+            else:
+                break
+        return all_nodes
+
+    def _fetch_teams(self) -> list[dict]:
+        result = self._graphql_request(
+            "query { teams { nodes { id name key description } } }"
+        )
+        return result.get("data", {}).get("teams", {}).get("nodes", [])
+
+    def _fetch_team_members(self, team_id: str) -> list[dict]:
+        query = """
+        query($teamId: String!) {
+            team(id: $teamId) {
+                members { nodes { id name displayName email } }
+            }
+        }
+        """
+        result = self._graphql_request(query, {"teamId": team_id})
+        return result.get("data", {}).get("team", {}).get("members", {}).get("nodes", [])
+
+    def _fetch_projects(self) -> list[dict]:
+        query = """
+        query($cursor: String) {
+            projects(first: 50, after: $cursor) {
+                pageInfo { hasNextPage endCursor }
+                nodes {
+                    id name description state startDate targetDate progress url
+                    lead { id name displayName email }
+                    teams { nodes { id name key } }
+                }
+            }
+        }
+        """
+        return self._paginate(query, {}, ["projects"])
+
+    def _fetch_cycles(self, team_id: str) -> list[dict]:
+        query = """
+        query($teamId: String!) {
+            team(id: $teamId) {
+                cycles { nodes { id name number startsAt endsAt progress url } }
+            }
+        }
+        """
+        result = self._graphql_request(query, {"teamId": team_id})
+        return result.get("data", {}).get("team", {}).get("cycles", {}).get("nodes", [])
+
+    def _fetch_issues(self, team_id: str, include_comments: bool = False) -> list[dict]:
+        comments_fragment = ""
+        if include_comments:
+            comments_fragment = """
+                comments { nodes { id body createdAt url user { id name displayName email } } }
+            """
+        query = f"""
+        query($teamId: String, $cursor: String) {{
+            issues(first: 50, after: $cursor, filter: {{ team: {{ id: {{ eq: $teamId }} }} }}) {{
+                pageInfo {{ hasNextPage endCursor }}
+                nodes {{
+                    id identifier title description priority priorityLabel estimate
+                    dueDate createdAt updatedAt url
+                    state {{ id name type }}
+                    assignee {{ id name email displayName }}
+                    creator {{ id name email displayName }}
+                    team {{ id name key }}
+                    project {{ id name }}
+                    cycle {{ id number name }}
+                    labels {{ nodes {{ id name color }} }}
+                    parent {{ id identifier title }}
+                    {comments_fragment}
+                }}
+            }}
+        }}
+        """
+        return self._paginate(query, {"teamId": team_id}, ["issues"])
+{% endraw %}

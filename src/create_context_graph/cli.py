@@ -53,7 +53,9 @@ console = Console()
 @click.option("--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key for LLM generation")
 @click.option("--google-api-key", envvar="GOOGLE_API_KEY", help="Google/Gemini API key (required for google-adk framework)")
 @click.option("--custom-domain", type=str, help="Natural language description for custom domain generation (requires --anthropic-api-key)")
-@click.option("--connector", multiple=True, help="SaaS connector to enable (github, slack, jira, notion, gmail, gcal, salesforce)")
+@click.option("--connector", multiple=True, help="SaaS connector to enable (github, slack, jira, notion, gmail, gcal, salesforce, linear)")
+@click.option("--linear-api-key", envvar="LINEAR_API_KEY", help="Linear API key (required for --connector linear)")
+@click.option("--linear-team", envvar="LINEAR_TEAM", help="Linear team key to filter import (e.g., ENG)")
 @click.option("--output-dir", type=click.Path(), help="Output directory (default: ./<project-name>)")
 @click.option("--demo", is_flag=True, help="Shortcut for --reset-database --demo-data --ingest")
 @click.option("--dry-run", is_flag=True, help="Preview what would be generated without creating files")
@@ -77,6 +79,8 @@ def main(
     google_api_key: str | None,
     custom_domain: str | None,
     connector: tuple[str, ...],
+    linear_api_key: str | None,
+    linear_team: str | None,
     output_dir: str | None,
     demo: bool,
     dry_run: bool,
@@ -193,6 +197,19 @@ def main(
             custom_domain_yaml=custom_domain_yaml,
             saas_connectors=list(connector),
         )
+        # Populate SaaS credentials from CLI flags
+        if "linear" in connector:
+            creds = {}
+            if linear_api_key:
+                creds["api_key"] = linear_api_key
+            if linear_team:
+                creds["team_key"] = linear_team
+            config.saas_credentials["linear"] = creds
+            if not linear_api_key:
+                console.print(
+                    "[yellow]Warning:[/yellow] --connector linear requires a Linear API key. "
+                    "Set LINEAR_API_KEY in your .env or pass --linear-api-key."
+                )
         # Warn if google-adk is selected without a Google API key
         if config.resolved_framework == "google-adk" and not google_api_key:
             console.print(

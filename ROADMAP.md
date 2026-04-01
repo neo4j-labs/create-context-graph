@@ -817,6 +817,68 @@ Comprehensive v0.7.0 testing revealed 2 critical regressions, data quality gaps,
 
 ---
 
+## Phase 15 — Linear Data Import Connector (v0.8.2)
+
+Real-world project data import from Linear. First connector to import graph-native project management data (issues, projects, cycles, teams, users, labels, workflow states) with full relationship fidelity.
+
+### What was built
+
+#### Linear connector
+- `linear_connector.py` implementing `BaseConnector` ABC with GraphQL client
+- Cursor-based pagination against Linear's GraphQL API (`https://api.linear.app/graphql`)
+- Rate limiting via `X-RateLimit-Requests-Remaining` header with adaptive sleep
+- 8 entity types mapped to POLE+O model (Issue, Project, Cycle, Team, Person, Label, WorkflowState, Comment)
+- 16 relationship types (ASSIGNED_TO, CREATED_BY, BELONGS_TO_PROJECT, BELONGS_TO_TEAM, IN_CYCLE, HAS_STATE, HAS_LABEL, CHILD_OF, HAS_COMMENT, AUTHORED_BY, MEMBER_OF, LEADS, CONTRIBUTED_BY, CYCLE_FOR, STATE_OF)
+- Issue descriptions exported as documents for RAG/vector search
+- Deduplication of users, labels, and workflow states across paginated issue responses
+- Optional comment import (gated behind `include_comments` kwarg)
+- Team key filtering (`--linear-team ENG` imports only that team's data)
+- No external dependency — uses `urllib.request` from stdlib
+
+#### CLI integration
+- `--connector linear` flag (works with existing `--connector` multiple=True pattern)
+- `--linear-api-key` flag (envvar `LINEAR_API_KEY`)
+- `--linear-team` flag (envvar `LINEAR_TEAM`) for team filtering
+- Warning when `--connector linear` is used without an API key
+
+#### Generated project integration
+- `linear_connector.py.j2` Jinja2 template for standalone connector in generated projects
+- `import_data.py.j2` updated with Linear credential wiring
+- `.env` and `.env.example` templates include `LINEAR_API_KEY` and `LINEAR_TEAM` (conditional)
+- `config.py.j2` includes `linear_api_key` and `linear_team` settings fields (conditional)
+
+### Tests added (14 new → 705 total)
+
+- `test_credential_prompts` — verify api_key and team_key prompts
+- `test_authenticate_success/missing_key/invalid_key` — auth validation
+- `test_fetch_entity_mapping` — verify all 7 entity labels present
+- `test_fetch_entity_counts` — correct counts for mocked workspace
+- `test_fetch_relationships` — verify all relationship types
+- `test_fetch_child_of_relationship` — sub-issue hierarchy
+- `test_fetch_documents` — issue descriptions as documents
+- `test_fetch_deduplication` — users/labels not duplicated
+- `test_fetch_team_filter/team_filter_not_found` — team key filtering
+- `test_issue_name_format` — `"ENG-101 Fix login bug"` format
+- `test_priority_labels` — priority mapping (0-4 → human-readable)
+
+### Files created
+
+- `src/create_context_graph/connectors/linear_connector.py`
+- `src/create_context_graph/templates/backend/connectors/linear_connector.py.j2`
+
+### Files modified
+
+- `src/create_context_graph/connectors/__init__.py` — register LinearConnector
+- `src/create_context_graph/cli.py` — `--linear-api-key`, `--linear-team` flags + credential wiring
+- `src/create_context_graph/renderer.py` — add linear to connector_templates
+- `src/create_context_graph/templates/backend/connectors/import_data.py.j2` — Linear block
+- `src/create_context_graph/templates/base/dot_env.j2` — conditional Linear env vars
+- `src/create_context_graph/templates/base/dot_env_example.j2` — Linear env vars with docs
+- `src/create_context_graph/templates/backend/shared/config.py.j2` — Linear settings fields
+- `tests/test_connectors.py` — 14 new tests, registry counts 7→8
+
+---
+
 ## Summary
 
 | Phase | Description | Status | Tests |
@@ -837,3 +899,4 @@ Comprehensive v0.7.0 testing revealed 2 critical regressions, data quality gaps,
 | 12 | v0.6.0 Comprehensive Testing Feedback | **Complete** | (included above) |
 | 13 | v0.6.1 Stability, Data Quality & Tools | **Complete** | (included above) |
 | 14 | v0.7.1 Embedding Regression, Data Quality & Docs | **Complete** | (included above) |
+| 15 | Linear Data Import Connector | **Complete** | 705 passing |

@@ -10,6 +10,7 @@ const sidebars: SidebarsConfig = {
       items: [
         'tutorials/first-context-graph-app',
         'tutorials/customizing-domain-ontology',
+        'tutorials/linear-context-graph',
       ],
     },
     {

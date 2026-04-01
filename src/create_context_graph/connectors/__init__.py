@@ -153,3 +153,4 @@ from create_context_graph.connectors.slack_connector import SlackConnector  # no
 from create_context_graph.connectors.gmail_connector import GmailConnector  # noqa: E402, F401
 from create_context_graph.connectors.gcal_connector import GCalConnector  # noqa: E402, F401
 from create_context_graph.connectors.salesforce_connector import SalesforceConnector  # noqa: E402, F401
+from create_context_graph.connectors.linear_connector import LinearConnector  # noqa: E402, F401

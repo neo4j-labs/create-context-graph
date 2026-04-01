@@ -25,6 +25,8 @@ from app.connectors.gmail_connector import GmailConnector
 from app.connectors.gcal_connector import GCalConnector
 {% endraw %}{% elif conn == 'salesforce' %}{% raw %}
 from app.connectors.salesforce_connector import SalesforceConnector
+{% endraw %}{% elif conn == 'linear' %}{% raw %}
+from app.connectors.linear_connector import LinearConnector
 {% endraw %}{% endif %}{% endfor %}
 {% raw %}
 from app.config import settings
@@ -79,6 +81,12 @@ def main():
             "password": settings.salesforce_password,
             "security_token": settings.salesforce_security_token or "",
             "domain": settings.salesforce_domain or "login",
+        }))
+{% endraw %}{% elif conn == 'linear' %}{% raw %}
+    if settings.linear_api_key:
+        connectors.append(("Linear", LinearConnector(), {
+            "api_key": settings.linear_api_key,
+            "team_key": settings.linear_team or "",
         }))
 {% endraw %}{% endif %}
 {% endfor %}

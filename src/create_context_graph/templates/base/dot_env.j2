@@ -16,5 +16,10 @@ DOMAIN_ID={{ domain.id }}
 BACKEND_PORT=8000
 FRONTEND_PORT=3000
 
+{% if 'linear' in saas_connectors %}
+# Linear (project management data import)
+LINEAR_API_KEY=
+LINEAR_TEAM=
+{% endif %}
 # Suppress HuggingFace Hub warnings (set HF_TOKEN for higher rate limits)
 HF_HUB_DISABLE_TELEMETRY=1
