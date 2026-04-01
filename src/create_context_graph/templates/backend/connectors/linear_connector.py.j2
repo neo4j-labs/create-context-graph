@@ -427,7 +427,7 @@ class LinearConnector:
         query = """
         query($teamId: String!) {
             team(id: $teamId) {
-                cycles { nodes { id name number startsAt endsAt progress url } }
+                cycles { nodes { id name number startsAt endsAt progress } }
             }
         }
         """
@@ -441,7 +441,7 @@ class LinearConnector:
                 comments { nodes { id body createdAt url user { id name displayName email } } }
             """
         query = f"""
-        query($teamId: String, $cursor: String) {{
+        query($teamId: ID, $cursor: String) {{
             issues(first: 50, after: $cursor, filter: {{ team: {{ id: {{ eq: $teamId }} }} }}) {{
                 pageInfo {{ hasNextPage endCursor }}
                 nodes {{

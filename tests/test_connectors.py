@@ -355,7 +355,7 @@ class TestLinearConnector:
             }],
         }}}
         cycles_resp = {"data": {"team": {"cycles": {"nodes": [
-            {"id": "cycle-1", "name": "Sprint 10", "number": 10, "startsAt": "2026-03-25", "endsAt": "2026-04-08", "progress": 0.3, "url": "https://linear.app/cycle/10"},
+            {"id": "cycle-1", "name": "Sprint 10", "number": 10, "startsAt": "2026-03-25", "endsAt": "2026-04-08", "progress": 0.3},
         ]}}}}
         issues_resp = {"data": {"issues": {
             "pageInfo": {"hasNextPage": False, "endCursor": None},

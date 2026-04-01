@@ -274,7 +274,6 @@ class LinearConnector(BaseConnector):
                     "startsAt": cycle.get("startsAt", ""),
                     "endsAt": cycle.get("endsAt", ""),
                     "progress": cycle.get("progress", 0),
-                    "url": cycle.get("url", ""),
                 })
                 relationships.append({
                     "type": "CYCLE_FOR",
@@ -606,7 +605,7 @@ class LinearConnector(BaseConnector):
             team(id: $teamId) {
                 cycles {
                     nodes {
-                        id name number startsAt endsAt progress url
+                        id name number startsAt endsAt progress
                     }
                 }
             }
@@ -629,7 +628,7 @@ class LinearConnector(BaseConnector):
             """
 
         query = f"""
-        query FetchIssues($teamId: String, $cursor: String) {{
+        query FetchIssues($teamId: ID, $cursor: String) {{
             issues(first: 50, after: $cursor, filter: {{ team: {{ id: {{ eq: $teamId }} }} }}) {{
                 pageInfo {{ hasNextPage endCursor }}
                 nodes {{
