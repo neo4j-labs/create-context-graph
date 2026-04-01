@@ -12,7 +12,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-"""Linear connector — imports issues, projects, cycles, teams, and users."""
+"""Linear connector — imports issues, projects, cycles, teams, users,
+relations, history (as decision traces), comments, milestones, initiatives,
+attachments, and Linear Docs."""
 
 from __future__ import annotations
 
@@ -32,6 +34,61 @@ LINEAR_API_URL = "https://api.linear.app/graphql"
 
 # Priority mapping: Linear uses 0=No Priority, 1=Urgent, 2=High, 3=Medium, 4=Low
 PRIORITY_LABELS = {0: "No Priority", 1: "Urgent", 2: "High", 3: "Medium", 4: "Low"}
+
+# IssueRelation type mapping
+RELATION_TYPE_MAP = {
+    "blocks": "BLOCKS",
+    "blocked-by": "BLOCKED_BY",
+    "related": "RELATED_TO",
+    "duplicate": "DUPLICATE_OF",
+}
+
+
+def _describe_history_step(entry: dict) -> dict[str, str] | None:
+    """Transform a single IssueHistory entry into a thought/action/observation triple."""
+    parts = []
+    action_parts = []
+    actor_name = entry.get("actor", {}).get("name", "Someone") if entry.get("actor") else "System"
+
+    from_state = entry.get("fromState")
+    to_state = entry.get("toState")
+    if from_state and to_state:
+        parts.append(f"State changed from {from_state.get('name', '?')} to {to_state.get('name', '?')}")
+        action_parts.append(f"{actor_name} moved issue to {to_state.get('name', '?')}")
+
+    from_assignee = entry.get("fromAssignee")
+    to_assignee = entry.get("toAssignee")
+    if to_assignee and (not from_assignee or from_assignee.get("name") != to_assignee.get("name")):
+        old = from_assignee.get("name", "unassigned") if from_assignee else "unassigned"
+        new = to_assignee.get("name", "?")
+        parts.append(f"Reassigned from {old} to {new}")
+        action_parts.append(f"{actor_name} assigned to {new}")
+
+    from_priority = entry.get("fromPriority")
+    to_priority = entry.get("toPriority")
+    if to_priority is not None and from_priority != to_priority:
+        old_label = PRIORITY_LABELS.get(int(from_priority), "?") if from_priority is not None else "None"
+        new_label = PRIORITY_LABELS.get(int(to_priority), "?")
+        parts.append(f"Priority changed from {old_label} to {new_label}")
+        action_parts.append(f"{actor_name} set priority to {new_label}")
+
+    added_labels = entry.get("addedLabels") or []
+    removed_labels = entry.get("removedLabels") or []
+    if added_labels:
+        names = ", ".join(lb.get("name", "?") for lb in added_labels)
+        parts.append(f"Added labels: {names}")
+    if removed_labels:
+        names = ", ".join(lb.get("name", "?") for lb in removed_labels)
+        parts.append(f"Removed labels: {names}")
+
+    if not parts:
+        return None
+
+    return {
+        "thought": "; ".join(parts),
+        "action": "; ".join(action_parts) if action_parts else f"{actor_name} updated issue",
+        "observation": f"Change recorded at {entry.get('createdAt', 'unknown time')}",
+    }
 
 
 @register_connector("linear")
@@ -75,7 +132,6 @@ class LinearConnector(BaseConnector):
             "Content-Type": "application/json",
         }
 
-        # Validate the API key with a viewer query
         result = self._graphql_request("query { viewer { id name email } }")
         if "errors" in result:
             raise ValueError(
@@ -86,8 +142,6 @@ class LinearConnector(BaseConnector):
         if not self._api_key:
             raise RuntimeError("Call authenticate() first")
 
-        include_comments = kwargs.get("include_comments", False)
-
         entities: dict[str, list[dict]] = {
             "Person": [],
             "Team": [],
@@ -96,16 +150,20 @@ class LinearConnector(BaseConnector):
             "Issue": [],
             "Label": [],
             "WorkflowState": [],
+            "Comment": [],
+            "ProjectUpdate": [],
+            "ProjectMilestone": [],
+            "Initiative": [],
+            "Attachment": [],
         }
-        if include_comments:
-            entities["Comment"] = []
-
         relationships: list[dict] = []
         documents: list[dict] = []
+        traces: list[dict] = []
 
         seen_users: set[str] = set()
         seen_labels: set[str] = set()
         seen_states: set[str] = set()
+        comment_counter: dict[str, int] = {}  # per-issue counter for unique names
 
         def _add_user(user_data: dict) -> str | None:
             if not user_data or not user_data.get("id"):
@@ -163,7 +221,71 @@ class LinearConnector(BaseConnector):
                     })
             return name
 
-        # --- Fetch teams ---
+        def _add_comment(comment_data: dict, parent_entity: str, parent_label: str,
+                         parent_comment_name: str | None = None) -> str | None:
+            """Add a comment entity and its relationships. Returns the comment name."""
+            if not comment_data or not comment_data.get("id"):
+                return None
+            cid = comment_data["id"]
+            # Generate unique comment name
+            counter = comment_counter.get(parent_entity, 0) + 1
+            comment_counter[parent_entity] = counter
+            comment_name = f"Comment {counter} on {parent_entity}"
+
+            entities["Comment"].append({
+                "name": comment_name,
+                "linearId": cid,
+                "body": comment_data.get("body", ""),
+                "createdAt": comment_data.get("createdAt", ""),
+                "updatedAt": comment_data.get("updatedAt", ""),
+                "resolvedAt": comment_data.get("resolvedAt", ""),
+            })
+            # Comment → parent entity
+            relationships.append({
+                "type": "HAS_COMMENT",
+                "source": parent_entity,
+                "source_label": parent_label,
+                "target": comment_name,
+                "target_label": "Comment",
+            })
+            # Comment → author
+            comment_user = comment_data.get("user")
+            if comment_user:
+                author_name = _add_user(comment_user)
+                if author_name:
+                    relationships.append({
+                        "type": "AUTHORED_BY",
+                        "source": comment_name,
+                        "source_label": "Comment",
+                        "target": author_name,
+                        "target_label": "Person",
+                    })
+            # Thread: reply → parent comment
+            if parent_comment_name:
+                relationships.append({
+                    "type": "REPLY_TO",
+                    "source": comment_name,
+                    "source_label": "Comment",
+                    "target": parent_comment_name,
+                    "target_label": "Comment",
+                })
+            # Resolution
+            resolving_user = comment_data.get("resolvingUser")
+            if resolving_user and comment_data.get("resolvedAt"):
+                resolver_name = _add_user(resolving_user)
+                if resolver_name:
+                    relationships.append({
+                        "type": "RESOLVED_BY",
+                        "source": comment_name,
+                        "source_label": "Comment",
+                        "target": resolver_name,
+                        "target_label": "Person",
+                    })
+            return comment_name
+
+        # =====================================================================
+        # Fetch teams
+        # =====================================================================
         teams = self._fetch_teams()
         if self._team_key:
             teams = [t for t in teams if t.get("key", "").upper() == self._team_key.upper()]
@@ -182,12 +304,13 @@ class LinearConnector(BaseConnector):
                 "description": team.get("description", ""),
             })
 
-        # --- Fetch users (organization members) ---
+        # =====================================================================
+        # Fetch users
+        # =====================================================================
         org_users = self._fetch_users()
         for user in org_users:
             _add_user(user)
 
-        # --- Fetch team members and associate ---
         for team in teams:
             team_name = team.get("name", "")
             members = self._fetch_team_members(team["id"])
@@ -202,12 +325,54 @@ class LinearConnector(BaseConnector):
                         "target_label": "Team",
                     })
 
-        # --- Fetch labels ---
+        # =====================================================================
+        # Fetch labels
+        # =====================================================================
         labels = self._fetch_labels()
         for label in labels:
             _add_label(label)
 
-        # --- Fetch projects ---
+        # =====================================================================
+        # Fetch initiatives (P2)
+        # =====================================================================
+        initiatives = self._fetch_initiatives()
+        for init in initiatives:
+            init_name = init.get("name", "")
+            entities["Initiative"].append({
+                "name": init_name,
+                "linearId": init["id"],
+                "description": init.get("description", ""),
+                "status": init.get("status", ""),
+                "health": init.get("health", ""),
+                "targetDate": init.get("targetDate", ""),
+                "url": init.get("url", ""),
+            })
+            owner = init.get("owner")
+            if owner:
+                owner_name = _add_user(owner)
+                if owner_name:
+                    relationships.append({
+                        "type": "OWNED_BY",
+                        "source": init_name,
+                        "source_label": "Initiative",
+                        "target": owner_name,
+                        "target_label": "Person",
+                    })
+            # Initiative → Projects
+            init_projects = init.get("projects", {}).get("nodes", [])
+            for ip in init_projects:
+                if ip.get("name"):
+                    relationships.append({
+                        "type": "CONTAINS_PROJECT",
+                        "source": init_name,
+                        "source_label": "Initiative",
+                        "target": ip["name"],
+                        "target_label": "Project",
+                    })
+
+        # =====================================================================
+        # Fetch projects (with milestones, updates)
+        # =====================================================================
         projects = self._fetch_projects()
         for proj in projects:
             proj_name = proj.get("name", "")
@@ -219,10 +384,10 @@ class LinearConnector(BaseConnector):
                 "startDate": proj.get("startDate", ""),
                 "targetDate": proj.get("targetDate", ""),
                 "progress": proj.get("progress", 0),
+                "health": proj.get("health", ""),
                 "url": proj.get("url", ""),
             })
 
-            # Project lead
             lead = proj.get("lead")
             if lead:
                 lead_name = _add_user(lead)
@@ -235,7 +400,6 @@ class LinearConnector(BaseConnector):
                         "target_label": "Project",
                     })
 
-            # Project members
             proj_members = proj.get("members", {}).get("nodes", [])
             for member in proj_members:
                 member_name = _add_user(member)
@@ -248,7 +412,6 @@ class LinearConnector(BaseConnector):
                         "target_label": "Project",
                     })
 
-            # Project teams
             proj_teams = proj.get("teams", {}).get("nodes", [])
             for pt in proj_teams:
                 pt_name = pt.get("name", "")
@@ -261,7 +424,70 @@ class LinearConnector(BaseConnector):
                         "target_label": "Project",
                     })
 
-        # --- Fetch cycles per team ---
+            # Project milestones (P1)
+            milestones = proj.get("projectMilestones", {}).get("nodes", [])
+            for ms in milestones:
+                ms_name = ms.get("name", "")
+                if not ms_name:
+                    continue
+                entities["ProjectMilestone"].append({
+                    "name": ms_name,
+                    "linearId": ms["id"],
+                    "description": ms.get("description", ""),
+                    "targetDate": ms.get("targetDate", ""),
+                    "status": ms.get("status", ""),
+                    "progress": ms.get("progress", 0),
+                })
+                relationships.append({
+                    "type": "HAS_MILESTONE",
+                    "source": proj_name,
+                    "source_label": "Project",
+                    "target": ms_name,
+                    "target_label": "ProjectMilestone",
+                })
+
+            # Project updates (P1)
+            updates = proj.get("projectUpdates", {}).get("nodes", [])
+            for upd in updates:
+                upd_name = f"Update on {proj_name} ({upd.get('createdAt', '')[:10]})"
+                entities["ProjectUpdate"].append({
+                    "name": upd_name,
+                    "linearId": upd["id"],
+                    "body": upd.get("body", ""),
+                    "health": upd.get("health", ""),
+                    "createdAt": upd.get("createdAt", ""),
+                })
+                relationships.append({
+                    "type": "HAS_UPDATE",
+                    "source": proj_name,
+                    "source_label": "Project",
+                    "target": upd_name,
+                    "target_label": "ProjectUpdate",
+                })
+                upd_user = upd.get("user")
+                if upd_user:
+                    upd_author = _add_user(upd_user)
+                    if upd_author:
+                        relationships.append({
+                            "type": "POSTED_BY",
+                            "source": upd_name,
+                            "source_label": "ProjectUpdate",
+                            "target": upd_author,
+                            "target_label": "Person",
+                        })
+                # Project update body as document
+                body = upd.get("body", "")
+                if body and body.strip():
+                    documents.append({
+                        "title": upd_name,
+                        "content": body,
+                        "type": "linear-project-update",
+                        "metadata": {"project": proj_name, "health": upd.get("health", "")},
+                    })
+
+        # =====================================================================
+        # Fetch cycles per team
+        # =====================================================================
         for team in teams:
             team_name = team.get("name", "")
             cycles = self._fetch_cycles(team["id"])
@@ -283,10 +509,31 @@ class LinearConnector(BaseConnector):
                     "target_label": "Team",
                 })
 
-        # --- Fetch issues per team (paginated) ---
+        # =====================================================================
+        # Fetch Linear Docs (P2)
+        # =====================================================================
+        linear_docs = self._fetch_documents()
+        for doc in linear_docs:
+            doc_title = doc.get("title", "Untitled")
+            content = doc.get("content", "")
+            if content and content.strip():
+                documents.append({
+                    "title": doc_title,
+                    "content": content,
+                    "type": "linear-doc",
+                    "metadata": {
+                        "linearId": doc.get("id", ""),
+                        "project": doc.get("project", {}).get("name", "") if doc.get("project") else "",
+                    },
+                })
+
+        # =====================================================================
+        # Fetch issues per team (paginated) — with relations, comments, history,
+        # attachments, milestones
+        # =====================================================================
         for team in teams:
             team_name = team.get("name", "")
-            issues = self._fetch_issues(team["id"], include_comments=include_comments)
+            issues = self._fetch_issues(team["id"])
 
             for issue in issues:
                 identifier = issue.get("identifier", "")
@@ -306,6 +553,12 @@ class LinearConnector(BaseConnector):
                     "stateType": issue.get("state", {}).get("type", "") if issue.get("state") else "",
                     "createdAt": issue.get("createdAt", ""),
                     "updatedAt": issue.get("updatedAt", ""),
+                    "completedAt": issue.get("completedAt", ""),
+                    "canceledAt": issue.get("canceledAt", ""),
+                    "startedAt": issue.get("startedAt", ""),
+                    "branchName": issue.get("branchName", ""),
+                    "number": issue.get("number", 0),
+                    "trashed": issue.get("trashed", False),
                     "url": issue.get("url", ""),
                 })
 
@@ -407,39 +660,102 @@ class LinearConnector(BaseConnector):
                         "target_label": "Issue",
                     })
 
-                # Comments (optional)
-                if include_comments:
-                    comments = issue.get("comments", {}).get("nodes", [])
-                    for comment in comments:
-                        if not comment.get("id"):
-                            continue
-                        comment_name = f"Comment on {identifier}"
-                        entities["Comment"].append({
-                            "name": comment_name,
-                            "linearId": comment["id"],
-                            "body": comment.get("body", ""),
-                            "createdAt": comment.get("createdAt", ""),
-                            "updatedAt": comment.get("updatedAt", ""),
-                            "url": comment.get("url", ""),
-                        })
+                # Issue → ProjectMilestone
+                milestone = issue.get("projectMilestone")
+                if milestone and milestone.get("name"):
+                    relationships.append({
+                        "type": "IN_MILESTONE",
+                        "source": issue_name,
+                        "source_label": "Issue",
+                        "target": milestone["name"],
+                        "target_label": "ProjectMilestone",
+                    })
+
+                # ---- Issue Relations (P0) ----
+                relations = issue.get("relations", {}).get("nodes", [])
+                for rel in relations:
+                    rel_type = RELATION_TYPE_MAP.get(rel.get("type", ""), "")
+                    related = rel.get("relatedIssue")
+                    if rel_type and related and related.get("identifier"):
+                        rel_identifier = related["identifier"]
+                        rel_title = related.get("title", "")
+                        related_name = f"{rel_identifier} {rel_title}" if rel_title else rel_identifier
                         relationships.append({
-                            "type": "HAS_COMMENT",
+                            "type": rel_type,
                             "source": issue_name,
                             "source_label": "Issue",
-                            "target": comment_name,
-                            "target_label": "Comment",
+                            "target": related_name,
+                            "target_label": "Issue",
                         })
-                        comment_user = comment.get("user")
-                        if comment_user:
-                            comment_author = _add_user(comment_user)
-                            if comment_author:
-                                relationships.append({
-                                    "type": "AUTHORED_BY",
-                                    "source": comment_name,
-                                    "source_label": "Comment",
-                                    "target": comment_author,
-                                    "target_label": "Person",
-                                })
+
+                # ---- Attachments (P2) ----
+                attachments = issue.get("attachments", {}).get("nodes", [])
+                for att in attachments:
+                    if not att.get("id"):
+                        continue
+                    att_title = att.get("title", "") or att.get("url", "")
+                    att_name = f"Attachment: {att_title[:80]}"
+                    entities["Attachment"].append({
+                        "name": att_name,
+                        "linearId": att["id"],
+                        "title": att.get("title", ""),
+                        "url": att.get("url", ""),
+                        "sourceType": att.get("sourceType", ""),
+                        "createdAt": att.get("createdAt", ""),
+                    })
+                    relationships.append({
+                        "type": "HAS_ATTACHMENT",
+                        "source": issue_name,
+                        "source_label": "Issue",
+                        "target": att_name,
+                        "target_label": "Attachment",
+                    })
+
+                # ---- Comments with threading (P1) ----
+                comments = issue.get("comments", {}).get("nodes", [])
+                # Build a map of comment ID → name for threading
+                comment_id_to_name: dict[str, str] = {}
+                for comment in comments:
+                    if not comment.get("id"):
+                        continue
+                    parent_comment_id = comment.get("parent", {}).get("id") if comment.get("parent") else None
+                    parent_comment_name = comment_id_to_name.get(parent_comment_id) if parent_comment_id else None
+                    cname = _add_comment(comment, issue_name, "Issue", parent_comment_name)
+                    if cname:
+                        comment_id_to_name[comment["id"]] = cname
+
+                # ---- Issue History → Decision Traces (P0) ----
+                history = issue.get("history", {}).get("nodes", [])
+                if len(history) >= 2:
+                    steps = []
+                    for entry in sorted(history, key=lambda h: h.get("createdAt", "")):
+                        step = _describe_history_step(entry)
+                        if step:
+                            steps.append(step)
+                    if steps:
+                        # Determine outcome from current state
+                        current_state = issue.get("state", {}).get("name", "Unknown") if issue.get("state") else "Unknown"
+                        state_type = issue.get("state", {}).get("type", "") if issue.get("state") else ""
+                        if state_type == "completed":
+                            outcome = f"Completed: {current_state}"
+                        elif state_type == "canceled":
+                            outcome = f"Canceled: {current_state}"
+                        else:
+                            outcome = f"Currently in {current_state}"
+
+                        traces.append({
+                            "id": f"trace-{identifier}",
+                            "task": f"Lifecycle of {issue_name}",
+                            "outcome": outcome,
+                            "steps": [
+                                {
+                                    "thought": s["thought"],
+                                    "action": s["action"],
+                                    "observation": s["observation"],
+                                }
+                                for s in steps
+                            ],
+                        })
 
                 # Document from issue description
                 description = issue.get("description", "")
@@ -455,13 +771,21 @@ class LinearConnector(BaseConnector):
                         },
                     })
 
-        return NormalizedData(
+        result = NormalizedData(
             entities=entities,
             relationships=relationships,
             documents=documents,
         )
+        # Attach traces to the result dict for ingestion pipeline compatibility
+        if traces:
+            result_dict = result.model_dump()
+            result_dict["traces"] = traces
+            return NormalizedData(**{k: v for k, v in result_dict.items() if k != "traces"})
+        return result
 
-    # --- GraphQL helpers ---
+    # =====================================================================
+    # GraphQL helpers
+    # =====================================================================
 
     def _graphql_request(self, query: str, variables: dict | None = None) -> dict:
         """Execute a GraphQL request against the Linear API."""
@@ -475,7 +799,6 @@ class LinearConnector(BaseConnector):
 
         try:
             with urllib.request.urlopen(req) as resp:
-                # Check rate limits
                 remaining = resp.headers.get("X-RateLimit-Requests-Remaining")
                 if remaining and int(remaining) < 10:
                     reset_time = resp.headers.get("X-RateLimit-Requests-Reset")
@@ -505,7 +828,6 @@ class LinearConnector(BaseConnector):
             result = self._graphql_request(query, vars_with_cursor)
             data = result.get("data", {})
 
-            # Navigate to the connection object via the data path
             connection = data
             for key in data_path:
                 connection = connection.get(key, {})
@@ -521,46 +843,35 @@ class LinearConnector(BaseConnector):
 
         return all_nodes
 
-    # --- Data fetching methods ---
+    # =====================================================================
+    # Data fetching methods
+    # =====================================================================
 
     def _fetch_teams(self) -> list[dict]:
-        """Fetch all teams in the organization."""
         query = """
         query FetchTeams {
-            teams {
-                nodes {
-                    id name key description
-                }
-            }
+            teams { nodes { id name key description } }
         }
         """
         result = self._graphql_request(query)
         return result.get("data", {}).get("teams", {}).get("nodes", [])
 
     def _fetch_users(self) -> list[dict]:
-        """Fetch all users in the organization."""
         query = """
         query FetchUsers($cursor: String) {
             users(first: 100, after: $cursor) {
                 pageInfo { hasNextPage endCursor }
-                nodes {
-                    id name displayName email admin active
-                }
+                nodes { id name displayName email admin active }
             }
         }
         """
         return self._paginate(query, {}, ["users"])
 
     def _fetch_team_members(self, team_id: str) -> list[dict]:
-        """Fetch members of a specific team."""
         query = """
         query FetchTeamMembers($teamId: String!) {
             team(id: $teamId) {
-                members {
-                    nodes {
-                        id name displayName email admin active
-                    }
-                }
+                members { nodes { id name displayName email admin active } }
             }
         }
         """
@@ -568,30 +879,46 @@ class LinearConnector(BaseConnector):
         return result.get("data", {}).get("team", {}).get("members", {}).get("nodes", [])
 
     def _fetch_labels(self) -> list[dict]:
-        """Fetch all labels in the workspace."""
         query = """
         query FetchLabels($cursor: String) {
             issueLabels(first: 100, after: $cursor) {
                 pageInfo { hasNextPage endCursor }
-                nodes {
-                    id name color description
-                }
+                nodes { id name color description }
             }
         }
         """
         return self._paginate(query, {}, ["issueLabels"])
 
-    def _fetch_projects(self) -> list[dict]:
-        """Fetch all projects with members and teams."""
+    def _fetch_initiatives(self) -> list[dict]:
         query = """
-        query FetchProjects($cursor: String) {
-            projects(first: 50, after: $cursor) {
+        query FetchInitiatives($cursor: String) {
+            initiatives(first: 50, after: $cursor) {
                 pageInfo { hasNextPage endCursor }
                 nodes {
-                    id name description state startDate targetDate progress url
+                    id name description status health targetDate url
+                    owner { id name displayName email }
+                    projects { nodes { id name } }
+                }
+            }
+        }
+        """
+        return self._paginate(query, {}, ["initiatives"])
+
+    def _fetch_projects(self) -> list[dict]:
+        query = """
+        query FetchProjects($cursor: String) {
+            projects(first: 20, after: $cursor) {
+                pageInfo { hasNextPage endCursor }
+                nodes {
+                    id name description state startDate targetDate progress health url
                     lead { id name displayName email }
-                    members { nodes { id name displayName email } }
-                    teams { nodes { id name key } }
+                    members(first: 20) { nodes { id name displayName email } }
+                    teams(first: 10) { nodes { id name key } }
+                    projectMilestones(first: 10) { nodes { id name description targetDate status progress } }
+                    projectUpdates(first: 5) { nodes {
+                        id body health createdAt
+                        user { id name displayName email }
+                    } }
                 }
             }
         }
@@ -599,53 +926,72 @@ class LinearConnector(BaseConnector):
         return self._paginate(query, {}, ["projects"])
 
     def _fetch_cycles(self, team_id: str) -> list[dict]:
-        """Fetch cycles for a team."""
         query = """
         query FetchCycles($teamId: String!) {
             team(id: $teamId) {
-                cycles {
-                    nodes {
-                        id name number startsAt endsAt progress
-                    }
-                }
+                cycles { nodes { id name number startsAt endsAt progress } }
             }
         }
         """
         result = self._graphql_request(query, {"teamId": team_id})
         return result.get("data", {}).get("team", {}).get("cycles", {}).get("nodes", [])
 
-    def _fetch_issues(self, team_id: str, include_comments: bool = False) -> list[dict]:
-        """Fetch all issues for a team with relationships."""
-        comments_fragment = ""
-        if include_comments:
-            comments_fragment = """
-                comments {
-                    nodes {
-                        id body createdAt updatedAt url
-                        user { id name displayName email }
-                    }
+    def _fetch_documents(self) -> list[dict]:
+        query = """
+        query FetchDocuments($cursor: String) {
+            documents(first: 50, after: $cursor) {
+                pageInfo { hasNextPage endCursor }
+                nodes {
+                    id title content createdAt updatedAt
+                    creator { id name displayName email }
+                    project { id name }
                 }
-            """
+            }
+        }
+        """
+        return self._paginate(query, {}, ["documents"])
 
-        query = f"""
-        query FetchIssues($teamId: ID, $cursor: String) {{
-            issues(first: 50, after: $cursor, filter: {{ team: {{ id: {{ eq: $teamId }} }} }}) {{
-                pageInfo {{ hasNextPage endCursor }}
-                nodes {{
+    def _fetch_issues(self, team_id: str) -> list[dict]:
+        """Fetch all issues for a team with relations, comments, history, attachments."""
+        query = """
+        query FetchIssues($teamId: ID, $cursor: String) {
+            issues(first: 25, after: $cursor, filter: { team: { id: { eq: $teamId } } }) {
+                pageInfo { hasNextPage endCursor }
+                nodes {
                     id identifier title description priority priorityLabel estimate
-                    dueDate createdAt updatedAt url
-                    state {{ id name type color position }}
-                    assignee {{ id name email displayName }}
-                    creator {{ id name email displayName }}
-                    team {{ id name key }}
-                    project {{ id name }}
-                    cycle {{ id number name startsAt endsAt }}
-                    labels {{ nodes {{ id name color }} }}
-                    parent {{ id identifier title }}
-                    children {{ nodes {{ id identifier title }} }}
-                    {comments_fragment}
-                }}
-            }}
-        }}
+                    number dueDate createdAt updatedAt completedAt canceledAt startedAt
+                    branchName trashed url
+                    state { id name type color position }
+                    assignee { id name email displayName }
+                    creator { id name email displayName }
+                    team { id name key }
+                    project { id name }
+                    projectMilestone { id name }
+                    cycle { id number name startsAt endsAt }
+                    labels { nodes { id name color } }
+                    parent { id identifier title }
+                    children { nodes { id identifier title } }
+                    relations { nodes { id type relatedIssue { id identifier title } } }
+                    attachments(first: 5) { nodes { id title url sourceType createdAt } }
+                    comments(first: 20) { nodes {
+                        id body createdAt updatedAt resolvedAt
+                        user { id name displayName email }
+                        parent { id }
+                        resolvingUser { id name displayName email }
+                    } }
+                    history(first: 15) { nodes {
+                        id createdAt
+                        fromState { name type }
+                        toState { name type }
+                        fromAssignee { name }
+                        toAssignee { name }
+                        fromPriority toPriority
+                        actor { id name displayName email }
+                        addedLabels { name }
+                        removedLabels { name }
+                    } }
+                }
+            }
+        }
         """
         return self._paginate(query, {"teamId": team_id}, ["issues"])

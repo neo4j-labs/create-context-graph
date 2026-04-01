@@ -341,17 +341,34 @@ class TestLinearConnector:
                 {"id": "label-2", "name": "Feature", "color": "#22c55e", "description": "Feature requests"},
             ],
         }}}
+        initiatives_resp = {"data": {"initiatives": {
+            "pageInfo": {"hasNextPage": False, "endCursor": None},
+            "nodes": [{
+                "id": "init-1", "name": "Q2 Goals", "description": "Q2 strategic goals",
+                "status": "Active", "health": "onTrack", "targetDate": "2026-06-30",
+                "url": "https://linear.app/init/q2",
+                "owner": {"id": "user-1", "name": "Alice", "displayName": "Alice A", "email": "alice@test.com"},
+                "projects": {"nodes": [{"id": "proj-1", "name": "v2 Launch"}]},
+            }],
+        }}}
         projects_resp = {"data": {"projects": {
             "pageInfo": {"hasNextPage": False, "endCursor": None},
             "nodes": [{
                 "id": "proj-1", "name": "v2 Launch", "description": "Version 2 launch",
                 "state": "started", "startDate": "2026-01-01", "targetDate": "2026-06-01",
-                "progress": 0.45, "url": "https://linear.app/proj/v2-launch",
+                "progress": 0.45, "health": "atRisk", "url": "https://linear.app/proj/v2-launch",
                 "lead": {"id": "user-1", "name": "Alice", "displayName": "Alice A", "email": "alice@test.com"},
                 "members": {"nodes": [
                     {"id": "user-1", "name": "Alice", "displayName": "Alice A", "email": "alice@test.com"},
                 ]},
                 "teams": {"nodes": [{"id": "team-1", "name": "Engineering", "key": "ENG"}]},
+                "projectMilestones": {"nodes": [
+                    {"id": "ms-1", "name": "Beta Release", "description": "Beta launch", "targetDate": "2026-04-15", "status": "planned", "progress": 0.2},
+                ]},
+                "projectUpdates": {"nodes": [
+                    {"id": "upd-1", "body": "Sprint velocity is below target. Descoping 2 features.", "health": "atRisk", "createdAt": "2026-03-28",
+                     "user": {"id": "user-1", "name": "Alice", "displayName": "Alice A", "email": "alice@test.com"}},
+                ]},
             }],
         }}}
         cycles_resp = {"data": {"team": {"cycles": {"nodes": [
@@ -364,34 +381,86 @@ class TestLinearConnector:
                     "id": "issue-1", "identifier": "ENG-101", "title": "Fix login bug",
                     "description": "The login page crashes when email contains a plus sign.",
                     "priority": 2, "priorityLabel": "High", "estimate": 3,
-                    "dueDate": "2026-04-15", "createdAt": "2026-03-20", "updatedAt": "2026-03-28",
+                    "number": 101, "dueDate": "2026-04-15",
+                    "createdAt": "2026-03-20", "updatedAt": "2026-03-28",
+                    "completedAt": None, "canceledAt": None, "startedAt": "2026-03-21",
+                    "branchName": "eng/eng-101-fix-login-bug", "trashed": False,
                     "url": "https://linear.app/issue/ENG-101",
                     "state": {"id": "state-1", "name": "In Progress", "type": "started", "color": "#f59e0b", "position": 2},
                     "assignee": {"id": "user-1", "name": "Alice", "email": "alice@test.com", "displayName": "Alice A"},
                     "creator": {"id": "user-2", "name": "Bob", "email": "bob@test.com", "displayName": "Bob B"},
                     "team": {"id": "team-1", "name": "Engineering", "key": "ENG"},
                     "project": {"id": "proj-1", "name": "v2 Launch"},
+                    "projectMilestone": {"id": "ms-1", "name": "Beta Release"},
                     "cycle": {"id": "cycle-1", "number": 10, "name": "Sprint 10", "startsAt": "2026-03-25", "endsAt": "2026-04-08"},
                     "labels": {"nodes": [{"id": "label-1", "name": "Bug", "color": "#ef4444"}]},
                     "parent": None,
                     "children": {"nodes": []},
+                    "relations": {"nodes": [
+                        {"id": "rel-1", "type": "blocks", "relatedIssue": {"id": "issue-2", "identifier": "ENG-102", "title": "Add OAuth support"}},
+                    ]},
+                    "attachments": {"nodes": [
+                        {"id": "att-1", "title": "Figma mockup", "url": "https://figma.com/file/abc", "sourceType": "figma", "createdAt": "2026-03-21"},
+                    ]},
+                    "comments": {"nodes": [
+                        {"id": "comment-1", "body": "Should we use OAuth2 or session tokens?", "createdAt": "2026-03-22", "updatedAt": "2026-03-22", "resolvedAt": "2026-03-23",
+                         "user": {"id": "user-1", "name": "Alice", "displayName": "Alice A", "email": "alice@test.com"},
+                         "parent": None,
+                         "resolvingUser": {"id": "user-2", "name": "Bob", "displayName": "Bob B", "email": "bob@test.com"}},
+                        {"id": "comment-2", "body": "OAuth2 for better mobile support.", "createdAt": "2026-03-22T10:00:00Z", "updatedAt": "2026-03-22T10:00:00Z", "resolvedAt": None,
+                         "user": {"id": "user-2", "name": "Bob", "displayName": "Bob B", "email": "bob@test.com"},
+                         "parent": {"id": "comment-1"},
+                         "resolvingUser": None},
+                    ]},
+                    "history": {"nodes": [
+                        {"id": "hist-1", "createdAt": "2026-03-20",
+                         "fromState": None, "toState": {"name": "Backlog", "type": "backlog"},
+                         "fromAssignee": None, "toAssignee": None,
+                         "fromPriority": None, "toPriority": 2,
+                         "actor": {"id": "user-2", "name": "Bob", "displayName": "Bob B", "email": "bob@test.com"},
+                         "addedLabels": [{"name": "Bug"}], "removedLabels": []},
+                        {"id": "hist-2", "createdAt": "2026-03-21",
+                         "fromState": {"name": "Backlog", "type": "backlog"}, "toState": {"name": "In Progress", "type": "started"},
+                         "fromAssignee": None, "toAssignee": {"name": "Alice"},
+                         "fromPriority": None, "toPriority": None,
+                         "actor": {"id": "user-1", "name": "Alice", "displayName": "Alice A", "email": "alice@test.com"},
+                         "addedLabels": [], "removedLabels": []},
+                    ]},
                 },
                 {
                     "id": "issue-2", "identifier": "ENG-102", "title": "Add OAuth support",
                     "description": "Implement OAuth2 login flow.",
                     "priority": 3, "priorityLabel": "Medium", "estimate": 8,
-                    "dueDate": None, "createdAt": "2026-03-22", "updatedAt": "2026-03-29",
+                    "number": 102, "dueDate": None,
+                    "createdAt": "2026-03-22", "updatedAt": "2026-03-29",
+                    "completedAt": None, "canceledAt": None, "startedAt": None,
+                    "branchName": "eng/eng-102-add-oauth", "trashed": False,
                     "url": "https://linear.app/issue/ENG-102",
                     "state": {"id": "state-2", "name": "Backlog", "type": "backlog", "color": "#6b7280", "position": 0},
                     "assignee": None,
                     "creator": {"id": "user-1", "name": "Alice", "email": "alice@test.com", "displayName": "Alice A"},
                     "team": {"id": "team-1", "name": "Engineering", "key": "ENG"},
                     "project": {"id": "proj-1", "name": "v2 Launch"},
+                    "projectMilestone": None,
                     "cycle": None,
                     "labels": {"nodes": [{"id": "label-2", "name": "Feature", "color": "#22c55e"}]},
                     "parent": {"id": "issue-1", "identifier": "ENG-101", "title": "Fix login bug"},
                     "children": {"nodes": []},
+                    "relations": {"nodes": []},
+                    "attachments": {"nodes": []},
+                    "comments": {"nodes": []},
+                    "history": {"nodes": []},
                 },
+            ],
+        }}}
+
+        documents_resp = {"data": {"documents": {
+            "pageInfo": {"hasNextPage": False, "endCursor": None},
+            "nodes": [
+                {"id": "doc-1", "title": "Architecture Decision Record", "content": "# ADR: Use OAuth2\n\nWe chose OAuth2 for authentication.",
+                 "createdAt": "2026-03-15", "updatedAt": "2026-03-15",
+                 "creator": {"id": "user-1", "name": "Alice", "displayName": "Alice A", "email": "alice@test.com"},
+                 "project": {"id": "proj-1", "name": "v2 Launch"}},
             ],
         }}}
 
@@ -399,7 +468,9 @@ class TestLinearConnector:
         return {
             "viewer": viewer_resp,
             "issueLabels": labels_resp,
+            "initiatives(first": initiatives_resp,
             "projects(first": projects_resp,
+            "documents(first": documents_resp,
             "issues(first": issues_resp,
             "users(first": users_resp,
             "members": team_members_resp,
@@ -457,13 +528,10 @@ class TestLinearConnector:
 
         assert isinstance(result, NormalizedData)
         # Check all expected entity labels exist
-        assert "Person" in result.entities
-        assert "Team" in result.entities
-        assert "Project" in result.entities
-        assert "Cycle" in result.entities
-        assert "Issue" in result.entities
-        assert "Label" in result.entities
-        assert "WorkflowState" in result.entities
+        for label in ["Person", "Team", "Project", "Cycle", "Issue", "Label",
+                       "WorkflowState", "Comment", "ProjectUpdate", "ProjectMilestone",
+                       "Initiative", "Attachment"]:
+            assert label in result.entities, f"Missing entity label: {label}"
 
     @patch("urllib.request.urlopen")
     def test_fetch_entity_counts(self, mock_urlopen):
@@ -479,7 +547,12 @@ class TestLinearConnector:
         assert len(result.entities["Project"]) == 1
         assert len(result.entities["Cycle"]) == 1
         assert len(result.entities["Label"]) == 2
-        assert len(result.entities["WorkflowState"]) == 2  # 2 unique states
+        assert len(result.entities["WorkflowState"]) == 2
+        assert len(result.entities["Comment"]) == 2
+        assert len(result.entities["ProjectUpdate"]) == 1
+        assert len(result.entities["ProjectMilestone"]) == 1
+        assert len(result.entities["Initiative"]) == 1
+        assert len(result.entities["Attachment"]) == 1
 
     @patch("urllib.request.urlopen")
     def test_fetch_relationships(self, mock_urlopen):
@@ -524,9 +597,10 @@ class TestLinearConnector:
         conn.authenticate({"api_key": "lin_api_test123"})
         result = conn.fetch()
 
-        assert len(result.documents) == 2  # Both issues have descriptions
-        assert all(d["type"] == "linear-issue" for d in result.documents)
-        assert any("ENG-101" in d["title"] for d in result.documents)
+        assert len(result.documents) == 4  # 2 issue descriptions + 1 project update + 1 linear doc
+        issue_docs = [d for d in result.documents if d["type"] == "linear-issue"]
+        assert len(issue_docs) == 2
+        assert any("ENG-101" in d["title"] for d in issue_docs)
 
     @patch("urllib.request.urlopen")
     def test_fetch_deduplication(self, mock_urlopen):
@@ -593,6 +667,222 @@ class TestLinearConnector:
         issues = result.entities["Issue"]
         high_priority = [i for i in issues if i["identifier"] == "ENG-101"]
         assert high_priority[0]["priorityLabel"] == "High"
+
+    @patch("urllib.request.urlopen")
+    def test_issue_relations_blocks(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        blocks_rels = [r for r in result.relationships if r["type"] == "BLOCKS"]
+        assert len(blocks_rels) == 1
+        assert "ENG-101" in blocks_rels[0]["source"]
+        assert "ENG-102" in blocks_rels[0]["target"]
+
+    @patch("urllib.request.urlopen")
+    def test_comment_threading(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        # Should have 2 comments
+        assert len(result.entities["Comment"]) == 2
+        # Reply relationship
+        reply_rels = [r for r in result.relationships if r["type"] == "REPLY_TO"]
+        assert len(reply_rels) == 1
+        assert reply_rels[0]["source_label"] == "Comment"
+        assert reply_rels[0]["target_label"] == "Comment"
+
+    @patch("urllib.request.urlopen")
+    def test_comment_resolution(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        resolved_rels = [r for r in result.relationships if r["type"] == "RESOLVED_BY"]
+        assert len(resolved_rels) == 1
+        assert resolved_rels[0]["target"] == "Bob"
+
+    @patch("urllib.request.urlopen")
+    def test_project_milestones(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        assert len(result.entities["ProjectMilestone"]) == 1
+        assert result.entities["ProjectMilestone"][0]["name"] == "Beta Release"
+        # Project → Milestone relationship
+        ms_rels = [r for r in result.relationships if r["type"] == "HAS_MILESTONE"]
+        assert len(ms_rels) == 1
+        # Issue → Milestone
+        in_ms_rels = [r for r in result.relationships if r["type"] == "IN_MILESTONE"]
+        assert len(in_ms_rels) == 1
+
+    @patch("urllib.request.urlopen")
+    def test_project_updates(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        assert len(result.entities["ProjectUpdate"]) == 1
+        upd = result.entities["ProjectUpdate"][0]
+        assert upd["health"] == "atRisk"
+        # Update relationships
+        has_update_rels = [r for r in result.relationships if r["type"] == "HAS_UPDATE"]
+        assert len(has_update_rels) == 1
+        posted_rels = [r for r in result.relationships if r["type"] == "POSTED_BY"]
+        assert len(posted_rels) == 1
+        # Update body as document
+        update_docs = [d for d in result.documents if d["type"] == "linear-project-update"]
+        assert len(update_docs) == 1
+
+    @patch("urllib.request.urlopen")
+    def test_initiatives(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        assert len(result.entities["Initiative"]) == 1
+        assert result.entities["Initiative"][0]["name"] == "Q2 Goals"
+        # Initiative → Person (OWNED_BY)
+        owned_rels = [r for r in result.relationships if r["type"] == "OWNED_BY"]
+        assert len(owned_rels) == 1
+        # Initiative → Project
+        contains_rels = [r for r in result.relationships if r["type"] == "CONTAINS_PROJECT"]
+        assert len(contains_rels) == 1
+
+    @patch("urllib.request.urlopen")
+    def test_attachments(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        assert len(result.entities["Attachment"]) == 1
+        assert result.entities["Attachment"][0]["sourceType"] == "figma"
+        att_rels = [r for r in result.relationships if r["type"] == "HAS_ATTACHMENT"]
+        assert len(att_rels) == 1
+
+    @patch("urllib.request.urlopen")
+    def test_linear_docs_as_documents(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        linear_docs = [d for d in result.documents if d["type"] == "linear-doc"]
+        assert len(linear_docs) == 1
+        assert "Architecture Decision Record" in linear_docs[0]["title"]
+
+    @patch("urllib.request.urlopen")
+    def test_history_decision_traces(self, mock_urlopen):
+        """Issue ENG-101 has 2 history entries → should produce a decision trace."""
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        from create_context_graph.connectors.linear_connector import LinearConnector
+        conn = LinearConnector()
+        conn.authenticate({"api_key": "lin_api_test123"})
+        # Access the internal trace generation by calling fetch
+        conn.fetch()
+        # The traces are generated internally but NormalizedData doesn't have a traces field.
+        # We verify that the history transform function works correctly.
+        from create_context_graph.connectors.linear_connector import _describe_history_step
+        step = _describe_history_step({
+            "createdAt": "2026-03-21",
+            "fromState": {"name": "Backlog", "type": "backlog"},
+            "toState": {"name": "In Progress", "type": "started"},
+            "fromAssignee": None,
+            "toAssignee": {"name": "Alice"},
+            "fromPriority": None, "toPriority": None,
+            "actor": {"id": "u1", "name": "Alice", "displayName": "Alice", "email": "a@t.com"},
+            "addedLabels": [], "removedLabels": [],
+        })
+        assert step is not None
+        assert "Backlog" in step["thought"]
+        assert "In Progress" in step["thought"]
+        assert "Alice" in step["action"]
+
+    @patch("urllib.request.urlopen")
+    def test_history_no_trace_for_single_entry(self, mock_urlopen):
+        """Issue ENG-102 has 0 history entries → no decision trace."""
+        from create_context_graph.connectors.linear_connector import _describe_history_step
+        # An entry with no changes should return None
+        step = _describe_history_step({
+            "createdAt": "2026-03-22",
+            "fromState": None, "toState": None,
+            "fromAssignee": None, "toAssignee": None,
+            "fromPriority": None, "toPriority": None,
+            "actor": None,
+            "addedLabels": [], "removedLabels": [],
+        })
+        assert step is None
+
+    @patch("urllib.request.urlopen")
+    def test_additional_issue_fields(self, mock_urlopen):
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        issue = [i for i in result.entities["Issue"] if i["identifier"] == "ENG-101"][0]
+        assert issue["branchName"] == "eng/eng-101-fix-login-bug"
+        assert issue["number"] == 101
+        assert issue["startedAt"] == "2026-03-21"
+        assert issue["trashed"] is False
+
+    @patch("urllib.request.urlopen")
+    def test_all_relationship_types(self, mock_urlopen):
+        """Verify the full set of relationship types from the enhanced import."""
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        rel_types = {r["type"] for r in result.relationships}
+        # P0: blocking relations
+        assert "BLOCKS" in rel_types
+        # P1: comments
+        assert "HAS_COMMENT" in rel_types
+        assert "AUTHORED_BY" in rel_types
+        assert "REPLY_TO" in rel_types
+        assert "RESOLVED_BY" in rel_types
+        # P1: project updates/milestones
+        assert "HAS_UPDATE" in rel_types
+        assert "POSTED_BY" in rel_types
+        assert "HAS_MILESTONE" in rel_types
+        assert "IN_MILESTONE" in rel_types
+        # P2: initiatives
+        assert "OWNED_BY" in rel_types
+        assert "CONTAINS_PROJECT" in rel_types
+        # P2: attachments
+        assert "HAS_ATTACHMENT" in rel_types
 
 
 # ---------------------------------------------------------------------------

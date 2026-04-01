@@ -879,6 +879,71 @@ Real-world project data import from Linear. First connector to import graph-nati
 
 ---
 
+## Phase 15b — Linear Deep Graph: Relations, History, Decisions & Full Schema (v0.8.3)
+
+Schema introspection of Linear's GraphQL API (494 types) revealed significant additional data available beyond the initial v1 import. This phase adds issue relations (blocking/dependency graph), issue history transformed into decision traces, threaded comments with resolution tracking, project updates with health, milestones, initiatives, attachments, and Linear Docs.
+
+### Issue Relations — blocking/dependency graph (P0)
+- Import `issue.relations` connection with `type` field (blocks, is-blocked-by, related, duplicate)
+- New relationship types: `:BLOCKS`, `:BLOCKED_BY`, `:RELATED_TO`, `:DUPLICATE_OF` between Issue nodes
+- Also import `inverseRelations` for bidirectional coverage
+- Enables "what's blocking X?" and dependency chain queries
+
+### Issue History → Decision Traces (P0)
+- Import `issue.history` connection: state transitions, assignee changes, priority changes, label changes, cycle/project moves
+- Transform history entries into `:DecisionTrace` → `:HAS_STEP` → `:TraceStep` chains
+- Each issue with 2+ history entries generates a decision trace with:
+  - `task`: "Lifecycle of {identifier} {title}"
+  - `outcome`: derived from final state (completed/canceled/current state)
+  - Steps: each history entry becomes a TraceStep with thought/action/observation derived from the transition fields
+- `:TraceStep` nodes linked to `:Person` via `:PERFORMED_BY` for actor attribution
+
+### Comment Threading & Resolution (P1)
+- Import comment `parent` field for thread hierarchy: `(:Comment)-[:REPLY_TO]->(:Comment)`
+- Import `resolvedAt` and `resolvingUser`: `(:Comment)-[:RESOLVED_BY]->(:Person)`
+- Import comments on ProjectUpdates, not just Issues: `(:ProjectUpdate)-[:HAS_COMMENT]->(:Comment)`
+- Import `quotedText` for context on replies
+- Comments always imported (remove `include_comments` gate — comments are core to decision traces)
+
+### Project Updates & Health (P1)
+- New entity: `ProjectUpdate` with `body`, `health` (onTrack/atRisk/offTrack), `createdAt`
+- Relationships: `(:Project)-[:HAS_UPDATE]->(:ProjectUpdate)`, `(:ProjectUpdate)-[:POSTED_BY]->(:Person)`
+- Project updates with health changes generate decision trace steps
+- Update bodies imported as documents for RAG
+
+### Project Milestones (P1)
+- New entity: `ProjectMilestone` with `name`, `description`, `targetDate`, `status`, `progress`
+- Relationships: `(:Project)-[:HAS_MILESTONE]->(:ProjectMilestone)`, `(:Issue)-[:IN_MILESTONE]->(:ProjectMilestone)`
+- Query `issue.projectMilestone` field for issue→milestone linking
+
+### Initiative Hierarchy (P2)
+- New entity: `Initiative` with `name`, `description`, `status` (Planned/Active/Completed), `health`, `targetDate`, `owner`
+- Relationships: `(:Initiative)-[:CONTAINS_PROJECT]->(:Project)`, `(:Initiative)-[:OWNED_BY]->(:Person)`
+- Query `projects.initiatives` connection for initiative→project linking
+
+### Attachments — External Links (P2)
+- New entity: `Attachment` with `title`, `url`, `sourceType`, `metadata`
+- Relationship: `(:Issue)-[:HAS_ATTACHMENT]->(:Attachment)`
+- Enables cross-tool graph (GitHub PRs, Figma files, Slack messages linked to issues)
+
+### Linear Docs (P2)
+- Query `documents` connection on Issue, Project, Cycle
+- Import as `:Document` nodes (same as our existing document model)
+- Links: `(:Issue)-[:HAS_DOCUMENT]->(:Document)`, `(:Project)-[:HAS_DOCUMENT]->(:Document)`
+
+### Additional Issue Fields
+- Add `completedAt`, `canceledAt`, `startedAt` timestamps for lifecycle tracking
+- Add `branchName` for Git branch linking
+- Add `number` (team-scoped numeric ID)
+- Add `trashed` boolean for soft-delete awareness
+
+### Files modified
+- `src/create_context_graph/connectors/linear_connector.py` — all new entities, relations, history→trace transform
+- `src/create_context_graph/templates/backend/connectors/linear_connector.py.j2` — matching template
+- `tests/test_connectors.py` — new tests for relations, history, traces, threading
+
+---
+
 ## Summary
 
 | Phase | Description | Status | Tests |
@@ -900,3 +965,4 @@ Real-world project data import from Linear. First connector to import graph-nati
 | 13 | v0.6.1 Stability, Data Quality & Tools | **Complete** | (included above) |
 | 14 | v0.7.1 Embedding Regression, Data Quality & Docs | **Complete** | (included above) |
 | 15 | Linear Data Import Connector | **Complete** | 705 passing |
+| 15b | Linear Deep Graph: Relations, History, Decisions | **Complete** | (included above) |
