@@ -306,3 +306,177 @@ class TestV060CLIFlags:
         assert result.exit_code == 0, result.output
         env_content = (out / ".env").read_text()
         assert "OPENAI_API_KEY=sk-test-openai" in env_content
+
+
+class TestLinearConnectorCLI:
+    """Tests for --connector linear CLI integration."""
+
+    def test_linear_connector_dry_run(self, runner, tmp_path):
+        """--connector linear should appear in dry-run output."""
+        out = tmp_path / "linear-dry"
+        result = runner.invoke(main, [
+            "linear-dry",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "linear",
+            "--dry-run",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        assert "linear" in result.output
+        assert "Connectors" in result.output
+
+    def test_linear_connector_warning_without_key(self, runner, tmp_path):
+        """--connector linear without --linear-api-key should print a warning."""
+        out = tmp_path / "linear-warn"
+        result = runner.invoke(main, [
+            "linear-warn",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "linear",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        assert "Warning" in result.output
+        assert "LINEAR_API_KEY" in result.output
+
+    def test_linear_connector_generates_files(self, runner, tmp_path):
+        """--connector linear should generate the linear_connector.py in the project."""
+        out = tmp_path / "linear-gen"
+        result = runner.invoke(main, [
+            "linear-gen",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "linear",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        # Linear connector template should be rendered
+        assert (out / "backend" / "app" / "connectors" / "linear_connector.py").exists()
+        assert (out / "backend" / "app" / "connectors" / "__init__.py").exists()
+        # Import script should exist
+        assert (out / "backend" / "scripts" / "import_data.py").exists()
+
+    def test_linear_connector_env_vars(self, runner, tmp_path):
+        """--connector linear should add LINEAR_API_KEY and LINEAR_TEAM to .env."""
+        out = tmp_path / "linear-env"
+        result = runner.invoke(main, [
+            "linear-env",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "linear",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        env = (out / ".env").read_text()
+        assert "LINEAR_API_KEY" in env
+        assert "LINEAR_TEAM" in env
+
+    def test_linear_connector_env_example(self, runner, tmp_path):
+        """--connector linear should add LINEAR_API_KEY to .env.example."""
+        out = tmp_path / "linear-envex"
+        result = runner.invoke(main, [
+            "linear-envex",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "linear",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        env_example = (out / ".env.example").read_text()
+        assert "LINEAR_API_KEY" in env_example
+
+    def test_linear_connector_config_has_settings(self, runner, tmp_path):
+        """Generated config.py should have linear_api_key and linear_team fields."""
+        out = tmp_path / "linear-cfg"
+        result = runner.invoke(main, [
+            "linear-cfg",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "linear",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        config_content = (out / "backend" / "app" / "config.py").read_text()
+        assert "linear_api_key" in config_content
+        assert "linear_team" in config_content
+
+    def test_linear_connector_import_data_script(self, runner, tmp_path):
+        """Generated import_data.py should include Linear connector imports."""
+        out = tmp_path / "linear-imp"
+        result = runner.invoke(main, [
+            "linear-imp",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "linear",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        import_script = (out / "backend" / "scripts" / "import_data.py").read_text()
+        assert "LinearConnector" in import_script
+        assert "linear_api_key" in import_script
+
+    def test_linear_api_key_flag(self, runner, tmp_path):
+        """--linear-api-key should be accepted without error."""
+        out = tmp_path / "linear-key"
+        result = runner.invoke(main, [
+            "linear-key",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "linear",
+            "--linear-api-key", "lin_api_test123",
+            "--dry-run",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        # Should NOT show the warning since key is provided
+        assert "Warning" not in result.output or "LINEAR_API_KEY" not in result.output
+
+    def test_linear_team_flag(self, runner, tmp_path):
+        """--linear-team flag should be accepted."""
+        out = tmp_path / "linear-team"
+        result = runner.invoke(main, [
+            "linear-team",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "linear",
+            "--linear-api-key", "lin_api_test123",
+            "--linear-team", "ENG",
+            "--dry-run",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+
+    def test_linear_connector_template_compiles(self, runner, tmp_path):
+        """Generated linear_connector.py should be valid Python."""
+        out = tmp_path / "linear-compile"
+        result = runner.invoke(main, [
+            "linear-compile",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "linear",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        connector_path = out / "backend" / "app" / "connectors" / "linear_connector.py"
+        source = connector_path.read_text()
+        try:
+            compile(source, str(connector_path), "exec")
+        except SyntaxError as e:
+            pytest.fail(f"linear_connector.py has syntax error: {e}")
+
+    def test_linear_with_multiple_connectors(self, runner, tmp_path):
+        """Linear connector can be combined with other connectors."""
+        out = tmp_path / "linear-multi"
+        result = runner.invoke(main, [
+            "linear-multi",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "linear",
+            "--connector", "github",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        connectors_dir = out / "backend" / "app" / "connectors"
+        assert (connectors_dir / "linear_connector.py").exists()
+        assert (connectors_dir / "github_connector.py").exists()

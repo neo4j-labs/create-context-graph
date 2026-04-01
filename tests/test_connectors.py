@@ -885,6 +885,250 @@ class TestLinearConnector:
         assert "HAS_ATTACHMENT" in rel_types
 
 
+    # --- History transform edge cases ---
+
+    def test_history_step_priority_change(self):
+        from create_context_graph.connectors.linear_connector import _describe_history_step
+        step = _describe_history_step({
+            "createdAt": "2026-03-25",
+            "fromState": None, "toState": None,
+            "fromAssignee": None, "toAssignee": None,
+            "fromPriority": 3, "toPriority": 1,
+            "actor": {"id": "u1", "name": "Alice", "displayName": "Alice", "email": "a@t.com"},
+            "addedLabels": [], "removedLabels": [],
+        })
+        assert step is not None
+        assert "Medium" in step["thought"]
+        assert "Urgent" in step["thought"]
+        assert "Alice" in step["action"]
+
+    def test_history_step_label_changes(self):
+        from create_context_graph.connectors.linear_connector import _describe_history_step
+        step = _describe_history_step({
+            "createdAt": "2026-03-25",
+            "fromState": None, "toState": None,
+            "fromAssignee": None, "toAssignee": None,
+            "fromPriority": None, "toPriority": None,
+            "actor": {"id": "u1", "name": "Bob", "displayName": "Bob", "email": "b@t.com"},
+            "addedLabels": [{"name": "Urgent"}, {"name": "P0"}],
+            "removedLabels": [{"name": "Backlog"}],
+        })
+        assert step is not None
+        assert "Urgent" in step["thought"]
+        assert "P0" in step["thought"]
+        assert "Backlog" in step["thought"]
+
+    def test_history_step_reassignment(self):
+        from create_context_graph.connectors.linear_connector import _describe_history_step
+        step = _describe_history_step({
+            "createdAt": "2026-03-25",
+            "fromState": None, "toState": None,
+            "fromAssignee": {"name": "Alice"},
+            "toAssignee": {"name": "Bob"},
+            "fromPriority": None, "toPriority": None,
+            "actor": {"id": "u1", "name": "Manager", "displayName": "Manager", "email": "m@t.com"},
+            "addedLabels": [], "removedLabels": [],
+        })
+        assert step is not None
+        assert "Alice" in step["thought"]
+        assert "Bob" in step["thought"]
+        assert "Manager" in step["action"]
+
+    def test_history_step_system_actor(self):
+        """History entry with no actor should use 'System' as actor name."""
+        from create_context_graph.connectors.linear_connector import _describe_history_step
+        step = _describe_history_step({
+            "createdAt": "2026-03-25",
+            "fromState": {"name": "Todo", "type": "unstarted"},
+            "toState": {"name": "Done", "type": "completed"},
+            "fromAssignee": None, "toAssignee": None,
+            "fromPriority": None, "toPriority": None,
+            "actor": None,
+            "addedLabels": [], "removedLabels": [],
+        })
+        assert step is not None
+        assert "System" in step["action"]
+
+    def test_history_step_combined_changes(self):
+        """A single history entry with state + assignee + priority changes."""
+        from create_context_graph.connectors.linear_connector import _describe_history_step
+        step = _describe_history_step({
+            "createdAt": "2026-03-25",
+            "fromState": {"name": "Backlog", "type": "backlog"},
+            "toState": {"name": "In Progress", "type": "started"},
+            "fromAssignee": None,
+            "toAssignee": {"name": "Alice"},
+            "fromPriority": 4, "toPriority": 2,
+            "actor": {"id": "u1", "name": "Alice", "displayName": "Alice", "email": "a@t.com"},
+            "addedLabels": [{"name": "Sprint"}], "removedLabels": [],
+        })
+        assert step is not None
+        # Should capture all changes
+        assert "Backlog" in step["thought"]
+        assert "In Progress" in step["thought"]
+        assert "unassigned" in step["thought"]
+        assert "Alice" in step["thought"]
+        assert "Low" in step["thought"]  # priority 4
+        assert "High" in step["thought"]  # priority 2
+        assert "Sprint" in step["thought"]
+
+    # --- Pagination test ---
+
+    @patch("urllib.request.urlopen")
+    def test_pagination_multi_page(self, mock_urlopen):
+        """Verify cursor-based pagination fetches all pages."""
+        page1_resp = {"data": {"users": {
+            "pageInfo": {"hasNextPage": True, "endCursor": "cursor-1"},
+            "nodes": [
+                {"id": "user-1", "name": "Alice", "displayName": "Alice", "email": "a@t.com", "admin": True, "active": True},
+            ],
+        }}}
+        page2_resp = {"data": {"users": {
+            "pageInfo": {"hasNextPage": False, "endCursor": None},
+            "nodes": [
+                {"id": "user-2", "name": "Bob", "displayName": "Bob", "email": "b@t.com", "admin": False, "active": True},
+            ],
+        }}}
+
+        call_count = [0]
+
+        def mock_urlopen_fn(req):
+            body = json.loads(req.data.decode())
+            query = body.get("query", "")
+            cursor = body.get("variables", {}).get("cursor")
+
+            if "viewer" in query:
+                resp_data = {"data": {"viewer": {"id": "u1", "name": "Test", "email": "t@t.com"}}}
+            elif "users" in query:
+                call_count[0] += 1
+                resp_data = page2_resp if cursor == "cursor-1" else page1_resp
+            else:
+                resp_data = {"data": {}}
+
+            mock_resp = MagicMock()
+            mock_resp.read.return_value = json.dumps(resp_data).encode()
+            mock_resp.__enter__ = MagicMock(return_value=mock_resp)
+            mock_resp.__exit__ = MagicMock(return_value=False)
+            mock_resp.headers = MagicMock()
+            mock_resp.headers.get = MagicMock(return_value="100")
+            return mock_resp
+
+        mock_urlopen.side_effect = mock_urlopen_fn
+
+        from create_context_graph.connectors.linear_connector import LinearConnector
+        conn = LinearConnector()
+        conn.authenticate({"api_key": "lin_api_test"})
+        users = conn._fetch_users()
+        assert len(users) == 2
+        assert call_count[0] == 2  # 2 pages fetched
+
+    # --- Error handling tests ---
+
+    @patch("urllib.request.urlopen")
+    def test_http_401_raises_value_error(self, mock_urlopen):
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            "https://api.linear.app/graphql", 401, "Unauthorized", {}, None
+        )
+        from create_context_graph.connectors.linear_connector import LinearConnector
+        conn = LinearConnector()
+        conn._headers = {"Authorization": "bad", "Content-Type": "application/json"}
+        conn._api_key = "bad"
+        with pytest.raises(ValueError, match="Invalid Linear API key"):
+            conn._graphql_request("query { viewer { id } }")
+
+    @patch("urllib.request.urlopen")
+    def test_http_500_raises_runtime_error(self, mock_urlopen):
+        import io
+        import urllib.error
+        mock_urlopen.side_effect = urllib.error.HTTPError(
+            "https://api.linear.app/graphql", 500, "Internal Server Error", {},
+            io.BytesIO(b'{"error": "server error"}')
+        )
+        from create_context_graph.connectors.linear_connector import LinearConnector
+        conn = LinearConnector()
+        conn._headers = {"Authorization": "key", "Content-Type": "application/json"}
+        conn._api_key = "key"
+        with pytest.raises(RuntimeError, match="Linear API error.*500"):
+            conn._graphql_request("query { viewer { id } }")
+
+    @patch("urllib.request.urlopen")
+    def test_empty_workspace(self, mock_urlopen):
+        """A workspace with no data should return empty entities without errors."""
+        empty_responses = {
+            "viewer": {"data": {"viewer": {"id": "u1", "name": "Test", "email": "t@t.com"}}},
+            "teams": {"data": {"teams": {"nodes": []}}},
+            "users(first": {"data": {"users": {"pageInfo": {"hasNextPage": False}, "nodes": []}}},
+            "issueLabels": {"data": {"issueLabels": {"pageInfo": {"hasNextPage": False}, "nodes": []}}},
+            "initiatives(first": {"data": {"initiatives": {"pageInfo": {"hasNextPage": False}, "nodes": []}}},
+            "projects(first": {"data": {"projects": {"pageInfo": {"hasNextPage": False}, "nodes": []}}},
+            "documents(first": {"data": {"documents": {"pageInfo": {"hasNextPage": False}, "nodes": []}}},
+        }
+        mock_urlopen.side_effect = self._make_graphql_mock(empty_responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test"})
+        result = conn.fetch()
+
+        assert isinstance(result, NormalizedData)
+        total_entities = sum(len(v) for v in result.entities.values())
+        assert total_entities == 0
+        assert len(result.relationships) == 0
+        assert len(result.documents) == 0
+
+    # --- Relationship source/target label consistency ---
+
+    @patch("urllib.request.urlopen")
+    def test_all_relationships_have_required_keys(self, mock_urlopen):
+        """Every relationship must have type, source, target, source_label, target_label."""
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        required_keys = {"type", "source", "target", "source_label", "target_label"}
+        for rel in result.relationships:
+            missing = required_keys - set(rel.keys())
+            assert not missing, f"Relationship {rel['type']} missing keys: {missing}"
+
+    @patch("urllib.request.urlopen")
+    def test_entity_labels_match_relationship_labels(self, mock_urlopen):
+        """Relationship source/target labels should reference entity types that exist."""
+        responses = self._standard_responses()
+        mock_urlopen.side_effect = self._make_graphql_mock(responses)
+
+        conn = get_connector("linear")
+        conn.authenticate({"api_key": "lin_api_test123"})
+        result = conn.fetch()
+
+        entity_labels = set(result.entities.keys())
+        for rel in result.relationships:
+            assert rel["source_label"] in entity_labels, (
+                f"Relationship {rel['type']} has source_label '{rel['source_label']}' "
+                f"which is not in entity labels: {entity_labels}"
+            )
+            assert rel["target_label"] in entity_labels, (
+                f"Relationship {rel['type']} has target_label '{rel['target_label']}' "
+                f"which is not in entity labels: {entity_labels}"
+            )
+
+    # --- RELATION_TYPE_MAP coverage ---
+
+    def test_relation_type_map_completeness(self):
+        from create_context_graph.connectors.linear_connector import RELATION_TYPE_MAP
+        expected_types = {"blocks", "blocked-by", "related", "duplicate"}
+        assert set(RELATION_TYPE_MAP.keys()) == expected_types
+
+    def test_priority_labels_completeness(self):
+        from create_context_graph.connectors.linear_connector import PRIORITY_LABELS
+        assert len(PRIORITY_LABELS) == 5
+        assert PRIORITY_LABELS[0] == "No Priority"
+        assert PRIORITY_LABELS[1] == "Urgent"
+        assert PRIORITY_LABELS[4] == "Low"
+
+
 # ---------------------------------------------------------------------------
 # OAuth helper tests
 # ---------------------------------------------------------------------------
