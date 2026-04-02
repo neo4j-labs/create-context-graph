@@ -851,7 +851,7 @@ Real-world project data import from Linear. First connector to import graph-nati
 
 - `test_credential_prompts` — verify api_key and team_key prompts
 - `test_authenticate_success/missing_key/invalid_key` — auth validation
-- `test_fetch_entity_mapping` — verify all 7 entity labels present
+- `test_fetch_entity_mapping` — verify mapping for all configured Linear entity labels (Issue, Comment, ProjectUpdate, ProjectMilestone, Initiative, Attachment, etc.)
 - `test_fetch_entity_counts` — correct counts for mocked workspace
 - `test_fetch_relationships` — verify all relationship types
 - `test_fetch_child_of_relationship` — sub-issue hierarchy
