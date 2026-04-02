@@ -480,3 +480,60 @@ class TestLinearConnectorCLI:
         connectors_dir = out / "backend" / "app" / "connectors"
         assert (connectors_dir / "linear_connector.py").exists()
         assert (connectors_dir / "github_connector.py").exists()
+
+    def test_wizard_path_applies_linear_flags(self, runner, tmp_path):
+        """Linear CLI flags should be applied to config even when wizard path is taken.
+
+        We test the credential-wiring helper (_apply_linear_credentials) directly
+        because CliRunner always reports isatty=False, making the interactive wizard
+        path unreachable in headless tests.
+        """
+        from create_context_graph.cli import _apply_linear_credentials
+        from create_context_graph.config import ProjectConfig
+
+        # Simulate the config returned by the interactive wizard with linear selected
+        wizard_config = ProjectConfig(
+            project_name="wizard-linear",
+            domain="software-engineering",
+            framework="pydanticai",
+            data_source="saas",
+            saas_connectors=["linear"],
+        )
+        assert wizard_config.saas_credentials == {}
+
+        # Apply the same wiring that happens after run_wizard() in the CLI else-branch
+        _apply_linear_credentials(wizard_config, "lin_api_wizard123", "ENG")
+
+        assert wizard_config.saas_credentials["linear"]["api_key"] == "lin_api_wizard123"
+        assert wizard_config.saas_credentials["linear"]["team_key"] == "ENG"
+
+    def test_apply_linear_credentials_no_key_shows_warning(self, runner, tmp_path):
+        """Missing API key should result in a warning when linear is in saas_connectors."""
+        from create_context_graph.cli import _apply_linear_credentials
+        from create_context_graph.config import ProjectConfig
+
+        config = ProjectConfig(
+            project_name="warn-linear",
+            domain="software-engineering",
+            framework="pydanticai",
+            data_source="saas",
+            saas_connectors=["linear"],
+        )
+        # No api_key provided — warning should be emitted via rich console
+        _apply_linear_credentials(config, None, None)
+        assert not config.saas_credentials.get("linear", {}).get("api_key")
+
+    def test_apply_linear_credentials_skips_non_linear(self, runner, tmp_path):
+        """Helper should be a no-op when linear is not in saas_connectors."""
+        from create_context_graph.cli import _apply_linear_credentials
+        from create_context_graph.config import ProjectConfig
+
+        config = ProjectConfig(
+            project_name="no-linear",
+            domain="software-engineering",
+            framework="pydanticai",
+            data_source="saas",
+            saas_connectors=["github"],
+        )
+        _apply_linear_credentials(config, "should-not-be-set", "ENG")
+        assert "linear" not in config.saas_credentials

@@ -30,6 +30,28 @@ from create_context_graph.renderer import ProjectRenderer
 console = Console()
 
 
+def _apply_linear_credentials(
+    config: "ProjectConfig",
+    linear_api_key: str | None,
+    linear_team: str | None,
+) -> None:
+    """Apply Linear CLI flags to a config's saas_credentials dict (mutates in place)."""
+    if "linear" not in config.saas_connectors:
+        return
+    creds = config.saas_credentials.get("linear", {})
+    if linear_api_key:
+        creds["api_key"] = linear_api_key
+    if linear_team:
+        creds["team_key"] = linear_team
+    if creds:
+        config.saas_credentials["linear"] = creds
+    if not creds.get("api_key"):
+        console.print(
+            "[yellow]Warning:[/yellow] --connector linear requires a Linear API key. "
+            "Set LINEAR_API_KEY in your .env or pass --linear-api-key."
+        )
+
+
 @click.command()
 @click.argument("project_name", required=False)
 @click.option(
@@ -198,18 +220,7 @@ def main(
             saas_connectors=list(connector),
         )
         # Populate SaaS credentials from CLI flags
-        if "linear" in connector:
-            creds = {}
-            if linear_api_key:
-                creds["api_key"] = linear_api_key
-            if linear_team:
-                creds["team_key"] = linear_team
-            config.saas_credentials["linear"] = creds
-            if not linear_api_key:
-                console.print(
-                    "[yellow]Warning:[/yellow] --connector linear requires a Linear API key. "
-                    "Set LINEAR_API_KEY in your .env or pass --linear-api-key."
-                )
+        _apply_linear_credentials(config, linear_api_key, linear_team)
         # Warn if google-adk is selected without a Google API key
         if config.resolved_framework == "google-adk" and not google_api_key:
             console.print(
@@ -227,6 +238,8 @@ def main(
         from create_context_graph.wizard import run_wizard
 
         config = run_wizard()
+        # Apply CLI credential flags to wizard-produced config
+        _apply_linear_credentials(config, linear_api_key, linear_team)
 
     # Resolve output directory
     out = Path(output_dir) if output_dir else Path.cwd() / config.project_slug
