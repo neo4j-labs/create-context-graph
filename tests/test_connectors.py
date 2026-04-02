@@ -806,9 +806,12 @@ class TestLinearConnector:
         conn = LinearConnector()
         conn.authenticate({"api_key": "lin_api_test123"})
         # Access the internal trace generation by calling fetch
-        conn.fetch()
-        # The traces are generated internally but NormalizedData doesn't have a traces field.
-        # We verify that the history transform function works correctly.
+        result = conn.fetch()
+        # The traces are generated internally and exposed via NormalizedData.traces;
+        # we verify that at least one trace is produced and that the history transform
+        # function works correctly.
+        assert hasattr(result, "traces")
+        assert result.traces
         from create_context_graph.connectors.linear_connector import _describe_history_step
         step = _describe_history_step({
             "createdAt": "2026-03-21",
