@@ -41,6 +41,7 @@ def main():
     all_entities: dict[str, list[dict]] = {}
     all_relationships: list[dict] = []
     all_documents: list[dict] = []
+    all_traces: list[dict] = []
 
     connectors = []
 {% endraw %}
@@ -98,13 +99,14 @@ def main():
             print(f"Fetching data from {name}...")
             data = connector.fetch()
 
-            for label, items in data.entities.items():
+            for label, items in data["entities"].items():
                 all_entities.setdefault(label, []).extend(items)
-            all_relationships.extend(data.relationships)
-            all_documents.extend(data.documents)
+            all_relationships.extend(data["relationships"])
+            all_documents.extend(data["documents"])
+            all_traces.extend(data.get("traces", []))
 
-            entity_count = sum(len(v) for v in data.entities.values())
-            print(f"  ✓ {name}: {entity_count} entities, {len(data.documents)} documents")
+            entity_count = sum(len(v) for v in data["entities"].values())
+            print(f"  ✓ {name}: {entity_count} entities, {len(data['documents'])} documents, {len(data.get('traces', []))} traces")
         except Exception as e:
             print(f"  ⚠ {name}: {e}")
 
@@ -113,6 +115,7 @@ def main():
         "entities": all_entities,
         "relationships": all_relationships,
         "documents": all_documents,
+        "traces": all_traces,
     }
     fixture_path.parent.mkdir(parents=True, exist_ok=True)
     fixture_path.write_text(json.dumps(result, indent=2, default=str))

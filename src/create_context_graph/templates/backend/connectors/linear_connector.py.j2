@@ -19,6 +19,52 @@ RELATION_TYPE_MAP = {
 }
 
 
+def _describe_history_step(entry: dict) -> dict[str, str] | None:
+    """Transform a single IssueHistory entry into a thought/action/observation triple.
+
+    Returns None if the entry contains no recognisable changes (state, assignee,
+    priority, or label mutations). Only entries with at least one change produce a
+    step so that noisy/empty history nodes are filtered out of decision traces.
+    """
+    parts = []
+    action_parts = []
+    actor_name = entry.get("actor", {}).get("name", "Someone") if entry.get("actor") else "System"
+    from_state = entry.get("fromState")
+    to_state = entry.get("toState")
+    if from_state and to_state:
+        parts.append(f"State changed from {from_state.get('name', '?')} to {to_state.get('name', '?')}")
+        action_parts.append(f"{actor_name} moved issue to {to_state.get('name', '?')}")
+    from_assignee = entry.get("fromAssignee")
+    to_assignee = entry.get("toAssignee")
+    if to_assignee and (not from_assignee or from_assignee.get("name") != to_assignee.get("name")):
+        old = from_assignee.get("name", "unassigned") if from_assignee else "unassigned"
+        parts.append(f"Reassigned from {old} to {to_assignee.get('name', '?')}")
+        action_parts.append(f"{actor_name} assigned to {to_assignee.get('name', '?')}")
+    from_priority = entry.get("fromPriority")
+    to_priority = entry.get("toPriority")
+    if to_priority is not None and from_priority != to_priority:
+        try:
+            old_label = PRIORITY_LABELS.get(int(from_priority), "?") if from_priority is not None else "None"
+            new_label = PRIORITY_LABELS.get(int(to_priority), "?")
+        except (TypeError, ValueError):
+            old_label, new_label = str(from_priority), str(to_priority)
+        parts.append(f"Priority changed from {old_label} to {new_label}")
+        action_parts.append(f"{actor_name} set priority to {new_label}")
+    added_labels = entry.get("addedLabels") or []
+    removed_labels = entry.get("removedLabels") or []
+    if added_labels:
+        parts.append(f"Added labels: {', '.join(lb.get('name', '?') for lb in added_labels)}")
+    if removed_labels:
+        parts.append(f"Removed labels: {', '.join(lb.get('name', '?') for lb in removed_labels)}")
+    if not parts:
+        return None
+    return {
+        "thought": "; ".join(parts),
+        "action": "; ".join(action_parts) if action_parts else f"{actor_name} updated issue",
+        "observation": f"Change recorded at {entry.get('createdAt', 'unknown time')}",
+    }
+
+
 class LinearConnector:
     """Import issues, projects, cycles, and team data from Linear."""
 
@@ -55,7 +101,7 @@ class LinearConnector:
         """Fetch issues, projects, cycles, teams, and users from Linear.
 
         Returns:
-            dict with keys "entities", "relationships", "documents".
+            dict with keys "entities", "relationships", "documents", "traces".
         """
         if not self._api_key:
             raise RuntimeError("Call authenticate() first")
@@ -68,6 +114,7 @@ class LinearConnector:
         }
         relationships: list[dict] = []
         documents: list[dict] = []
+        traces: list[dict] = []
 
         seen_users: set[str] = set()
         seen_labels: set[str] = set()
@@ -267,12 +314,36 @@ class LinearConnector:
                     cname = _add_comment(comment, issue_name, "Issue", parent_cname)
                     if cname: comment_id_to_name[comment["id"]] = cname
 
+                # Issue History → Decision Traces
+                history = issue.get("history", {}).get("nodes", [])
+                if len(history) >= 2:
+                    steps = []
+                    for entry in sorted(history, key=lambda h: h.get("createdAt", "")):
+                        step = _describe_history_step(entry)
+                        if step:
+                            steps.append(step)
+                    if steps:
+                        current_state = issue.get("state", {}).get("name", "Unknown") if issue.get("state") else "Unknown"
+                        state_type = issue.get("state", {}).get("type", "") if issue.get("state") else ""
+                        if state_type == "completed":
+                            outcome = f"Completed: {current_state}"
+                        elif state_type == "canceled":
+                            outcome = f"Canceled: {current_state}"
+                        else:
+                            outcome = f"Currently in {current_state}"
+                        traces.append({
+                            "id": f"trace-{identifier}",
+                            "task": f"Lifecycle of {issue_name}",
+                            "outcome": outcome,
+                            "steps": [{"thought": s["thought"], "action": s["action"], "observation": s["observation"]} for s in steps],
+                        })
+
                 # Document from description
                 desc = issue.get("description", "")
                 if desc and desc.strip():
                     documents.append({"title": f"{identifier}: {title}", "content": desc, "type": "linear-issue", "metadata": {"identifier": identifier, "priority": PRIORITY_LABELS.get(priority, "No Priority")}})
 
-        return {"entities": entities, "relationships": relationships, "documents": documents}
+        return {"entities": entities, "relationships": relationships, "documents": documents, "traces": traces}
 
     # --- GraphQL helpers ---
 
@@ -337,6 +408,6 @@ class LinearConnector:
         return self._paginate(query, {}, ["documents"])
 
     def _fetch_issues(self, team_id: str) -> list[dict]:
-        query = """query($teamId: ID, $cursor: String) { issues(first: 25, after: $cursor, filter: { team: { id: { eq: $teamId } } }) { pageInfo { hasNextPage endCursor } nodes { id identifier title description priority priorityLabel estimate number dueDate createdAt updatedAt completedAt canceledAt startedAt branchName trashed url state { id name type color position } assignee { id name email displayName } creator { id name email displayName } team { id name key } project { id name } projectMilestone { id name } cycle { id number name startsAt endsAt } labels { nodes { id name color } } parent { id identifier title } children { nodes { id identifier title } } relations { nodes { id type relatedIssue { id identifier title } } } attachments(first: 5) { nodes { id title url sourceType createdAt } } comments(first: 20) { nodes { id body createdAt updatedAt resolvedAt user { id name displayName email } parent { id } resolvingUser { id name displayName email } } } } } }"""
+        query = """query($teamId: ID, $cursor: String) { issues(first: 25, after: $cursor, filter: { team: { id: { eq: $teamId } } }) { pageInfo { hasNextPage endCursor } nodes { id identifier title description priority priorityLabel estimate number dueDate createdAt updatedAt completedAt canceledAt startedAt branchName trashed url state { id name type color position } assignee { id name email displayName } creator { id name email displayName } team { id name key } project { id name } projectMilestone { id name } cycle { id number name startsAt endsAt } labels { nodes { id name color } } parent { id identifier title } children { nodes { id identifier title } } relations { nodes { id type relatedIssue { id identifier title } } } attachments(first: 5) { nodes { id title url sourceType createdAt } } comments(first: 20) { nodes { id body createdAt updatedAt resolvedAt user { id name displayName email } parent { id } resolvingUser { id name displayName email } } } history(first: 15) { nodes { id createdAt fromState { name type } toState { name type } fromAssignee { name } toAssignee { name } fromPriority toPriority actor { id name displayName email } addedLabels { name } removedLabels { name } } } } } }"""
         return self._paginate(query, {"teamId": team_id}, ["issues"])
 {% endraw %}

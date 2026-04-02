@@ -415,6 +415,18 @@ class TestLinearConnectorCLI:
         import_script = (out / "backend" / "scripts" / "import_data.py").read_text()
         assert "LinearConnector" in import_script
         assert "linear_api_key" in import_script
+        # Dict-style access (not attribute access) — prevents AttributeError at runtime
+        assert 'data["entities"]' in import_script
+        assert 'data["relationships"]' in import_script
+        assert 'data["documents"]' in import_script
+        # Traces are aggregated and written to fixtures.json
+        assert "all_traces" in import_script
+        assert '"traces": all_traces' in import_script
+        # Script should be valid Python
+        try:
+            compile(import_script, "import_data.py", "exec")
+        except SyntaxError as e:
+            pytest.fail(f"import_data.py has syntax error: {e}")
 
     def test_linear_api_key_flag(self, runner, tmp_path):
         """--linear-api-key should be accepted without error."""
