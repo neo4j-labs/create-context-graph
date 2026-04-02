@@ -214,9 +214,9 @@ class LinearConnector(BaseConnector):
                 if team_name:
                     relationships.append({
                         "type": "STATE_OF",
-                        "source": name,
+                        "source_name": name,
                         "source_label": "WorkflowState",
-                        "target": team_name,
+                        "target_name": team_name,
                         "target_label": "Team",
                     })
             return name
@@ -243,9 +243,9 @@ class LinearConnector(BaseConnector):
             # Comment → parent entity
             relationships.append({
                 "type": "HAS_COMMENT",
-                "source": parent_entity,
+                "source_name": parent_entity,
                 "source_label": parent_label,
-                "target": comment_name,
+                "target_name": comment_name,
                 "target_label": "Comment",
             })
             # Comment → author
@@ -255,18 +255,18 @@ class LinearConnector(BaseConnector):
                 if author_name:
                     relationships.append({
                         "type": "AUTHORED_BY",
-                        "source": comment_name,
+                        "source_name": comment_name,
                         "source_label": "Comment",
-                        "target": author_name,
+                        "target_name": author_name,
                         "target_label": "Person",
                     })
             # Thread: reply → parent comment
             if parent_comment_name:
                 relationships.append({
                     "type": "REPLY_TO",
-                    "source": comment_name,
+                    "source_name": comment_name,
                     "source_label": "Comment",
-                    "target": parent_comment_name,
+                    "target_name": parent_comment_name,
                     "target_label": "Comment",
                 })
             # Resolution
@@ -276,9 +276,9 @@ class LinearConnector(BaseConnector):
                 if resolver_name:
                     relationships.append({
                         "type": "RESOLVED_BY",
-                        "source": comment_name,
+                        "source_name": comment_name,
                         "source_label": "Comment",
-                        "target": resolver_name,
+                        "target_name": resolver_name,
                         "target_label": "Person",
                     })
             return comment_name
@@ -319,9 +319,9 @@ class LinearConnector(BaseConnector):
                 if member_name:
                     relationships.append({
                         "type": "MEMBER_OF",
-                        "source": member_name,
+                        "source_name": member_name,
                         "source_label": "Person",
-                        "target": team_name,
+                        "target_name": team_name,
                         "target_label": "Team",
                     })
 
@@ -353,9 +353,9 @@ class LinearConnector(BaseConnector):
                 if owner_name:
                     relationships.append({
                         "type": "OWNED_BY",
-                        "source": init_name,
+                        "source_name": init_name,
                         "source_label": "Initiative",
-                        "target": owner_name,
+                        "target_name": owner_name,
                         "target_label": "Person",
                     })
             # Initiative → Projects
@@ -364,9 +364,9 @@ class LinearConnector(BaseConnector):
                 if ip.get("name"):
                     relationships.append({
                         "type": "CONTAINS_PROJECT",
-                        "source": init_name,
+                        "source_name": init_name,
                         "source_label": "Initiative",
-                        "target": ip["name"],
+                        "target_name": ip["name"],
                         "target_label": "Project",
                     })
 
@@ -394,9 +394,9 @@ class LinearConnector(BaseConnector):
                 if lead_name:
                     relationships.append({
                         "type": "LEADS",
-                        "source": lead_name,
+                        "source_name": lead_name,
                         "source_label": "Person",
-                        "target": proj_name,
+                        "target_name": proj_name,
                         "target_label": "Project",
                     })
 
@@ -406,9 +406,9 @@ class LinearConnector(BaseConnector):
                 if member_name:
                     relationships.append({
                         "type": "MEMBER_OF",
-                        "source": member_name,
+                        "source_name": member_name,
                         "source_label": "Person",
-                        "target": proj_name,
+                        "target_name": proj_name,
                         "target_label": "Project",
                     })
 
@@ -418,9 +418,9 @@ class LinearConnector(BaseConnector):
                 if pt_name:
                     relationships.append({
                         "type": "CONTRIBUTED_BY",
-                        "source": pt_name,
+                        "source_name": pt_name,
                         "source_label": "Team",
-                        "target": proj_name,
+                        "target_name": proj_name,
                         "target_label": "Project",
                     })
 
@@ -440,9 +440,9 @@ class LinearConnector(BaseConnector):
                 })
                 relationships.append({
                     "type": "HAS_MILESTONE",
-                    "source": proj_name,
+                    "source_name": proj_name,
                     "source_label": "Project",
-                    "target": ms_name,
+                    "target_name": ms_name,
                     "target_label": "ProjectMilestone",
                 })
 
@@ -459,9 +459,9 @@ class LinearConnector(BaseConnector):
                 })
                 relationships.append({
                     "type": "HAS_UPDATE",
-                    "source": proj_name,
+                    "source_name": proj_name,
                     "source_label": "Project",
-                    "target": upd_name,
+                    "target_name": upd_name,
                     "target_label": "ProjectUpdate",
                 })
                 upd_user = upd.get("user")
@@ -470,9 +470,9 @@ class LinearConnector(BaseConnector):
                     if upd_author:
                         relationships.append({
                             "type": "POSTED_BY",
-                            "source": upd_name,
+                            "source_name": upd_name,
                             "source_label": "ProjectUpdate",
-                            "target": upd_author,
+                            "target_name": upd_author,
                             "target_label": "Person",
                         })
                 # Project update body as document
@@ -503,9 +503,9 @@ class LinearConnector(BaseConnector):
                 })
                 relationships.append({
                     "type": "CYCLE_FOR",
-                    "source": cycle_name,
+                    "source_name": cycle_name,
                     "source_label": "Cycle",
-                    "target": team_name,
+                    "target_name": team_name,
                     "target_label": "Team",
                 })
 
@@ -565,9 +565,9 @@ class LinearConnector(BaseConnector):
                 # Issue → Team
                 relationships.append({
                     "type": "BELONGS_TO_TEAM",
-                    "source": issue_name,
+                    "source_name": issue_name,
                     "source_label": "Issue",
-                    "target": team_name,
+                    "target_name": team_name,
                     "target_label": "Team",
                 })
 
@@ -578,9 +578,9 @@ class LinearConnector(BaseConnector):
                     if assignee_name:
                         relationships.append({
                             "type": "ASSIGNED_TO",
-                            "source": issue_name,
+                            "source_name": issue_name,
                             "source_label": "Issue",
-                            "target": assignee_name,
+                            "target_name": assignee_name,
                             "target_label": "Person",
                         })
 
@@ -591,9 +591,9 @@ class LinearConnector(BaseConnector):
                     if creator_name:
                         relationships.append({
                             "type": "CREATED_BY",
-                            "source": issue_name,
+                            "source_name": issue_name,
                             "source_label": "Issue",
-                            "target": creator_name,
+                            "target_name": creator_name,
                             "target_label": "Person",
                         })
 
@@ -602,9 +602,9 @@ class LinearConnector(BaseConnector):
                 if project and project.get("name"):
                     relationships.append({
                         "type": "BELONGS_TO_PROJECT",
-                        "source": issue_name,
+                        "source_name": issue_name,
                         "source_label": "Issue",
-                        "target": project["name"],
+                        "target_name": project["name"],
                         "target_label": "Project",
                     })
 
@@ -614,9 +614,9 @@ class LinearConnector(BaseConnector):
                     cycle_name = cycle.get("name") or f"Cycle {cycle.get('number', '?')}"
                     relationships.append({
                         "type": "IN_CYCLE",
-                        "source": issue_name,
+                        "source_name": issue_name,
                         "source_label": "Issue",
-                        "target": cycle_name,
+                        "target_name": cycle_name,
                         "target_label": "Cycle",
                     })
 
@@ -627,9 +627,9 @@ class LinearConnector(BaseConnector):
                     if state_name:
                         relationships.append({
                             "type": "HAS_STATE",
-                            "source": issue_name,
+                            "source_name": issue_name,
                             "source_label": "Issue",
-                            "target": state_name,
+                            "target_name": state_name,
                             "target_label": "WorkflowState",
                         })
 
@@ -640,9 +640,9 @@ class LinearConnector(BaseConnector):
                     if label_name:
                         relationships.append({
                             "type": "HAS_LABEL",
-                            "source": issue_name,
+                            "source_name": issue_name,
                             "source_label": "Issue",
-                            "target": label_name,
+                            "target_name": label_name,
                             "target_label": "Label",
                         })
 
@@ -654,9 +654,9 @@ class LinearConnector(BaseConnector):
                     parent_name = f"{parent_identifier} {parent_title}" if parent_title else parent_identifier
                     relationships.append({
                         "type": "CHILD_OF",
-                        "source": issue_name,
+                        "source_name": issue_name,
                         "source_label": "Issue",
-                        "target": parent_name,
+                        "target_name": parent_name,
                         "target_label": "Issue",
                     })
 
@@ -665,9 +665,9 @@ class LinearConnector(BaseConnector):
                 if milestone and milestone.get("name"):
                     relationships.append({
                         "type": "IN_MILESTONE",
-                        "source": issue_name,
+                        "source_name": issue_name,
                         "source_label": "Issue",
-                        "target": milestone["name"],
+                        "target_name": milestone["name"],
                         "target_label": "ProjectMilestone",
                     })
 
@@ -682,9 +682,9 @@ class LinearConnector(BaseConnector):
                         related_name = f"{rel_identifier} {rel_title}" if rel_title else rel_identifier
                         relationships.append({
                             "type": rel_type,
-                            "source": issue_name,
+                            "source_name": issue_name,
                             "source_label": "Issue",
-                            "target": related_name,
+                            "target_name": related_name,
                             "target_label": "Issue",
                         })
 
@@ -705,9 +705,9 @@ class LinearConnector(BaseConnector):
                     })
                     relationships.append({
                         "type": "HAS_ATTACHMENT",
-                        "source": issue_name,
+                        "source_name": issue_name,
                         "source_label": "Issue",
-                        "target": att_name,
+                        "target_name": att_name,
                         "target_label": "Attachment",
                     })
 

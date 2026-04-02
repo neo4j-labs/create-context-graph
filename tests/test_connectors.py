@@ -679,8 +679,8 @@ class TestLinearConnector:
 
         blocks_rels = [r for r in result.relationships if r["type"] == "BLOCKS"]
         assert len(blocks_rels) == 1
-        assert "ENG-101" in blocks_rels[0]["source"]
-        assert "ENG-102" in blocks_rels[0]["target"]
+        assert "ENG-101" in blocks_rels[0]["source_name"]
+        assert "ENG-102" in blocks_rels[0]["target_name"]
 
     @patch("urllib.request.urlopen")
     def test_comment_threading(self, mock_urlopen):
@@ -710,7 +710,7 @@ class TestLinearConnector:
 
         resolved_rels = [r for r in result.relationships if r["type"] == "RESOLVED_BY"]
         assert len(resolved_rels) == 1
-        assert resolved_rels[0]["target"] == "Bob"
+        assert resolved_rels[0]["target_name"] == "Bob"
 
     @patch("urllib.request.urlopen")
     def test_project_milestones(self, mock_urlopen):
@@ -1088,7 +1088,7 @@ class TestLinearConnector:
         conn.authenticate({"api_key": "lin_api_test123"})
         result = conn.fetch()
 
-        required_keys = {"type", "source", "target", "source_label", "target_label"}
+        required_keys = {"type", "source_name", "target_name", "source_label", "target_label"}
         for rel in result.relationships:
             missing = required_keys - set(rel.keys())
             assert not missing, f"Relationship {rel['type']} missing keys: {missing}"

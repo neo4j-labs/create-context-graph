@@ -119,19 +119,19 @@ class LinearConnector:
                 "body": comment_data.get("body", ""), "createdAt": comment_data.get("createdAt", ""),
                 "resolvedAt": comment_data.get("resolvedAt", ""),
             })
-            relationships.append({"type": "HAS_COMMENT", "source": parent_entity, "source_label": parent_label, "target": comment_name, "target_label": "Comment"})
+            relationships.append({"type": "HAS_COMMENT", "source_name": parent_entity, "source_label": parent_label, "target_name": comment_name, "target_label": "Comment"})
             comment_user = comment_data.get("user")
             if comment_user:
                 author = _add_user(comment_user)
                 if author:
-                    relationships.append({"type": "AUTHORED_BY", "source": comment_name, "source_label": "Comment", "target": author, "target_label": "Person"})
+                    relationships.append({"type": "AUTHORED_BY", "source_name": comment_name, "source_label": "Comment", "target_name": author, "target_label": "Person"})
             if parent_comment_name:
-                relationships.append({"type": "REPLY_TO", "source": comment_name, "source_label": "Comment", "target": parent_comment_name, "target_label": "Comment"})
+                relationships.append({"type": "REPLY_TO", "source_name": comment_name, "source_label": "Comment", "target_name": parent_comment_name, "target_label": "Comment"})
             resolving_user = comment_data.get("resolvingUser")
             if resolving_user and comment_data.get("resolvedAt"):
                 resolver = _add_user(resolving_user)
                 if resolver:
-                    relationships.append({"type": "RESOLVED_BY", "source": comment_name, "source_label": "Comment", "target": resolver, "target_label": "Person"})
+                    relationships.append({"type": "RESOLVED_BY", "source_name": comment_name, "source_label": "Comment", "target_name": resolver, "target_label": "Person"})
             return comment_name
 
         # Fetch teams
@@ -147,7 +147,7 @@ class LinearConnector:
             for member in self._fetch_team_members(team["id"]):
                 member_name = _add_user(member)
                 if member_name:
-                    relationships.append({"type": "MEMBER_OF", "source": member_name, "source_label": "Person", "target": team_name, "target_label": "Team"})
+                    relationships.append({"type": "MEMBER_OF", "source_name": member_name, "source_label": "Person", "target_name": team_name, "target_label": "Team"})
 
         # Fetch initiatives
         for init in self._fetch_initiatives():
@@ -157,10 +157,10 @@ class LinearConnector:
             if owner:
                 owner_name = _add_user(owner)
                 if owner_name:
-                    relationships.append({"type": "OWNED_BY", "source": init_name, "source_label": "Initiative", "target": owner_name, "target_label": "Person"})
+                    relationships.append({"type": "OWNED_BY", "source_name": init_name, "source_label": "Initiative", "target_name": owner_name, "target_label": "Person"})
             for ip in init.get("projects", {}).get("nodes", []):
                 if ip.get("name"):
-                    relationships.append({"type": "CONTAINS_PROJECT", "source": init_name, "source_label": "Initiative", "target": ip["name"], "target_label": "Project"})
+                    relationships.append({"type": "CONTAINS_PROJECT", "source_name": init_name, "source_label": "Initiative", "target_name": ip["name"], "target_label": "Project"})
 
         # Fetch projects with milestones and updates
         for proj in self._fetch_projects():
@@ -170,21 +170,21 @@ class LinearConnector:
             if lead:
                 lead_name = _add_user(lead)
                 if lead_name:
-                    relationships.append({"type": "LEADS", "source": lead_name, "source_label": "Person", "target": proj_name, "target_label": "Project"})
+                    relationships.append({"type": "LEADS", "source_name": lead_name, "source_label": "Person", "target_name": proj_name, "target_label": "Project"})
             for ms in proj.get("projectMilestones", {}).get("nodes", []):
                 ms_name = ms.get("name", "")
                 if ms_name:
                     entities["ProjectMilestone"].append({"name": ms_name, "linearId": ms["id"], "targetDate": ms.get("targetDate", ""), "status": ms.get("status", ""), "progress": ms.get("progress", 0)})
-                    relationships.append({"type": "HAS_MILESTONE", "source": proj_name, "source_label": "Project", "target": ms_name, "target_label": "ProjectMilestone"})
+                    relationships.append({"type": "HAS_MILESTONE", "source_name": proj_name, "source_label": "Project", "target_name": ms_name, "target_label": "ProjectMilestone"})
             for upd in proj.get("projectUpdates", {}).get("nodes", []):
                 upd_name = f"Update on {proj_name} ({upd.get('createdAt', '')[:10]})"
                 entities["ProjectUpdate"].append({"name": upd_name, "linearId": upd["id"], "body": upd.get("body", ""), "health": upd.get("health", ""), "createdAt": upd.get("createdAt", "")})
-                relationships.append({"type": "HAS_UPDATE", "source": proj_name, "source_label": "Project", "target": upd_name, "target_label": "ProjectUpdate"})
+                relationships.append({"type": "HAS_UPDATE", "source_name": proj_name, "source_label": "Project", "target_name": upd_name, "target_label": "ProjectUpdate"})
                 upd_user = upd.get("user")
                 if upd_user:
                     author = _add_user(upd_user)
                     if author:
-                        relationships.append({"type": "POSTED_BY", "source": upd_name, "source_label": "ProjectUpdate", "target": author, "target_label": "Person"})
+                        relationships.append({"type": "POSTED_BY", "source_name": upd_name, "source_label": "ProjectUpdate", "target_name": author, "target_label": "Person"})
                 body = upd.get("body", "")
                 if body.strip():
                     documents.append({"title": upd_name, "content": body, "type": "linear-project-update", "metadata": {"project": proj_name, "health": upd.get("health", "")}})
@@ -195,7 +195,7 @@ class LinearConnector:
             for cycle in self._fetch_cycles(team["id"]):
                 cycle_name = cycle.get("name") or f"Cycle {cycle.get('number', '?')}"
                 entities["Cycle"].append({"name": cycle_name, "linearId": cycle["id"], "number": cycle.get("number", 0), "startsAt": cycle.get("startsAt", ""), "endsAt": cycle.get("endsAt", "")})
-                relationships.append({"type": "CYCLE_FOR", "source": cycle_name, "source_label": "Cycle", "target": team_name, "target_label": "Team"})
+                relationships.append({"type": "CYCLE_FOR", "source_name": cycle_name, "source_label": "Cycle", "target_name": team_name, "target_label": "Team"})
 
         # Fetch Linear Docs
         for doc in self._fetch_documents():
@@ -212,36 +212,36 @@ class LinearConnector:
                 issue_name = f"{identifier} {title}" if identifier else title
                 priority = issue.get("priority", 0)
                 entities["Issue"].append({"name": issue_name, "linearId": issue["id"], "identifier": identifier, "title": title, "priority": priority, "priorityLabel": PRIORITY_LABELS.get(priority, "No Priority"), "stateType": issue.get("state", {}).get("type", "") if issue.get("state") else "", "createdAt": issue.get("createdAt", ""), "updatedAt": issue.get("updatedAt", ""), "completedAt": issue.get("completedAt", ""), "branchName": issue.get("branchName", ""), "url": issue.get("url", "")})
-                relationships.append({"type": "BELONGS_TO_TEAM", "source": issue_name, "source_label": "Issue", "target": team_name, "target_label": "Team"})
+                relationships.append({"type": "BELONGS_TO_TEAM", "source_name": issue_name, "source_label": "Issue", "target_name": team_name, "target_label": "Team"})
 
                 assignee = issue.get("assignee")
                 if assignee:
                     a = _add_user(assignee)
-                    if a: relationships.append({"type": "ASSIGNED_TO", "source": issue_name, "source_label": "Issue", "target": a, "target_label": "Person"})
+                    if a: relationships.append({"type": "ASSIGNED_TO", "source_name": issue_name, "source_label": "Issue", "target_name": a, "target_label": "Person"})
                 creator = issue.get("creator")
                 if creator:
                     c = _add_user(creator)
-                    if c: relationships.append({"type": "CREATED_BY", "source": issue_name, "source_label": "Issue", "target": c, "target_label": "Person"})
+                    if c: relationships.append({"type": "CREATED_BY", "source_name": issue_name, "source_label": "Issue", "target_name": c, "target_label": "Person"})
                 project = issue.get("project")
                 if project and project.get("name"):
-                    relationships.append({"type": "BELONGS_TO_PROJECT", "source": issue_name, "source_label": "Issue", "target": project["name"], "target_label": "Project"})
+                    relationships.append({"type": "BELONGS_TO_PROJECT", "source_name": issue_name, "source_label": "Issue", "target_name": project["name"], "target_label": "Project"})
                 cycle = issue.get("cycle")
                 if cycle and cycle.get("id"):
-                    relationships.append({"type": "IN_CYCLE", "source": issue_name, "source_label": "Issue", "target": cycle.get("name") or f"Cycle {cycle.get('number', '?')}", "target_label": "Cycle"})
+                    relationships.append({"type": "IN_CYCLE", "source_name": issue_name, "source_label": "Issue", "target_name": cycle.get("name") or f"Cycle {cycle.get('number', '?')}", "target_label": "Cycle"})
                 state = issue.get("state")
                 if state:
                     sn = _add_state(state)
-                    if sn: relationships.append({"type": "HAS_STATE", "source": issue_name, "source_label": "Issue", "target": sn, "target_label": "WorkflowState"})
+                    if sn: relationships.append({"type": "HAS_STATE", "source_name": issue_name, "source_label": "Issue", "target_name": sn, "target_label": "WorkflowState"})
                 for label in issue.get("labels", {}).get("nodes", []):
                     ln = _add_label(label)
-                    if ln: relationships.append({"type": "HAS_LABEL", "source": issue_name, "source_label": "Issue", "target": ln, "target_label": "Label"})
+                    if ln: relationships.append({"type": "HAS_LABEL", "source_name": issue_name, "source_label": "Issue", "target_name": ln, "target_label": "Label"})
                 parent = issue.get("parent")
                 if parent and parent.get("identifier"):
                     pn = f"{parent['identifier']} {parent.get('title', '')}" if parent.get("title") else parent["identifier"]
-                    relationships.append({"type": "CHILD_OF", "source": issue_name, "source_label": "Issue", "target": pn, "target_label": "Issue"})
+                    relationships.append({"type": "CHILD_OF", "source_name": issue_name, "source_label": "Issue", "target_name": pn, "target_label": "Issue"})
                 milestone = issue.get("projectMilestone")
                 if milestone and milestone.get("name"):
-                    relationships.append({"type": "IN_MILESTONE", "source": issue_name, "source_label": "Issue", "target": milestone["name"], "target_label": "ProjectMilestone"})
+                    relationships.append({"type": "IN_MILESTONE", "source_name": issue_name, "source_label": "Issue", "target_name": milestone["name"], "target_label": "ProjectMilestone"})
 
                 # Relations
                 for rel in issue.get("relations", {}).get("nodes", []):
@@ -249,14 +249,14 @@ class LinearConnector:
                     related = rel.get("relatedIssue")
                     if rt and related and related.get("identifier"):
                         rn = f"{related['identifier']} {related.get('title', '')}" if related.get("title") else related["identifier"]
-                        relationships.append({"type": rt, "source": issue_name, "source_label": "Issue", "target": rn, "target_label": "Issue"})
+                        relationships.append({"type": rt, "source_name": issue_name, "source_label": "Issue", "target_name": rn, "target_label": "Issue"})
 
                 # Attachments
                 for att in issue.get("attachments", {}).get("nodes", []):
                     if not att.get("id"): continue
                     att_name = f"Attachment: {(att.get('title', '') or att.get('url', ''))[:80]}"
                     entities["Attachment"].append({"name": att_name, "linearId": att["id"], "url": att.get("url", ""), "sourceType": att.get("sourceType", "")})
-                    relationships.append({"type": "HAS_ATTACHMENT", "source": issue_name, "source_label": "Issue", "target": att_name, "target_label": "Attachment"})
+                    relationships.append({"type": "HAS_ATTACHMENT", "source_name": issue_name, "source_label": "Issue", "target_name": att_name, "target_label": "Attachment"})
 
                 # Comments with threading
                 comment_id_to_name: dict[str, str] = {}
