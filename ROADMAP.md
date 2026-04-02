@@ -937,10 +937,26 @@ Schema introspection of Linear's GraphQL API (494 types) revealed significant ad
 - Add `number` (team-scoped numeric ID)
 - Add `trashed` boolean for soft-delete awareness
 
+### Tests added (36 new → 741 total)
+
+#### Unit tests in `test_connectors.py` (+22 Linear tests, 59 total)
+- History transform edge cases: priority changes, label changes, reassignment, system actor, combined changes
+- Pagination: multi-page cursor-based pagination verification
+- Error handling: HTTP 401 → ValueError, HTTP 500 → RuntimeError, empty workspace
+- Data integrity: all relationships have required keys, entity labels match relationship labels
+- Constants: RELATION_TYPE_MAP completeness, PRIORITY_LABELS completeness
+- Entity/relationship tests for all new types: relations, comments, threading, resolution, milestones, updates, initiatives, attachments, Linear Docs
+
+#### CLI integration tests in `test_cli.py` (+12 tests, `TestLinearConnectorCLI`)
+- Dry-run, warning without key, file generation, .env vars, .env.example, config settings
+- import_data.py script content, API key flag, team flag, template compilation
+- Multi-connector combination (linear + github)
+
 ### Files modified
 - `src/create_context_graph/connectors/linear_connector.py` — all new entities, relations, history→trace transform
 - `src/create_context_graph/templates/backend/connectors/linear_connector.py.j2` — matching template
-- `tests/test_connectors.py` — new tests for relations, history, traces, threading
+- `tests/test_connectors.py` — 22 new Linear tests (59 total)
+- `tests/test_cli.py` — 12 new Linear CLI integration tests
 
 ---
 
@@ -965,4 +981,4 @@ Schema introspection of Linear's GraphQL API (494 types) revealed significant ad
 | 13 | v0.6.1 Stability, Data Quality & Tools | **Complete** | (included above) |
 | 14 | v0.7.1 Embedding Regression, Data Quality & Docs | **Complete** | (included above) |
 | 15 | Linear Data Import Connector | **Complete** | 705 passing |
-| 15b | Linear Deep Graph: Relations, History, Decisions | **Complete** | (included above) |
+| 15b | Linear Deep Graph: Relations, History, Decisions | **Complete** | 741 passing |

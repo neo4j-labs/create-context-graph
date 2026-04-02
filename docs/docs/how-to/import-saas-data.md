@@ -18,7 +18,7 @@ Create Context Graph can pull data from SaaS services and map it into your Neo4j
 | **Gmail** | Emails, threads, contacts, labels, attachments (metadata) | Google OAuth 2.0 / service account |
 | **Google Calendar** | Events, attendees, calendars, recurring series | Google OAuth 2.0 / service account |
 | **Salesforce** | Accounts, contacts, opportunities, leads, cases, activities | OAuth 2.0 connected app |
-| **Linear** | Issues, projects, cycles, teams, users, labels, workflow states | Personal API key |
+| **Linear** | Issues, projects, cycles, teams, users, labels, comments, milestones, initiatives, attachments + decision traces | Personal API key |
 
 ## Selecting Connectors in the Interactive Wizard
 
@@ -129,4 +129,11 @@ These targets read credentials from the `.env` file in the project root.
 3. Set `LINEAR_API_KEY` in `.env`.
 4. Optionally set `LINEAR_TEAM` to a team URL key (e.g., `ENG`) to limit the import to a single team.
 
-The Linear connector imports issues, projects, cycles, teams, users, labels, and workflow states. Issue descriptions are also imported as documents for semantic search. No external Python package is required — the connector uses Python's built-in `urllib`.
+The Linear connector imports 12 entity types: issues, projects, cycles, teams, users, labels, workflow states, comments (with threading and resolution), project updates (with health status), project milestones, initiatives, and attachments. It also imports:
+
+- **Issue relations** -- blocking, blocked-by, related, and duplicate links between issues
+- **Threaded comments** -- with reply hierarchy and resolution tracking (who resolved a discussion thread)
+- **Decision traces** -- issue history (state transitions, assignment changes, priority changes) is automatically transformed into decision traces with thought/action/observation chains
+- **Documents** -- issue descriptions, project update bodies, and Linear Docs are all imported as documents for semantic search
+
+No external Python package is required — the connector uses Python's built-in `urllib`.

@@ -127,11 +127,25 @@ This runs the FastAPI backend on port 8000 and the Next.js frontend on port 3000
 
 When the app loads, you'll see the **graph schema view** showing the entity types and relationships imported from Linear:
 
-- **Issue** nodes connected to **Person** (via ASSIGNED_TO, CREATED_BY), **Project** (via BELONGS_TO_PROJECT), **Cycle** (via IN_CYCLE), **Team** (via BELONGS_TO_TEAM), **Label** (via HAS_LABEL), and **WorkflowState** (via HAS_STATE)
+- **Issue** nodes connected to **Person** (via ASSIGNED_TO, CREATED_BY), **Project** (via BELONGS_TO_PROJECT), **Cycle** (via IN_CYCLE), **Team** (via BELONGS_TO_TEAM), **Label** (via HAS_LABEL), **WorkflowState** (via HAS_STATE), and **ProjectMilestone** (via IN_MILESTONE)
+- **Issue** → **Issue** relationships: **CHILD_OF** (sub-issues), **BLOCKS**, **BLOCKED_BY**, **RELATED_TO**, **DUPLICATE_OF**
+- **Comment** nodes with threading: **HAS_COMMENT** from Issues, **REPLY_TO** between comments, **RESOLVED_BY** linking to the person who resolved a thread
+- **Project** nodes with **HAS_MILESTONE** → ProjectMilestone, **HAS_UPDATE** → ProjectUpdate
+- **Initiative** nodes (top-level planning) with **CONTAINS_PROJECT** → Project, **OWNED_BY** → Person
+- **Attachment** nodes linked to issues via **HAS_ATTACHMENT** (Figma, GitHub PRs, Slack messages)
 - **Person** nodes connected to **Team** and **Project** (via MEMBER_OF)
-- Sub-issue hierarchies visible as **CHILD_OF** edges between Issue nodes
 
 Double-click any schema node to load actual instances of that type.
+
+### Decision traces from issue history
+
+The connector automatically transforms issue history into **decision traces** -- the same format used by neo4j-agent-memory for reasoning memory. Each issue with 2+ history entries generates a trace:
+
+- **Task**: "Lifecycle of ENG-101 Fix login bug"
+- **Steps**: Each state transition, assignment change, or priority change becomes a thought/action/observation triple
+- **Outcome**: Derived from the issue's current state (completed, canceled, or in-progress)
+
+This means the agent can answer questions like "What decisions were made about ENG-101?" or "How did this issue get to its current state?" by traversing the decision trace graph.
 
 ### Ask the agent
 
@@ -141,8 +155,12 @@ Try these questions in the chat panel:
 - **"Show me all issues in the current cycle"** -- Traverses Cycle relationships
 - **"What's the status of the [project name] project?"** -- Aggregates issue states for a project
 - **"Find all issues labeled Bug with High priority"** -- Filters by label and priority
-- **"What issues are blocking [issue identifier]?"** -- Traverses CHILD_OF hierarchy
+- **"What's blocking ENG-101?"** -- Traverses BLOCKS/BLOCKED_BY relations between issues
 - **"Who is working on the most issues right now?"** -- Aggregates assignments across team members
+- **"What are the milestones for the v2 Launch project?"** -- Traverses HAS_MILESTONE relationships
+- **"Show me the latest project updates"** -- Finds ProjectUpdate nodes with health status
+- **"What decisions were made about ENG-101?"** -- Traverses DecisionTrace → TraceStep chains
+- **"Are there any resolved comment threads?"** -- Finds comments with RESOLVED_BY relationships
 
 The agent uses Cypher queries to traverse your graph, so it can answer multi-hop questions that would require clicking through multiple Linear views.
 
@@ -161,15 +179,53 @@ The Linear connector maps your data to these graph labels:
 
 | Linear Concept | Graph Label | POLE Type | Example Properties |
 |---|---|---|---|
-| Issue | `Issue` | Object | identifier, title, priority, stateType, dueDate |
-| Project | `Project` | Organization | name, state, progress, targetDate |
+| Issue | `Issue` | Object | identifier, title, priority, stateType, dueDate, branchName, completedAt |
+| Project | `Project` | Organization | name, state, progress, health, targetDate |
 | Cycle (Sprint) | `Cycle` | Event | name, number, startsAt, endsAt, progress |
 | Team | `Team` | Organization | name, key |
 | User | `Person` | Person | name, email, displayName |
 | Label | `Label` | Object | name, color |
 | Workflow State | `WorkflowState` | Object | name, type (triage/backlog/started/completed) |
+| Comment | `Comment` | Object | body, createdAt, resolvedAt |
+| Project Update | `ProjectUpdate` | Object | body, health (onTrack/atRisk/offTrack), createdAt |
+| Project Milestone | `ProjectMilestone` | Event | name, targetDate, status, progress |
+| Initiative | `Initiative` | Organization | name, status (Planned/Active/Completed), health |
+| Attachment | `Attachment` | Object | title, url, sourceType (figma, github, slack, etc.) |
 
 Issue names follow the format `"ENG-101 Fix login bug"` (identifier + title) so they're easy to reference in queries.
+
+### Relationship types
+
+The full set of relationship types imported:
+
+| Relationship | From | To | Meaning |
+|---|---|---|---|
+| `ASSIGNED_TO` | Issue | Person | Issue assignee |
+| `CREATED_BY` | Issue | Person | Issue creator |
+| `BELONGS_TO_PROJECT` | Issue | Project | Issue in project |
+| `BELONGS_TO_TEAM` | Issue | Team | Issue team |
+| `IN_CYCLE` | Issue | Cycle | Issue in sprint |
+| `HAS_STATE` | Issue | WorkflowState | Current workflow state |
+| `HAS_LABEL` | Issue | Label | Applied labels |
+| `CHILD_OF` | Issue | Issue | Sub-issue hierarchy |
+| `BLOCKS` | Issue | Issue | Blocking dependency |
+| `BLOCKED_BY` | Issue | Issue | Blocked by dependency |
+| `RELATED_TO` | Issue | Issue | Related issues |
+| `DUPLICATE_OF` | Issue | Issue | Duplicate link |
+| `IN_MILESTONE` | Issue | ProjectMilestone | Issue in milestone |
+| `HAS_COMMENT` | Issue | Comment | Issue comments |
+| `HAS_ATTACHMENT` | Issue | Attachment | Linked external resources |
+| `REPLY_TO` | Comment | Comment | Threaded reply |
+| `AUTHORED_BY` | Comment | Person | Comment author |
+| `RESOLVED_BY` | Comment | Person | Thread resolver |
+| `HAS_UPDATE` | Project | ProjectUpdate | Status updates |
+| `POSTED_BY` | ProjectUpdate | Person | Update author |
+| `HAS_MILESTONE` | Project | ProjectMilestone | Project milestones |
+| `CONTAINS_PROJECT` | Initiative | Project | Initiative grouping |
+| `OWNED_BY` | Initiative | Person | Initiative owner |
+| `MEMBER_OF` | Person | Team/Project | Membership |
+| `LEADS` | Person | Project | Project lead |
+| `CYCLE_FOR` | Cycle | Team | Cycle belongs to team |
 
 ## Re-importing Updated Data
 
@@ -228,6 +284,68 @@ ORDER BY c.name, i.stateType
 MATCH path = (child:Issue)-[:CHILD_OF*]->(parent:Issue)
 WHERE parent.identifier = 'ENG-100'
 RETURN [n IN nodes(path) | n.identifier] AS hierarchy
+```
+
+### What's blocking an issue?
+
+```cypher
+MATCH (i:Issue)-[:BLOCKS]->(blocked:Issue)
+WHERE i.identifier = 'ENG-101'
+RETURN blocked.identifier, blocked.title, blocked.stateType
+```
+
+### Find all blockers for a project
+
+```cypher
+MATCH (i:Issue)-[:BELONGS_TO_PROJECT]->(p:Project {name: 'v2 Launch'})
+MATCH (blocker:Issue)-[:BLOCKS]->(i)
+WHERE blocker.stateType <> 'completed'
+RETURN blocker.identifier, blocker.title, i.identifier AS blocked_issue
+```
+
+### Resolved comment threads (decisions made)
+
+```cypher
+MATCH (c:Comment)-[:RESOLVED_BY]->(resolver:Person)
+MATCH (issue:Issue)-[:HAS_COMMENT]->(c)
+RETURN issue.identifier, c.body, resolver.name, c.resolvedAt
+ORDER BY c.resolvedAt DESC
+```
+
+### Comment thread with replies
+
+```cypher
+MATCH (issue:Issue)-[:HAS_COMMENT]->(root:Comment)
+WHERE NOT (root)-[:REPLY_TO]->()
+OPTIONAL MATCH (reply:Comment)-[:REPLY_TO]->(root)
+RETURN issue.identifier, root.body AS thread_start, collect(reply.body) AS replies
+```
+
+### Project milestone progress
+
+```cypher
+MATCH (p:Project)-[:HAS_MILESTONE]->(ms:ProjectMilestone)
+OPTIONAL MATCH (i:Issue)-[:IN_MILESTONE]->(ms)
+RETURN ms.name, ms.targetDate, ms.status,
+       count(i) AS total_issues,
+       count(CASE WHEN i.stateType = 'completed' THEN 1 END) AS completed
+```
+
+### Initiative overview
+
+```cypher
+MATCH (init:Initiative)-[:CONTAINS_PROJECT]->(p:Project)
+OPTIONAL MATCH (init)-[:OWNED_BY]->(owner:Person)
+RETURN init.name, init.status, init.health, owner.name,
+       collect(p.name) AS projects
+```
+
+### External attachments on an issue
+
+```cypher
+MATCH (i:Issue)-[:HAS_ATTACHMENT]->(a:Attachment)
+WHERE i.identifier = 'ENG-101'
+RETURN a.title, a.url, a.sourceType
 ```
 
 ## Next Steps

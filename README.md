@@ -154,7 +154,7 @@ Import real data from your existing tools instead of (or in addition to) synthet
 | **Gmail** | Emails (last 30 days) | Google Workspace CLI or OAuth2 |
 | **Google Calendar** | Events, attendees (last 90 days) | Google Workspace CLI or OAuth2 |
 | **Salesforce** | Accounts, contacts, opportunities | Username/password |
-| **Linear** | Issues, projects, cycles, teams, users, labels | Personal API key |
+| **Linear** | Issues, projects, cycles, teams, users, labels, comments, milestones, initiatives, attachments + decision traces from history | Personal API key |
 
 Connectors run at scaffold time to populate initial data. They're also generated into your project so you can re-import with `make import`:
 
