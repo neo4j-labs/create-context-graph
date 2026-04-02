@@ -50,6 +50,10 @@ class NormalizedData(BaseModel):
         default_factory=list,
         description="Document data as list of dicts with title, content, metadata",
     )
+    traces: list[dict[str, Any]] = Field(
+        default_factory=list,
+        description="Decision traces as list of dicts with id, task, outcome, steps",
+    )
 
     def merge(self, other: NormalizedData) -> NormalizedData:
         """Merge another NormalizedData into this one, returning a new instance."""
@@ -63,6 +67,7 @@ class NormalizedData(BaseModel):
             entities=merged_entities,
             relationships=list(self.relationships) + list(other.relationships),
             documents=list(self.documents) + list(other.documents),
+            traces=list(self.traces) + list(other.traces),
         )
 
 

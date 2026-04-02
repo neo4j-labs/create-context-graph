@@ -771,17 +771,12 @@ class LinearConnector(BaseConnector):
                         },
                     })
 
-        result = NormalizedData(
+        return NormalizedData(
             entities=entities,
             relationships=relationships,
             documents=documents,
+            traces=traces,
         )
-        # Attach traces to the result dict for ingestion pipeline compatibility
-        if traces:
-            result_dict = result.model_dump()
-            result_dict["traces"] = traces
-            return NormalizedData(**{k: v for k, v in result_dict.items() if k != "traces"})
-        return result
 
     # =====================================================================
     # GraphQL helpers
