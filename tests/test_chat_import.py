@@ -21,10 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from create_context_graph.connectors._chat_import.models import (
-    ParsedConversation,
-    ParsedMessage,
-)
+
 from create_context_graph.connectors._chat_import.zip_reader import (
     detect_format,
     read_json,

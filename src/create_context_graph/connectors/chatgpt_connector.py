@@ -233,7 +233,7 @@ class ChatGPTConnector(BaseConnector):
         for msg in conv.messages:
             for tr in msg.tool_results:
                 steps.append({
-                    "thought": f"Code execution in conversation",
+                    "thought": "Code execution in conversation",
                     "action": f"tool_result: {tr.get('type', 'unknown')}",
                     "observation": str(tr.get("content", ""))[:500],
                 })
