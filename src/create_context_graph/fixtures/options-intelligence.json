@@ -1,0 +1,1017 @@
+{
+  "domain": "options-intelligence",
+  "entities": {
+    "Person": [
+      {
+        "name": "Sarah Chen",
+        "email": "sarah.chen@example.com",
+        "role": "Senior Analyst",
+        "description": "Sarah Chen, senior analyst specializing in options intelligence."
+      },
+      {
+        "name": "James Morrison",
+        "email": "james.morrison@company.org",
+        "role": "Project Manager",
+        "description": "Project Manager James Morrison \u2014 active in the options intelligence sector with relevant domain expertise."
+      },
+      {
+        "name": "Maria Rodriguez",
+        "email": "maria.rodriguez@company.org",
+        "role": "Technical Lead",
+        "description": "Maria Rodriguez serves as technical lead, contributing to options intelligence initiatives and operations."
+      },
+      {
+        "name": "David Park",
+        "email": "david.park@example.com",
+        "role": "Research Director",
+        "description": "David Park, research director specializing in options intelligence."
+      },
+      {
+        "name": "Elena Volkov",
+        "email": "elena.volkov@example.com",
+        "role": "Operations Manager",
+        "description": "Operations Manager Elena Volkov \u2014 active in the options intelligence sector with relevant domain expertise."
+      }
+    ],
+    "Organization": [
+      {
+        "name": "Meridian Consulting Group",
+        "description": "Meridian Consulting Group is a options trading organization operating in the options intelligence space.",
+        "industry": "Options Trading"
+      },
+      {
+        "name": "Pacific Northwest Industries",
+        "description": "Derivatives Analysis entity Pacific Northwest Industries, providing services and resources for options intelligence operations.",
+        "industry": "Derivatives Analysis"
+      },
+      {
+        "name": "Apex Financial Partners",
+        "description": "Apex Financial Partners \u2014 a market microstructure institution active in options intelligence.",
+        "industry": "Market Microstructure"
+      },
+      {
+        "name": "Greenleaf Technologies",
+        "description": "Greenleaf Technologies is a volatility research organization operating in the options intelligence space.",
+        "industry": "Volatility Research"
+      },
+      {
+        "name": "Summit Healthcare Systems",
+        "description": "Dealer Positioning entity Summit Healthcare Systems, providing services and resources for options intelligence operations.",
+        "industry": "Dealer Positioning"
+      }
+    ],
+    "Location": [
+      {
+        "name": "Downtown Medical Center",
+        "address": "369 Spruce Circle, Portland, OR 97201",
+        "latitude": 33.87,
+        "longitude": -83.99
+      },
+      {
+        "name": "Westside Corporate Campus",
+        "address": "123 Main Street, Portland, OR 97201",
+        "latitude": 29.74,
+        "longitude": -89.38
+      },
+      {
+        "name": "Harbor View Complex",
+        "address": "321 Maple Drive, Chicago, IL 60601",
+        "latitude": 47.68,
+        "longitude": -93.98
+      },
+      {
+        "name": "Mountain Ridge Facility",
+        "address": "654 Cedar Lane, Seattle, WA 98101",
+        "latitude": 45.47,
+        "longitude": -81.63
+      },
+      {
+        "name": "Riverside Research Park",
+        "address": "258 Willow Way, Seattle, WA 98101",
+        "latitude": 42.28,
+        "longitude": -77.84
+      }
+    ],
+    "Event": [
+      {
+        "name": "Q4 Strategy Review",
+        "date": "2026-11-08T11:00:00",
+        "description": "Q4 Strategy Review, a event event recorded in the options intelligence timeline."
+      },
+      {
+        "name": "Annual Compliance Audit",
+        "date": "2026-10-23T13:45:00",
+        "description": "Event Annual Compliance Audit \u2014 occurred as part of options intelligence activities."
+      },
+      {
+        "name": "Emergency Response Drill",
+        "date": "2024-09-11T16:45:00",
+        "description": "Recorded event: Emergency Response Drill, relevant to options intelligence workflows."
+      },
+      {
+        "name": "Product Launch Summit",
+        "date": "2025-05-21T09:30:00",
+        "description": "Product Launch Summit, a event event recorded in the options intelligence timeline."
+      },
+      {
+        "name": "Board of Directors Meeting",
+        "date": "2026-04-20T11:30:00",
+        "description": "Event Board of Directors Meeting \u2014 occurred as part of options intelligence activities."
+      }
+    ],
+    "Object": [
+      {
+        "name": "Primary Analysis Report",
+        "description": "Primary Analysis Report, a object used in options intelligence workflows."
+      },
+      {
+        "name": "Standard Operating Procedure",
+        "description": "Object Standard Operating Procedure \u2014 cataloged for options intelligence operations."
+      },
+      {
+        "name": "Quarterly Assessment Document",
+        "description": "Quarterly Assessment Document is a object supporting options intelligence processes."
+      },
+      {
+        "name": "Technical Specification",
+        "description": "Technical Specification, a object used in options intelligence workflows."
+      },
+      {
+        "name": "Compliance Certificate",
+        "description": "Object Compliance Certificate \u2014 cataloged for options intelligence operations."
+      }
+    ],
+    "Underlying": [
+      {
+        "name": "S&P 500 Index",
+        "ticker": "SPX",
+        "asset_class": "index",
+        "spot_price": 5820.5,
+        "prev_close": 5795.3
+      },
+      {
+        "name": "SPDR S&P 500 ETF",
+        "ticker": "SPY",
+        "asset_class": "etf",
+        "spot_price": 582.05,
+        "prev_close": 579.53
+      },
+      {
+        "name": "Invesco QQQ Trust",
+        "ticker": "QQQ",
+        "asset_class": "etf",
+        "spot_price": 503.2,
+        "prev_close": 500.8
+      },
+      {
+        "name": "iShares Russell 2000",
+        "ticker": "IWM",
+        "asset_class": "etf",
+        "spot_price": 212.4,
+        "prev_close": 210.9
+      },
+      {
+        "name": "Apple Inc",
+        "ticker": "AAPL",
+        "asset_class": "equity",
+        "spot_price": 228.5,
+        "prev_close": 226.8
+      }
+    ],
+    "OptionsContract": [
+      {
+        "name": "SPX 5800C 0DTE",
+        "contract_id": "OPT-2026-0000",
+        "strike": 5800,
+        "expiry": "2026-03-28",
+        "option_type": "call",
+        "open_interest": 45000,
+        "volume": 12000,
+        "implied_volatility": 0.18,
+        "delta": 0.55,
+        "gamma": 0.008,
+        "theta": -12.5,
+        "vega": 4.2,
+        "bid": 24.5,
+        "ask": 25.2
+      },
+      {
+        "name": "SPY 580C Weekly",
+        "contract_id": "OPT-2026-0001",
+        "strike": 580,
+        "expiry": "2026-04-03",
+        "option_type": "call",
+        "open_interest": 120000,
+        "volume": 45000,
+        "implied_volatility": 0.16,
+        "delta": 0.52,
+        "gamma": 0.012,
+        "theta": -0.45,
+        "vega": 0.18,
+        "bid": 3.2,
+        "ask": 3.35
+      },
+      {
+        "name": "QQQ 500C 0DTE",
+        "contract_id": "OPT-2026-0002",
+        "strike": 500,
+        "expiry": "2026-03-28",
+        "option_type": "call",
+        "open_interest": 85000,
+        "volume": 32000,
+        "implied_volatility": 0.19,
+        "delta": 0.6,
+        "gamma": 0.01,
+        "theta": -1.8,
+        "vega": 0.22,
+        "bid": 4.5,
+        "ask": 4.7
+      },
+      {
+        "name": "IWM 212P Weekly",
+        "contract_id": "OPT-2026-0003",
+        "strike": 212,
+        "expiry": "2026-04-03",
+        "option_type": "put",
+        "open_interest": 35000,
+        "volume": 9500,
+        "implied_volatility": 0.22,
+        "delta": -0.48,
+        "gamma": 0.02,
+        "theta": -0.15,
+        "vega": 0.08,
+        "bid": 1.95,
+        "ask": 2.05
+      },
+      {
+        "name": "AAPL 230P Weekly",
+        "contract_id": "OPT-2026-0004",
+        "strike": 230,
+        "expiry": "2026-04-03",
+        "option_type": "put",
+        "open_interest": 55000,
+        "volume": 18000,
+        "implied_volatility": 0.24,
+        "delta": -0.42,
+        "gamma": 0.015,
+        "theta": -0.35,
+        "vega": 0.12,
+        "bid": 2.8,
+        "ask": 3.0
+      }
+    ],
+    "ExposureLevel": [
+      {
+        "name": "GEX @ 5800 SPX",
+        "level_id": "EXP-2026-0000",
+        "strike_price": 5800,
+        "gex": 850.5,
+        "dex": -120.3,
+        "vex": 45.2,
+        "chex": -32.1,
+        "net_gamma": 720.4,
+        "timestamp": "2026-03-28T09:30:00"
+      },
+      {
+        "name": "GEX @ 580 SPY",
+        "level_id": "EXP-2026-0001",
+        "strike_price": 580,
+        "gex": 310.2,
+        "dex": -45.8,
+        "vex": 18.3,
+        "chex": -11.2,
+        "net_gamma": 280.1,
+        "timestamp": "2026-03-28T09:30:00"
+      },
+      {
+        "name": "GEX @ 500 QQQ",
+        "level_id": "EXP-2026-0002",
+        "strike_price": 500,
+        "gex": 420.6,
+        "dex": -68.4,
+        "vex": 22.7,
+        "chex": -15.8,
+        "net_gamma": 360.3,
+        "timestamp": "2026-03-28T09:30:00"
+      },
+      {
+        "name": "GEX @ 212 IWM",
+        "level_id": "EXP-2026-0003",
+        "strike_price": 212,
+        "gex": -180.4,
+        "dex": 95.2,
+        "vex": -12.1,
+        "chex": 8.5,
+        "net_gamma": -165.2,
+        "timestamp": "2026-03-28T09:30:00"
+      },
+      {
+        "name": "GEX @ 230 AAPL",
+        "level_id": "EXP-2026-0004",
+        "strike_price": 230,
+        "gex": 95.8,
+        "dex": -18.4,
+        "vex": 6.2,
+        "chex": -4.1,
+        "net_gamma": 82.5,
+        "timestamp": "2026-03-28T09:30:00"
+      }
+    ],
+    "Regime": [
+      {
+        "name": "Negative Gamma Regime",
+        "regime_id": "REG-2026-0000",
+        "classification": "negative_gamma",
+        "description": "Regime Negative Gamma Regime \u2014 part of the options intelligence knowledge graph.",
+        "gex_value": -142.8,
+        "flip_level": 5780.0,
+        "detected_at": "2026-03-20T10:15:00"
+      },
+      {
+        "name": "Transition Regime",
+        "regime_id": "REG-2026-0001",
+        "classification": "transition",
+        "description": "Transition Regime is a regime tracked within the options intelligence domain.",
+        "gex_value": 12.3,
+        "flip_level": 5785.0,
+        "detected_at": "2026-03-22T14:30:00"
+      },
+      {
+        "name": "Positive Gamma Regime",
+        "regime_id": "REG-2026-0002",
+        "classification": "positive_gamma",
+        "description": "Positive Gamma Regime, a regime relevant to options intelligence operations.",
+        "gex_value": 185.4,
+        "flip_level": 5780.0,
+        "detected_at": "2026-03-25T09:45:00"
+      },
+      {
+        "name": "Neutral Regime",
+        "regime_id": "REG-2026-0003",
+        "classification": "neutral",
+        "description": "Neutral Regime, a regime relevant to options intelligence operations.",
+        "gex_value": 5.8,
+        "flip_level": 5790.0,
+        "detected_at": "2026-03-27T11:00:00"
+      },
+      {
+        "name": "Post-FOMC Positive Gamma",
+        "regime_id": "REG-2026-0004",
+        "classification": "positive_gamma",
+        "description": "Regime Post-FOMC Positive Gamma \u2014 part of the options intelligence knowledge graph.",
+        "gex_value": 245.6,
+        "flip_level": 5770.0,
+        "detected_at": "2026-03-29T14:30:00"
+      }
+    ],
+    "KeyLevel": [
+      {
+        "name": "SPX Put Wall 5700",
+        "level_id": "KLV-2026-0000",
+        "price": 5700.0,
+        "level_type": "put_wall",
+        "strength": 85.2,
+        "source": "gex"
+      },
+      {
+        "name": "SPY Call Wall 585",
+        "level_id": "KLV-2026-0001",
+        "price": 585.0,
+        "level_type": "call_wall",
+        "strength": 72.8,
+        "source": "gex"
+      },
+      {
+        "name": "QQQ Gamma Flip 502",
+        "level_id": "KLV-2026-0002",
+        "price": 502.0,
+        "level_type": "gamma_flip",
+        "strength": 95.0,
+        "source": "gex"
+      },
+      {
+        "name": "IWM Magnet 212",
+        "level_id": "KLV-2026-0003",
+        "price": 212.0,
+        "level_type": "magnet",
+        "strength": 68.4,
+        "source": "dex"
+      },
+      {
+        "name": "AAPL Put Wall 225",
+        "level_id": "KLV-2026-0004",
+        "price": 225.0,
+        "level_type": "put_wall",
+        "strength": 78.5,
+        "source": "gex"
+      }
+    ],
+    "Trade": [
+      {
+        "name": "SPX 5800C Scalp Long",
+        "trade_id": "TRD-2026-0000",
+        "direction": "buy_to_open",
+        "quantity": 5,
+        "price": 24.8,
+        "strategy": "directional",
+        "pnl": 340.0,
+        "executed_at": "2026-03-28T09:35:00"
+      },
+      {
+        "name": "SPY 580C Momentum Buy",
+        "trade_id": "TRD-2026-0001",
+        "direction": "buy_to_open",
+        "quantity": 10,
+        "price": 3.25,
+        "strategy": "directional",
+        "pnl": 180.0,
+        "executed_at": "2026-03-27T10:15:00"
+      },
+      {
+        "name": "QQQ 500C Gamma Scalp",
+        "trade_id": "TRD-2026-0002",
+        "direction": "buy_to_open",
+        "quantity": 8,
+        "price": 4.55,
+        "strategy": "directional",
+        "pnl": 256.0,
+        "executed_at": "2026-03-26T11:00:00"
+      },
+      {
+        "name": "IWM 212P Hedge",
+        "trade_id": "TRD-2026-0003",
+        "direction": "buy_to_open",
+        "quantity": 15,
+        "price": 1.98,
+        "strategy": "spread",
+        "pnl": -120.0,
+        "executed_at": "2026-03-25T13:30:00"
+      },
+      {
+        "name": "AAPL 230P Directional",
+        "trade_id": "TRD-2026-0004",
+        "direction": "buy_to_open",
+        "quantity": 5,
+        "price": 2.85,
+        "strategy": "directional",
+        "pnl": 145.0,
+        "executed_at": "2026-03-28T10:45:00"
+      }
+    ],
+    "MarketEvent": [
+      {
+        "name": "FOMC Rate Decision Jan 2026",
+        "event_id": "MEV-2026-0000",
+        "event_type": "fomc",
+        "scheduled_at": "2026-03-29T14:00:00",
+        "impact": "high",
+        "description": "FOMC Rate Decision Jan 2026, a marketevent relevant to options intelligence operations."
+      },
+      {
+        "name": "CPI Release Feb 2026",
+        "event_id": "MEV-2026-0001",
+        "event_type": "cpi",
+        "scheduled_at": "2026-02-12T08:30:00",
+        "impact": "high",
+        "description": "MarketEvent CPI Release Feb 2026 \u2014 part of the options intelligence knowledge graph."
+      },
+      {
+        "name": "NFP Report Jan 2026",
+        "event_id": "MEV-2026-0002",
+        "event_type": "nfp",
+        "scheduled_at": "2026-01-09T08:30:00",
+        "impact": "high",
+        "description": "NFP Report Jan 2026 is a marketevent tracked within the options intelligence domain."
+      },
+      {
+        "name": "NVIDIA Earnings Q4 2025",
+        "event_id": "MEV-2026-0003",
+        "event_type": "earnings",
+        "scheduled_at": "2026-02-26T16:00:00",
+        "impact": "medium",
+        "description": "NVIDIA Earnings Q4 2025, a marketevent relevant to options intelligence operations."
+      },
+      {
+        "name": "Monthly OpEx Jan 2026",
+        "event_id": "MEV-2026-0004",
+        "event_type": "opex",
+        "scheduled_at": "2026-01-16T16:00:00",
+        "impact": "medium",
+        "description": "MarketEvent Monthly OpEx Jan 2026 \u2014 part of the options intelligence knowledge graph."
+      }
+    ],
+    "Strategy": [
+      {
+        "name": "0DTE Gamma Scalp",
+        "strategy_id": "STG-2026-0000",
+        "strategy_type": "directional",
+        "edge_description": "0DTE Gamma Scalp - Edge Description",
+        "win_rate": 0.62,
+        "avg_return": 8.5,
+        "max_loss": 500.0,
+        "regime_preference": "positive_gamma"
+      },
+      {
+        "name": "Negative Gamma Mean Reversion",
+        "strategy_id": "STG-2026-0001",
+        "strategy_type": "mean_reversion",
+        "edge_description": "Negative Gamma Mean Reversion - Edge Description",
+        "win_rate": 0.48,
+        "avg_return": 15.2,
+        "max_loss": 800.0,
+        "regime_preference": "negative_gamma"
+      },
+      {
+        "name": "Put Wall Bounce",
+        "strategy_id": "STG-2026-0002",
+        "strategy_type": "momentum",
+        "edge_description": "Put Wall Bounce - Edge Description",
+        "win_rate": 0.71,
+        "avg_return": 6.8,
+        "max_loss": 350.0,
+        "regime_preference": "positive_gamma"
+      },
+      {
+        "name": "FOMC Straddle",
+        "strategy_id": "STG-2026-0003",
+        "strategy_type": "volatility",
+        "edge_description": "FOMC Straddle - Edge Description",
+        "win_rate": 0.55,
+        "avg_return": 22.4,
+        "max_loss": 1200.0,
+        "regime_preference": "any"
+      },
+      {
+        "name": "Pin Risk Butterfly",
+        "strategy_id": "STG-2026-0004",
+        "strategy_type": "neutral",
+        "edge_description": "Pin Risk Butterfly - Edge Description",
+        "win_rate": 0.38,
+        "avg_return": 45.0,
+        "max_loss": 175.0,
+        "regime_preference": "positive_gamma"
+      }
+    ]
+  },
+  "relationships": [
+    {"type": "WORKS_FOR", "source_label": "Person", "source_name": "Sarah Chen", "target_label": "Organization", "target_name": "Pacific Northwest Industries"},
+    {"type": "WORKS_FOR", "source_label": "Person", "source_name": "Sarah Chen", "target_label": "Organization", "target_name": "Summit Healthcare Systems"},
+    {"type": "WORKS_FOR", "source_label": "Person", "source_name": "James Morrison", "target_label": "Organization", "target_name": "Meridian Consulting Group"},
+    {"type": "WORKS_FOR", "source_label": "Person", "source_name": "Maria Rodriguez", "target_label": "Organization", "target_name": "Meridian Consulting Group"},
+    {"type": "WORKS_FOR", "source_label": "Person", "source_name": "Maria Rodriguez", "target_label": "Organization", "target_name": "Greenleaf Technologies"},
+    {"type": "WORKS_FOR", "source_label": "Person", "source_name": "David Park", "target_label": "Organization", "target_name": "Greenleaf Technologies"},
+    {"type": "WORKS_FOR", "source_label": "Person", "source_name": "David Park", "target_label": "Organization", "target_name": "Summit Healthcare Systems"},
+    {"type": "WORKS_FOR", "source_label": "Person", "source_name": "Elena Volkov", "target_label": "Organization", "target_name": "Apex Financial Partners"},
+
+    {"type": "LOCATED_AT", "source_label": "Organization", "source_name": "Meridian Consulting Group", "target_label": "Location", "target_name": "Downtown Medical Center"},
+    {"type": "LOCATED_AT", "source_label": "Organization", "source_name": "Pacific Northwest Industries", "target_label": "Location", "target_name": "Riverside Research Park"},
+    {"type": "LOCATED_AT", "source_label": "Organization", "source_name": "Apex Financial Partners", "target_label": "Location", "target_name": "Mountain Ridge Facility"},
+    {"type": "LOCATED_AT", "source_label": "Organization", "source_name": "Greenleaf Technologies", "target_label": "Location", "target_name": "Harbor View Complex"},
+    {"type": "LOCATED_AT", "source_label": "Organization", "source_name": "Summit Healthcare Systems", "target_label": "Location", "target_name": "Westside Corporate Campus"},
+
+    {"type": "PARTICIPATED_IN", "source_label": "Person", "source_name": "Sarah Chen", "target_label": "Event", "target_name": "Board of Directors Meeting"},
+    {"type": "PARTICIPATED_IN", "source_label": "Person", "source_name": "James Morrison", "target_label": "Event", "target_name": "Q4 Strategy Review"},
+    {"type": "PARTICIPATED_IN", "source_label": "Person", "source_name": "Maria Rodriguez", "target_label": "Event", "target_name": "Product Launch Summit"},
+    {"type": "PARTICIPATED_IN", "source_label": "Person", "source_name": "David Park", "target_label": "Event", "target_name": "Q4 Strategy Review"},
+    {"type": "PARTICIPATED_IN", "source_label": "Person", "source_name": "Elena Volkov", "target_label": "Event", "target_name": "Annual Compliance Audit"},
+
+    {"type": "TRADED", "source_label": "Person", "source_name": "Sarah Chen", "target_label": "Trade", "target_name": "SPX 5800C Scalp Long"},
+    {"type": "TRADED", "source_label": "Person", "source_name": "Sarah Chen", "target_label": "Trade", "target_name": "SPY 580C Momentum Buy"},
+    {"type": "TRADED", "source_label": "Person", "source_name": "James Morrison", "target_label": "Trade", "target_name": "QQQ 500C Gamma Scalp"},
+    {"type": "TRADED", "source_label": "Person", "source_name": "Maria Rodriguez", "target_label": "Trade", "target_name": "IWM 212P Hedge"},
+    {"type": "TRADED", "source_label": "Person", "source_name": "David Park", "target_label": "Trade", "target_name": "AAPL 230P Directional"},
+    {"type": "TRADED", "source_label": "Person", "source_name": "Elena Volkov", "target_label": "Trade", "target_name": "SPX 5800C Scalp Long"},
+    {"type": "TRADED", "source_label": "Person", "source_name": "David Park", "target_label": "Trade", "target_name": "QQQ 500C Gamma Scalp"},
+
+    {"type": "EXECUTES", "source_label": "Trade", "source_name": "SPX 5800C Scalp Long", "target_label": "OptionsContract", "target_name": "SPX 5800C 0DTE"},
+    {"type": "EXECUTES", "source_label": "Trade", "source_name": "SPY 580C Momentum Buy", "target_label": "OptionsContract", "target_name": "SPY 580C Weekly"},
+    {"type": "EXECUTES", "source_label": "Trade", "source_name": "QQQ 500C Gamma Scalp", "target_label": "OptionsContract", "target_name": "QQQ 500C 0DTE"},
+    {"type": "EXECUTES", "source_label": "Trade", "source_name": "IWM 212P Hedge", "target_label": "OptionsContract", "target_name": "IWM 212P Weekly"},
+    {"type": "EXECUTES", "source_label": "Trade", "source_name": "AAPL 230P Directional", "target_label": "OptionsContract", "target_name": "AAPL 230P Weekly"},
+
+    {"type": "USES_STRATEGY", "source_label": "Trade", "source_name": "SPX 5800C Scalp Long", "target_label": "Strategy", "target_name": "0DTE Gamma Scalp"},
+    {"type": "USES_STRATEGY", "source_label": "Trade", "source_name": "SPY 580C Momentum Buy", "target_label": "Strategy", "target_name": "Put Wall Bounce"},
+    {"type": "USES_STRATEGY", "source_label": "Trade", "source_name": "QQQ 500C Gamma Scalp", "target_label": "Strategy", "target_name": "0DTE Gamma Scalp"},
+    {"type": "USES_STRATEGY", "source_label": "Trade", "source_name": "IWM 212P Hedge", "target_label": "Strategy", "target_name": "Negative Gamma Mean Reversion"},
+    {"type": "USES_STRATEGY", "source_label": "Trade", "source_name": "AAPL 230P Directional", "target_label": "Strategy", "target_name": "Pin Risk Butterfly"},
+
+    {"type": "TRIGGERED_BY", "source_label": "Trade", "source_name": "SPX 5800C Scalp Long", "target_label": "MarketEvent", "target_name": "FOMC Rate Decision Jan 2026"},
+    {"type": "TRIGGERED_BY", "source_label": "Trade", "source_name": "AAPL 230P Directional", "target_label": "MarketEvent", "target_name": "NVIDIA Earnings Q4 2025"},
+    {"type": "TRIGGERED_BY", "source_label": "Trade", "source_name": "QQQ 500C Gamma Scalp", "target_label": "MarketEvent", "target_name": "Monthly OpEx Jan 2026"},
+
+    {"type": "BREACHED", "source_label": "Trade", "source_name": "SPX 5800C Scalp Long", "target_label": "KeyLevel", "target_name": "SPX Put Wall 5700"},
+    {"type": "BREACHED", "source_label": "Trade", "source_name": "SPY 580C Momentum Buy", "target_label": "KeyLevel", "target_name": "SPY Call Wall 585"},
+    {"type": "BREACHED", "source_label": "Trade", "source_name": "AAPL 230P Directional", "target_label": "KeyLevel", "target_name": "AAPL Put Wall 225"},
+
+    {"type": "HAS_OPTION", "source_label": "Underlying", "source_name": "S&P 500 Index", "target_label": "OptionsContract", "target_name": "SPX 5800C 0DTE"},
+    {"type": "HAS_OPTION", "source_label": "Underlying", "source_name": "SPDR S&P 500 ETF", "target_label": "OptionsContract", "target_name": "SPY 580C Weekly"},
+    {"type": "HAS_OPTION", "source_label": "Underlying", "source_name": "Invesco QQQ Trust", "target_label": "OptionsContract", "target_name": "QQQ 500C 0DTE"},
+    {"type": "HAS_OPTION", "source_label": "Underlying", "source_name": "iShares Russell 2000", "target_label": "OptionsContract", "target_name": "IWM 212P Weekly"},
+    {"type": "HAS_OPTION", "source_label": "Underlying", "source_name": "Apple Inc", "target_label": "OptionsContract", "target_name": "AAPL 230P Weekly"},
+
+    {"type": "EXPOSURE_AT", "source_label": "Underlying", "source_name": "S&P 500 Index", "target_label": "ExposureLevel", "target_name": "GEX @ 5800 SPX"},
+    {"type": "EXPOSURE_AT", "source_label": "Underlying", "source_name": "SPDR S&P 500 ETF", "target_label": "ExposureLevel", "target_name": "GEX @ 580 SPY"},
+    {"type": "EXPOSURE_AT", "source_label": "Underlying", "source_name": "Invesco QQQ Trust", "target_label": "ExposureLevel", "target_name": "GEX @ 500 QQQ"},
+    {"type": "EXPOSURE_AT", "source_label": "Underlying", "source_name": "iShares Russell 2000", "target_label": "ExposureLevel", "target_name": "GEX @ 212 IWM"},
+    {"type": "EXPOSURE_AT", "source_label": "Underlying", "source_name": "Apple Inc", "target_label": "ExposureLevel", "target_name": "GEX @ 230 AAPL"},
+
+    {"type": "HAS_LEVEL", "source_label": "Underlying", "source_name": "S&P 500 Index", "target_label": "KeyLevel", "target_name": "SPX Put Wall 5700"},
+    {"type": "HAS_LEVEL", "source_label": "Underlying", "source_name": "SPDR S&P 500 ETF", "target_label": "KeyLevel", "target_name": "SPY Call Wall 585"},
+    {"type": "HAS_LEVEL", "source_label": "Underlying", "source_name": "Invesco QQQ Trust", "target_label": "KeyLevel", "target_name": "QQQ Gamma Flip 502"},
+    {"type": "HAS_LEVEL", "source_label": "Underlying", "source_name": "iShares Russell 2000", "target_label": "KeyLevel", "target_name": "IWM Magnet 212"},
+    {"type": "HAS_LEVEL", "source_label": "Underlying", "source_name": "Apple Inc", "target_label": "KeyLevel", "target_name": "AAPL Put Wall 225"},
+
+    {"type": "IN_REGIME", "source_label": "Underlying", "source_name": "S&P 500 Index", "target_label": "Regime", "target_name": "Post-FOMC Positive Gamma"},
+    {"type": "IN_REGIME", "source_label": "Underlying", "source_name": "SPDR S&P 500 ETF", "target_label": "Regime", "target_name": "Post-FOMC Positive Gamma"},
+    {"type": "IN_REGIME", "source_label": "Underlying", "source_name": "Invesco QQQ Trust", "target_label": "Regime", "target_name": "Post-FOMC Positive Gamma"},
+    {"type": "IN_REGIME", "source_label": "Underlying", "source_name": "iShares Russell 2000", "target_label": "Regime", "target_name": "Post-FOMC Positive Gamma"},
+    {"type": "IN_REGIME", "source_label": "Underlying", "source_name": "Apple Inc", "target_label": "Regime", "target_name": "Post-FOMC Positive Gamma"},
+
+    {"type": "FLIPPED_TO", "source_label": "Regime", "source_name": "Negative Gamma Regime", "target_label": "Regime", "target_name": "Transition Regime"},
+    {"type": "FLIPPED_TO", "source_label": "Regime", "source_name": "Transition Regime", "target_label": "Regime", "target_name": "Positive Gamma Regime"},
+    {"type": "FLIPPED_TO", "source_label": "Regime", "source_name": "Positive Gamma Regime", "target_label": "Regime", "target_name": "Neutral Regime"},
+    {"type": "FLIPPED_TO", "source_label": "Regime", "source_name": "Neutral Regime", "target_label": "Regime", "target_name": "Post-FOMC Positive Gamma"},
+
+    {"type": "PRECEDED_BY", "source_label": "Regime", "source_name": "Transition Regime", "target_label": "Regime", "target_name": "Negative Gamma Regime"},
+    {"type": "PRECEDED_BY", "source_label": "Regime", "source_name": "Positive Gamma Regime", "target_label": "Regime", "target_name": "Transition Regime"},
+    {"type": "PRECEDED_BY", "source_label": "Regime", "source_name": "Neutral Regime", "target_label": "Regime", "target_name": "Positive Gamma Regime"},
+    {"type": "PRECEDED_BY", "source_label": "Regime", "source_name": "Post-FOMC Positive Gamma", "target_label": "Regime", "target_name": "Neutral Regime"},
+
+    {"type": "OPTIMAL_IN", "source_label": "Strategy", "source_name": "0DTE Gamma Scalp", "target_label": "Regime", "target_name": "Positive Gamma Regime"},
+    {"type": "OPTIMAL_IN", "source_label": "Strategy", "source_name": "0DTE Gamma Scalp", "target_label": "Regime", "target_name": "Post-FOMC Positive Gamma"},
+    {"type": "OPTIMAL_IN", "source_label": "Strategy", "source_name": "Negative Gamma Mean Reversion", "target_label": "Regime", "target_name": "Negative Gamma Regime"},
+    {"type": "OPTIMAL_IN", "source_label": "Strategy", "source_name": "Put Wall Bounce", "target_label": "Regime", "target_name": "Positive Gamma Regime"},
+    {"type": "OPTIMAL_IN", "source_label": "Strategy", "source_name": "Pin Risk Butterfly", "target_label": "Regime", "target_name": "Neutral Regime"},
+    {"type": "OPTIMAL_IN", "source_label": "Strategy", "source_name": "FOMC Straddle", "target_label": "Regime", "target_name": "Transition Regime"},
+
+    {"type": "IMPACTED", "source_label": "MarketEvent", "source_name": "FOMC Rate Decision Jan 2026", "target_label": "Underlying", "target_name": "S&P 500 Index"},
+    {"type": "IMPACTED", "source_label": "MarketEvent", "source_name": "CPI Release Feb 2026", "target_label": "Underlying", "target_name": "S&P 500 Index"},
+    {"type": "IMPACTED", "source_label": "MarketEvent", "source_name": "NVIDIA Earnings Q4 2025", "target_label": "Underlying", "target_name": "Apple Inc"},
+    {"type": "IMPACTED", "source_label": "MarketEvent", "source_name": "NFP Report Jan 2026", "target_label": "Underlying", "target_name": "iShares Russell 2000"},
+    {"type": "IMPACTED", "source_label": "MarketEvent", "source_name": "Monthly OpEx Jan 2026", "target_label": "Underlying", "target_name": "Invesco QQQ Trust"},
+
+    {"type": "CAUSED_FLIP", "source_label": "MarketEvent", "source_name": "FOMC Rate Decision Jan 2026", "target_label": "Regime", "target_name": "Post-FOMC Positive Gamma"}
+  ],
+  "documents": [
+    {
+      "template_id": "market_brief",
+      "template_name": "Daily Options Market Brief",
+      "title": "Daily Options Market Brief: S&P 500 Index",
+      "content": "# Daily Options Market Brief: S&P 500 Index\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Underlying: S&P 500 Index (SPX), Regime: Post-FOMC Positive Gamma, KeyLevel: SPX Put Wall 5700\n\n## Summary\n\nSPX opened at 5820.50 (prev close 5795.30) with dealers positioned long gamma following the FOMC rate decision. Net GEX at the 5800 strike is +720.4, anchoring price action within a tight intraday range. The Post-FOMC Positive Gamma regime (gex 245.6) is expected to dampen realized volatility through the session.\n\n## Details\n\nPut wall support at 5700 (strength 85.2) provides downside cushion. The prior Negative Gamma Regime flipped through Transition and Positive Gamma before settling Post-FOMC. Watch for mean reversion toward the 5800 magnet strike on any deviation.\n\n## Recommendations\n\nFavor positive-gamma strategies on SPX: 0DTE Gamma Scalp and Put Wall Bounce are aligned with the current regime. Reduce directional size; harvest theta into the 5800 pin.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "market_brief",
+      "template_name": "Daily Options Market Brief",
+      "title": "Daily Options Market Brief: SPDR S&P 500 ETF",
+      "content": "# Daily Options Market Brief: SPDR S&P 500 ETF\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Underlying: SPDR S&P 500 ETF (SPY), Regime: Post-FOMC Positive Gamma, KeyLevel: SPY Call Wall 585\n\n## Summary\n\nSPY trades at 582.05, up from 579.53, tracking the S&P 500 index in Post-FOMC Positive Gamma conditions. The 580 strike shows GEX of +280.1 with dealers long gamma. Call wall resistance at 585 (strength 72.8) is the key upside level to monitor.\n\n## Details\n\nSPY 580C Weekly contracts carry 120,000 open interest and 45,000 volume — the highest liquidity concentration in the SPY weekly chain. Delta 0.52, gamma 0.012, IV 0.16.\n\n## Recommendations\n\nPut Wall Bounce is the preferred strategy while 580 holds as support. Consider scaling out of long calls near the 585 call wall.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "market_brief",
+      "template_name": "Daily Options Market Brief",
+      "title": "Daily Options Market Brief: Invesco QQQ Trust",
+      "content": "# Daily Options Market Brief: Invesco QQQ Trust\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Underlying: Invesco QQQ Trust (QQQ), Regime: Post-FOMC Positive Gamma, KeyLevel: QQQ Gamma Flip 502\n\n## Summary\n\nQQQ spot 503.20 (prev 500.80) sits just above the QQQ Gamma Flip 502 level (strength 95.0). GEX at 500 is +360.3, confirming a positive gamma regime for tech exposure. Monthly OpEx impact skew is fading.\n\n## Details\n\nQQQ 500C 0DTE shows 85,000 OI and 32,000 volume. With spot above the gamma flip, dealer hedging is expected to compress realized volatility. Monitor the 500 strike as the primary pin.\n\n## Recommendations\n\n0DTE Gamma Scalp setups are high-probability while QQQ holds above 502. Avoid directional size; rotate into theta-positive structures.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "market_brief",
+      "template_name": "Daily Options Market Brief",
+      "title": "Daily Options Market Brief: iShares Russell 2000",
+      "content": "# Daily Options Market Brief: iShares Russell 2000\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Underlying: iShares Russell 2000 (IWM), Regime: Post-FOMC Positive Gamma, KeyLevel: IWM Magnet 212\n\n## Summary\n\nIWM trades at 212.40 (prev 210.90) pinned to the 212 magnet level (strength 68.4, source DEX). Unlike SPX/SPY/QQQ, IWM still shows negative GEX (-165.2) at the 212 strike, reflecting asymmetric small-cap dealer positioning. NFP risk remains.\n\n## Details\n\nIWM 212P Weekly (OI 35,000, volume 9,500) is the most-traded hedge in the IWM chain. Delta -0.48, gamma 0.020, IV 0.22. Expect higher realized volatility vs. large caps.\n\n## Recommendations\n\nNegative Gamma Mean Reversion is the regime-aligned strategy for IWM. Use 212 as the pivot; fade stretches in either direction.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "market_brief",
+      "template_name": "Daily Options Market Brief",
+      "title": "Daily Options Market Brief: Apple Inc",
+      "content": "# Daily Options Market Brief: Apple Inc\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Underlying: Apple Inc (AAPL), Regime: Post-FOMC Positive Gamma, KeyLevel: AAPL Put Wall 225\n\n## Summary\n\nAAPL trades at 228.50 (prev 226.80) with the put wall at 225 (strength 78.5) as primary support. GEX at the 230 strike is +82.5. NVIDIA Earnings Q4 2025 continues to dominate sector sentiment for AAPL.\n\n## Details\n\nAAPL 230P Weekly (OI 55,000, vol 18,000) is the preferred hedge. Delta -0.42, gamma 0.015, IV 0.24. Positive gamma environment favors range-bound action between 225 and 230.\n\n## Recommendations\n\nPin Risk Butterfly aligns with the current regime. Watch the 225 put wall as a potential bounce level on any weakness.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "trade_journal",
+      "template_name": "Trade Journal Entry",
+      "title": "Trade Journal Entry: SPX 5800C Scalp Long",
+      "content": "# Trade Journal Entry: SPX 5800C Scalp Long\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Trade: SPX 5800C Scalp Long, OptionsContract: SPX 5800C 0DTE, Underlying: S&P 500 Index, Regime: Post-FOMC Positive Gamma\n\n## Summary\n\nBought 5x SPX 5800C 0DTE at 24.80 with SPX trading 5820.50. Delta 0.55 long exposure with positive gamma regime tailwind. Closed at 25.48 for +$340 P&L.\n\n## Details\n\nEntry triggered by confirmation of Post-FOMC Positive Gamma regime (gex 245.6) and spot holding above the 5800 magnet. Put wall at 5700 defined max risk. 0DTE Gamma Scalp strategy (win rate 0.62) used.\n\n## Lessons\n\nPositive gamma compression kept realized vol low — next time, size up and hold longer. Theta was -12.50/day but was offset by favorable dealer hedging flow.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "trade_journal",
+      "template_name": "Trade Journal Entry",
+      "title": "Trade Journal Entry: SPY 580C Momentum Buy",
+      "content": "# Trade Journal Entry: SPY 580C Momentum Buy\n\n**Date:** 2026-03-27  \n**Domain:** Options Intelligence  \n**Reference:** Trade: SPY 580C Momentum Buy, OptionsContract: SPY 580C Weekly, Underlying: SPDR S&P 500 ETF, Regime: Post-FOMC Positive Gamma\n\n## Summary\n\nBought 10x SPY 580C Weekly at 3.25 as SPY broke above 580. Exit at 3.43 = +$180 P&L. Put Wall Bounce strategy used off the 575 support defense into the 585 call wall.\n\n## Details\n\nSPY had been ranging between 580 support and 585 resistance. GEX at 580 = +280.1 confirmed dealer long-gamma hedging to compress moves into 585. IV 0.16, delta 0.52, gamma 0.012.\n\n## Lessons\n\nRespect call wall resistance — should have trimmed at 584 rather than chasing. SPY weekly OI of 120,000 provided tight bid-ask.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "trade_journal",
+      "template_name": "Trade Journal Entry",
+      "title": "Trade Journal Entry: QQQ 500C Gamma Scalp",
+      "content": "# Trade Journal Entry: QQQ 500C Gamma Scalp\n\n**Date:** 2026-03-26  \n**Domain:** Options Intelligence  \n**Reference:** Trade: QQQ 500C Gamma Scalp, OptionsContract: QQQ 500C 0DTE, Underlying: Invesco QQQ Trust, Regime: Post-FOMC Positive Gamma\n\n## Summary\n\nBought 8x QQQ 500C 0DTE at 4.55 with QQQ at 503.20. Scalped delta against dealer positive gamma flow; closed for +$256.\n\n## Details\n\nQQQ Gamma Flip at 502 (strength 95.0) acted as dynamic support. GEX at 500 strike = +360.3. Delta 0.60, gamma 0.010. Triggered by Monthly OpEx Jan 2026 dealer-flow pattern.\n\n## Lessons\n\n0DTE Gamma Scalp continues to work well in positive gamma regimes. The 502 flip level is a clean trigger.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "trade_journal",
+      "template_name": "Trade Journal Entry",
+      "title": "Trade Journal Entry: IWM 212P Hedge",
+      "content": "# Trade Journal Entry: IWM 212P Hedge\n\n**Date:** 2026-03-25  \n**Domain:** Options Intelligence  \n**Reference:** Trade: IWM 212P Hedge, OptionsContract: IWM 212P Weekly, Underlying: iShares Russell 2000, Regime: Post-FOMC Positive Gamma\n\n## Summary\n\nBought 15x IWM 212P Weekly at 1.98 as a portfolio hedge. IWM pinned at the 212 magnet and puts decayed; closed at 1.90 for -$120.\n\n## Details\n\nIWM showed negative GEX (-165.2) at 212 suggesting higher realized vol risk. Delta -0.48, gamma 0.020, IV 0.22. Negative Gamma Mean Reversion strategy framework used.\n\n## Lessons\n\nHedges cost money when the market pins — accept it. Size reflected insurance intent, not directional conviction.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "trade_journal",
+      "template_name": "Trade Journal Entry",
+      "title": "Trade Journal Entry: AAPL 230P Directional",
+      "content": "# Trade Journal Entry: AAPL 230P Directional\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Trade: AAPL 230P Directional, OptionsContract: AAPL 230P Weekly, Underlying: Apple Inc, Regime: Post-FOMC Positive Gamma\n\n## Summary\n\nBought 5x AAPL 230P Weekly at 2.85 ahead of rotation out of mega-cap tech post-NVIDIA earnings. AAPL faded from 230 toward the 225 put wall; closed at 3.14 for +$145.\n\n## Details\n\nDelta -0.42, gamma 0.015, IV 0.24. GEX at 230 = +82.5 but deteriorating. Triggered by NVIDIA Earnings Q4 2025 spillover. Pin Risk Butterfly regime-fit.\n\n## Lessons\n\nEarnings-event-driven rotation trades work best when the put wall is well-defined. 225 held on the first test.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "regime_analysis",
+      "template_name": "Regime Change Analysis",
+      "title": "Regime Change Analysis: Negative Gamma Regime",
+      "content": "# Regime Change Analysis: Negative Gamma Regime\n\n**Date:** 2026-03-20  \n**Domain:** Options Intelligence  \n**Reference:** Regime: Negative Gamma Regime, Underlying: S&P 500 Index\n\n## Summary\n\nNegative Gamma Regime detected at 2026-03-20T10:15:00 with gex -142.8 and flip level 5780. This was the earliest regime in the current cycle and preceded the Transition Regime.\n\n## Details\n\nDealers were short gamma, amplifying directional moves in SPX. Flip level at 5780 was breached intraday, triggering the subsequent transition.\n\n## Recommendations\n\nNegative Gamma Mean Reversion was the appropriate playbook during this window.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "regime_analysis",
+      "template_name": "Regime Change Analysis",
+      "title": "Regime Change Analysis: Transition Regime",
+      "content": "# Regime Change Analysis: Transition Regime\n\n**Date:** 2026-03-22  \n**Domain:** Options Intelligence  \n**Reference:** Regime: Transition Regime, Underlying: S&P 500 Index\n\n## Summary\n\nTransition Regime detected at 2026-03-22T14:30:00 with gex 12.3 (near zero) and flip level 5785. This regime was PRECEDED_BY Negative Gamma Regime and FLIPPED_TO Positive Gamma Regime.\n\n## Details\n\nDealer gamma crossed from negative to positive. Choppy, indecisive tape typical of flip-zone action.\n\n## Recommendations\n\nReduced position sizing and FOMC Straddle structures fit the transition window.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "regime_analysis",
+      "template_name": "Regime Change Analysis",
+      "title": "Regime Change Analysis: Positive Gamma Regime",
+      "content": "# Regime Change Analysis: Positive Gamma Regime\n\n**Date:** 2026-03-25  \n**Domain:** Options Intelligence  \n**Reference:** Regime: Positive Gamma Regime, Underlying: S&P 500 Index\n\n## Summary\n\nPositive Gamma Regime detected at 2026-03-25T09:45:00 with gex 185.4 and flip level 5780. PRECEDED_BY Transition Regime, FLIPPED_TO Neutral Regime.\n\n## Details\n\nDealers rebuilt long-gamma inventory, compressing realized volatility. Put Wall Bounce and 0DTE Gamma Scalp strategies performed well.\n\n## Recommendations\n\nRange-bound playbooks; sell premium into magnets.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "regime_analysis",
+      "template_name": "Regime Change Analysis",
+      "title": "Regime Change Analysis: Neutral Regime",
+      "content": "# Regime Change Analysis: Neutral Regime\n\n**Date:** 2026-03-27  \n**Domain:** Options Intelligence  \n**Reference:** Regime: Neutral Regime, Underlying: S&P 500 Index\n\n## Summary\n\nNeutral Regime detected at 2026-03-27T11:00:00 with gex 5.8 and flip level 5790. PRECEDED_BY Positive Gamma Regime, FLIPPED_TO Post-FOMC Positive Gamma.\n\n## Details\n\nBrief neutral window ahead of the FOMC rate decision. Low directional conviction, pinning behavior dominant.\n\n## Recommendations\n\nPin Risk Butterfly setups were optimal in this regime window.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "regime_analysis",
+      "template_name": "Regime Change Analysis",
+      "title": "Regime Change Analysis: Post-FOMC Positive Gamma",
+      "content": "# Regime Change Analysis: Post-FOMC Positive Gamma\n\n**Date:** 2026-03-29  \n**Domain:** Options Intelligence  \n**Reference:** Regime: Post-FOMC Positive Gamma, Underlying: S&P 500 Index, MarketEvent: FOMC Rate Decision Jan 2026\n\n## Summary\n\nPost-FOMC Positive Gamma detected at 2026-03-29T14:30:00 with gex 245.6 and flip level 5770. PRECEDED_BY Neutral Regime. CAUSED_FLIP by FOMC Rate Decision Jan 2026.\n\n## Details\n\nThe FOMC decision resolved uncertainty and dealers aggressively rebuilt long gamma. All five tracked underlyings are now in this regime.\n\n## Recommendations\n\n0DTE Gamma Scalp is the preferred strategy. Harvest theta; avoid chasing directional.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "exposure_report",
+      "template_name": "Dealer Exposure Report",
+      "title": "Dealer Exposure Report: S&P 500 Index",
+      "content": "# Dealer Exposure Report: S&P 500 Index\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Underlying: S&P 500 Index (SPX), ExposureLevel: GEX @ 5800 SPX\n\n## Summary\n\nSPX dealer exposure at 5800 strike: GEX +850.5, DEX -120.3, VEX 45.2, CHEX -32.1, Net Gamma +720.4. Timestamp 2026-03-28T09:30:00. The 5800 strike is the dominant magnet.\n\n## Details\n\nPositive gamma concentration at 5800 provides damping. Put wall 5700, upside resistance forms at 5850. Dealers are net short delta, long gamma.\n\n## Recommendations\n\nExpect compression between 5790 and 5820 absent event catalysts.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "exposure_report",
+      "template_name": "Dealer Exposure Report",
+      "title": "Dealer Exposure Report: SPDR S&P 500 ETF",
+      "content": "# Dealer Exposure Report: SPDR S&P 500 ETF\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Underlying: SPDR S&P 500 ETF (SPY), ExposureLevel: GEX @ 580 SPY\n\n## Summary\n\nSPY dealer exposure at 580 strike: GEX +310.2, DEX -45.8, VEX 18.3, CHEX -11.2, Net Gamma +280.1. Dealers long gamma at 580 with call wall 585.\n\n## Details\n\nSPY mirrors SPX dealer positioning. 580 magnet, 585 upside resistance.\n\n## Recommendations\n\nFade extensions beyond 585; buy dips toward 580.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "exposure_report",
+      "template_name": "Dealer Exposure Report",
+      "title": "Dealer Exposure Report: Invesco QQQ Trust",
+      "content": "# Dealer Exposure Report: Invesco QQQ Trust\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Underlying: Invesco QQQ Trust (QQQ), ExposureLevel: GEX @ 500 QQQ\n\n## Summary\n\nQQQ dealer exposure at 500 strike: GEX +420.6, DEX -68.4, VEX 22.7, CHEX -15.8, Net Gamma +360.3. Gamma flip at 502.\n\n## Details\n\nQQQ spot 503.20 above the 502 gamma flip confirms the positive-gamma regime for tech. Highest call OI concentrated at 500 strike.\n\n## Recommendations\n\nExpect tight range 498-506 unless flip is breached.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "exposure_report",
+      "template_name": "Dealer Exposure Report",
+      "title": "Dealer Exposure Report: iShares Russell 2000",
+      "content": "# Dealer Exposure Report: iShares Russell 2000\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Underlying: iShares Russell 2000 (IWM), ExposureLevel: GEX @ 212 IWM\n\n## Summary\n\nIWM dealer exposure at 212 strike: GEX -180.4, DEX +95.2, VEX -12.1, CHEX 8.5, Net Gamma -165.2. Dealers remain short gamma — the 212 magnet is DEX-driven.\n\n## Details\n\nIWM is the lone underlying with negative GEX in the tracked universe, reflecting persistent small-cap hedging asymmetries.\n\n## Recommendations\n\nUse mean reversion playbooks; expect higher realized vol than large caps.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "exposure_report",
+      "template_name": "Dealer Exposure Report",
+      "title": "Dealer Exposure Report: Apple Inc",
+      "content": "# Dealer Exposure Report: Apple Inc\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Underlying: Apple Inc (AAPL), ExposureLevel: GEX @ 230 AAPL\n\n## Summary\n\nAAPL dealer exposure at 230 strike: GEX +95.8, DEX -18.4, VEX 6.2, CHEX -4.1, Net Gamma +82.5. Modest positive gamma with put wall at 225.\n\n## Details\n\nAAPL single-name gamma is smaller in magnitude than index/ETF exposure but positioning is directionally aligned.\n\n## Recommendations\n\nRange 225-232 preferred; breach of 225 would flip the thesis.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "strategy_playbook",
+      "template_name": "Strategy Playbook",
+      "title": "Strategy Playbook: 0DTE Gamma Scalp",
+      "content": "# Strategy Playbook: 0DTE Gamma Scalp\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Strategy: 0DTE Gamma Scalp, Regime: Positive Gamma Regime, Regime: Post-FOMC Positive Gamma\n\n## Summary\n\n0DTE Gamma Scalp (directional, win rate 0.62, avg return 8.5, max loss 500) is OPTIMAL_IN Positive Gamma and Post-FOMC Positive Gamma regimes. Trade example: SPX 5800C Scalp Long, QQQ 500C Gamma Scalp.\n\n## Details\n\nEntry: confirm positive net GEX at the ATM strike; buy the ATM call at bid-mid. Exit: scale out at +20% or when spot reaches next magnet.\n\n## Risk Rules\n\nMax 5-10 contracts on SPX, 8-10 on QQQ. Hard stop at -$500.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "strategy_playbook",
+      "template_name": "Strategy Playbook",
+      "title": "Strategy Playbook: Negative Gamma Mean Reversion",
+      "content": "# Strategy Playbook: Negative Gamma Mean Reversion\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Strategy: Negative Gamma Mean Reversion, Regime: Negative Gamma Regime\n\n## Summary\n\nNegative Gamma Mean Reversion (mean_reversion, win rate 0.48, avg return 15.2, max loss 800). OPTIMAL_IN Negative Gamma Regime. Trade example: IWM 212P Hedge.\n\n## Details\n\nFade 2-sigma stretches at key levels. Size small given the lower win rate and wider max loss. Prefer names with persistent negative GEX like IWM.\n\n## Risk Rules\n\nStop at -$800 per position. Do not average down.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "strategy_playbook",
+      "template_name": "Strategy Playbook",
+      "title": "Strategy Playbook: Put Wall Bounce",
+      "content": "# Strategy Playbook: Put Wall Bounce\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Strategy: Put Wall Bounce, Regime: Positive Gamma Regime\n\n## Summary\n\nPut Wall Bounce (momentum, win rate 0.71, avg return 6.8, max loss 350). OPTIMAL_IN Positive Gamma Regime. Trade example: SPY 580C Momentum Buy off SPY 575 put wall (prior session).\n\n## Details\n\nBuy calls when spot tests and holds a put wall in a positive gamma regime. Target the next magnet or call wall.\n\n## Risk Rules\n\nStop if put wall breaks with volume. Max loss $350.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "strategy_playbook",
+      "template_name": "Strategy Playbook",
+      "title": "Strategy Playbook: Pin Risk Butterfly",
+      "content": "# Strategy Playbook: Pin Risk Butterfly\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Strategy: Pin Risk Butterfly, Regime: Neutral Regime\n\n## Summary\n\nPin Risk Butterfly (neutral, win rate 0.38, avg return 45.0, max loss 175). OPTIMAL_IN Neutral Regime. Trade example: AAPL 230P Directional sized as a pin-risk structure around AAPL 228.50.\n\n## Details\n\nBuy ATM butterflies the day before expiration in neutral regimes with high magnet strength. Asymmetric risk-reward: low win rate but large avg return.\n\n## Risk Rules\n\nMax loss capped at debit paid; size so single loss stays under $175.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    },
+    {
+      "template_id": "strategy_playbook",
+      "template_name": "Strategy Playbook",
+      "title": "Strategy Playbook: FOMC Straddle",
+      "content": "# Strategy Playbook: FOMC Straddle\n\n**Date:** 2026-03-28  \n**Domain:** Options Intelligence  \n**Reference:** Strategy: FOMC Straddle, Regime: Transition Regime, MarketEvent: FOMC Rate Decision Jan 2026\n\n## Summary\n\nFOMC Straddle (volatility, win rate 0.55, avg return 22.4, max loss 1200). OPTIMAL_IN Transition Regime ahead of FOMC events. Linked to FOMC Rate Decision Jan 2026 which CAUSED_FLIP to Post-FOMC Positive Gamma.\n\n## Details\n\nBuy ATM straddles on SPX 24-48 hours before FOMC. Close same-day post-announcement regardless of direction.\n\n## Risk Rules\n\nMax 3-5 straddles. Hard stop -$1200. Avoid overnight hold past event.\n\n---\n\n*Document generated for Options Intelligence context graph application.*"
+    }
+  ],
+  "traces": [
+    {
+      "id": "trade_entry",
+      "task": "Evaluate 0DTE trade entry on SPX given current dealer positioning and the Post-FOMC Positive Gamma regime",
+      "steps": [
+        {
+          "thought": "Check current GEX regime and dealer positioning for SPX",
+          "action": "Query the active Regime for S&P 500 Index and net gamma at the 5800 strike",
+          "observation": "SPX is IN_REGIME Post-FOMC Positive Gamma (gex 245.6). GEX @ 5800 SPX shows net_gamma 720.4 — dealers long gamma."
+        },
+        {
+          "thought": "Identify key support and resistance levels from options positioning",
+          "action": "Find put walls and call walls for SPX via HAS_LEVEL",
+          "observation": "SPX has SPX Put Wall 5700 (strength 85.2) as support. Upside magnet at 5800."
+        },
+        {
+          "thought": "Assess whether current price (5820.50) aligns with a 0DTE Gamma Scalp setup",
+          "action": "Compare spot to flip level 5770 and confirm Strategy OPTIMAL_IN current regime",
+          "observation": "Spot 5820.50 is above flip 5770. 0DTE Gamma Scalp is OPTIMAL_IN Post-FOMC Positive Gamma."
+        },
+        {
+          "thought": "Calculate position size based on 500 max-loss budget",
+          "action": "Divide max loss by SPX 5800C 0DTE ask (25.20) * 100",
+          "observation": "5 contracts at 24.80 = $12,400 debit, within tolerance; matches SPX 5800C Scalp Long trade pattern."
+        }
+      ],
+      "outcome": "Entry decision: Approve. Strategy: 0DTE Gamma Scalp. Contract: SPX 5800C 0DTE at 24.80. Quantity: 5. Max risk: $500."
+    },
+    {
+      "id": "regime_flip_response",
+      "task": "Respond to gamma regime flip from Neutral Regime to Post-FOMC Positive Gamma on SPX",
+      "steps": [
+        {
+          "thought": "Confirm the regime flip via FLIPPED_TO edge and timestamps",
+          "action": "Query FLIPPED_TO from Neutral Regime and check detected_at of Post-FOMC Positive Gamma",
+          "observation": "Neutral Regime (2026-03-27T11:00:00) FLIPPED_TO Post-FOMC Positive Gamma (2026-03-29T14:30:00). Order is consistent."
+        },
+        {
+          "thought": "Assess open SPX positions affected by the regime change",
+          "action": "Find trades EXECUTES SPX 5800C 0DTE with open status",
+          "observation": "SPX 5800C Scalp Long (5 contracts) is active; delta 0.55 long, benefits from positive gamma."
+        },
+        {
+          "thought": "Determine whether to hold, hedge, or add",
+          "action": "Check Strategy OPTIMAL_IN Post-FOMC Positive Gamma",
+          "observation": "0DTE Gamma Scalp and Put Wall Bounce are both OPTIMAL_IN the new regime — hold and optionally add."
+        }
+      ],
+      "outcome": "Action: hold SPX 5800C Scalp Long; consider adding 1-2 more contracts. Positions adjusted: none. New exposure: +5 delta-adjusted SPX calls."
+    },
+    {
+      "id": "level_breach_analysis",
+      "task": "Analyze breach of SPX Put Wall 5700 at $5700 on S&P 500 Index",
+      "steps": [
+        {
+          "thought": "Verify whether SPX spot approached the 5700 put wall",
+          "action": "Query Underlying S&P 500 Index spot_price and compare to KeyLevel SPX Put Wall 5700 price",
+          "observation": "SPX spot 5820.50 vs put wall 5700 — level is not breached, 120 points above."
+        },
+        {
+          "thought": "Assess dealer hedging implications if spot moves toward 5700",
+          "action": "Check GEX @ 5800 SPX and modeled transition to 5700 via EXPOSURE_AT edge",
+          "observation": "GEX at 5800 is +720.4; a move toward 5700 would flip dealers short gamma and amplify downside."
+        },
+        {
+          "thought": "Identify next support below 5700",
+          "action": "Query KeyLevel nodes for SPX with price below 5700",
+          "observation": "No deeper SPX levels present in the current graph — 5700 is the last put wall of record."
+        }
+      ],
+      "outcome": "Breach status: not breached (spot 5820.50, wall 5700). Next target on breach: below 5700 would expose dealers to negative gamma. Dealer flow: currently long gamma at 5800."
+    },
+    {
+      "id": "expiration_analysis",
+      "task": "Analyze 0DTE options expiration impact for SPX with SPX 5800C 0DTE contracts expiring 2026-03-28",
+      "steps": [
+        {
+          "thought": "Identify strikes with highest open interest expiring today",
+          "action": "Query OptionsContract nodes with expiry 2026-03-28 sorted by open_interest",
+          "observation": "SPX 5800C 0DTE (OI 45000, vol 12000) and QQQ 500C 0DTE (OI 85000, vol 32000) are the largest 0DTE positions."
+        },
+        {
+          "thought": "Calculate gamma exposure removal from expiration",
+          "action": "Sum GEX at the 5800 SPX and 500 QQQ strikes",
+          "observation": "Expiration removes +720.4 GEX at SPX 5800 plus +360.3 at QQQ 500 — significant post-close repositioning expected."
+        },
+        {
+          "thought": "Assess pinning probability at SPX 5800 max pain",
+          "action": "Compare SPX spot 5820.50 to the 5800 magnet strike",
+          "observation": "Distance is 20.5 points; positive gamma regime (gex 245.6) supports pin gravity toward 5800."
+        }
+      ],
+      "outcome": "Max pain: $5800 SPX. Pin probability: moderate-to-high given Post-FOMC Positive Gamma. GEX removal: -720.4 at SPX 5800 post-expiry."
+    },
+    {
+      "id": "event_positioning",
+      "task": "Position for upcoming FOMC Rate Decision Jan 2026 impact on S&P 500 Index",
+      "steps": [
+        {
+          "thought": "Assess the CAUSED_FLIP history of FOMC events",
+          "action": "Query CAUSED_FLIP edges from MarketEvent FOMC Rate Decision Jan 2026",
+          "observation": "FOMC Rate Decision Jan 2026 CAUSED_FLIP to Post-FOMC Positive Gamma (gex 245.6)."
+        },
+        {
+          "thought": "Analyze current IV at SPX ATM vs post-event expectation",
+          "action": "Check SPX 5800C 0DTE implied_volatility",
+          "observation": "SPX 5800C 0DTE IV 0.18 — compressed post-event; vol crush already realized."
+        },
+        {
+          "thought": "Select optimal strategy given the post-event regime",
+          "action": "Find Strategy OPTIMAL_IN Post-FOMC Positive Gamma",
+          "observation": "0DTE Gamma Scalp is OPTIMAL_IN the active regime (win rate 0.62)."
+        }
+      ],
+      "outcome": "Strategy: 0DTE Gamma Scalp on SPX 5800C 0DTE. IV edge: vol crush realized, premium cheap. Position: 5x long SPX 5800C."
+    },
+    {
+      "id": "vix_spike_response",
+      "task": "Assess impact of a VIX spike on current 0DTE positions including SPX 5800C Scalp Long and QQQ 500C Gamma Scalp",
+      "steps": [
+        {
+          "thought": "Quantify VIX spike magnitude relative to the Post-FOMC Positive Gamma baseline",
+          "action": "Query current regime and compare flip level 5770 to spot",
+          "observation": "SPX spot 5820.50 remains 50+ points above flip 5770 — regime still intact despite vol uptick."
+        },
+        {
+          "thought": "Assess vega exposure on open trades",
+          "action": "Sum vega across SPX 5800C 0DTE (4.2) and QQQ 500C 0DTE (0.22) weighted by contract counts",
+          "observation": "SPX position vega = 21.0, QQQ position vega = 1.76. Small vol rise is net positive."
+        },
+        {
+          "thought": "Decide hedge vs hold",
+          "action": "Check whether flip level 5770 has been breached",
+          "observation": "Flip not breached; regime holds. No hedge needed yet."
+        }
+      ],
+      "outcome": "VIX impact: limited. Vega P&L: +$22.76 per 1 vol point. Action: hold both SPX 5800C Scalp Long and QQQ 500C Gamma Scalp."
+    },
+    {
+      "id": "end_of_day_review",
+      "task": "End-of-day review of 0DTE trading performance on 2026-03-28 across SPX, QQQ, and AAPL",
+      "steps": [
+        {
+          "thought": "Aggregate all trades executed today and calculate net P&L",
+          "action": "Query Trade nodes with executed_at on 2026-03-28 and sum pnl",
+          "observation": "SPX 5800C Scalp Long +$340, AAPL 230P Directional +$145. Net +$485 on 2026-03-28."
+        },
+        {
+          "thought": "Correlate outcomes with the Post-FOMC Positive Gamma regime",
+          "action": "Join trades to IN_REGIME on their underlyings",
+          "observation": "Both winning trades were on underlyings IN_REGIME Post-FOMC Positive Gamma."
+        },
+        {
+          "thought": "Identify best-performing strategy",
+          "action": "Group trades by USES_STRATEGY and compute average P&L",
+          "observation": "0DTE Gamma Scalp averaged +$340; Pin Risk Butterfly averaged +$145."
+        }
+      ],
+      "outcome": "Net P&L: $485 on 2026-03-28. Win rate: 100% (2/2). Best setup: 0DTE Gamma Scalp on SPX 5800C 0DTE."
+    },
+    {
+      "id": "spread_construction",
+      "task": "Construct optimal put wall bounce call spread on SPY at current levels (spot 582.05)",
+      "steps": [
+        {
+          "thought": "Identify the optimal long strike near SPY spot",
+          "action": "Query ExposureLevel GEX @ 580 SPY for the highest-gamma strike",
+          "observation": "GEX @ 580 SPY has net_gamma 280.1 — 580 is the dominant magnet."
+        },
+        {
+          "thought": "Determine short strike using the SPY call wall",
+          "action": "Query HAS_LEVEL for SPDR S&P 500 ETF — KeyLevel SPY Call Wall 585",
+          "observation": "SPY Call Wall 585 (strength 72.8) defines the natural upside cap."
+        },
+        {
+          "thought": "Verify liquidity at 580",
+          "action": "Check SPY 580C Weekly bid, ask, open_interest, volume",
+          "observation": "SPY 580C Weekly bid 3.20, ask 3.35, OI 120000, vol 45000 — very liquid."
+        }
+      ],
+      "outcome": "Spread: SPY 580/585 call debit spread. Credit: n/a (debit 1.70). Max risk: $170. Probability: ~55% based on Put Wall Bounce win rate 0.71."
+    },
+    {
+      "id": "gamma_scalp_setup",
+      "task": "Identify gamma scalp opportunity on QQQ in the Post-FOMC Positive Gamma regime",
+      "steps": [
+        {
+          "thought": "Verify positive gamma regime is active for QQQ",
+          "action": "Query IN_REGIME for Invesco QQQ Trust",
+          "observation": "Invesco QQQ Trust IN_REGIME Post-FOMC Positive Gamma (gex 245.6)."
+        },
+        {
+          "thought": "Find ATM strike with highest gamma concentration",
+          "action": "Query QQQ EXPOSURE_AT for the nearest-to-spot ExposureLevel",
+          "observation": "GEX @ 500 QQQ has net_gamma 360.3 at strike 500; spot 503.20 is just above."
+        },
+        {
+          "thought": "Calculate expected dealer hedging flow",
+          "action": "Check QQQ Gamma Flip 502 level for the pivot",
+          "observation": "QQQ Gamma Flip 502 (strength 95.0). Above 502, dealers hedge mean reversion toward 500 magnet."
+        },
+        {
+          "thought": "Define entry, stop, and target",
+          "action": "Use QQQ 500C 0DTE mid price and key levels",
+          "observation": "Entry 4.60 (mid of 4.50/4.70), stop at flip 502, target at 506 (next resistance)."
+        }
+      ],
+      "outcome": "Setup: QQQ 500C Gamma Scalp. Entry: $4.60. Stop: $502 spot (flip level). Target: $506 spot."
+    }
+  ]
+}

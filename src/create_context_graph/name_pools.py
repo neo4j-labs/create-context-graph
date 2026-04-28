@@ -761,6 +761,54 @@ LABEL_NAMES: dict[str, list[str]] = {
         "Oxford Nanopore Research", "Broad Institute of MIT and Harvard",
         "Caltech Jet Propulsion Lab", "Salk Institute for Biological Studies",
     ],
+    # Options Intelligence
+    "Underlying": [
+        "S&P 500 Index", "SPDR S&P 500 ETF", "Invesco QQQ Trust",
+        "iShares Russell 2000", "Apple Inc", "NVIDIA Corporation",
+        "Tesla Inc", "Amazon.com Inc", "Meta Platforms",
+        "Microsoft Corporation", "Alphabet Inc", "AMD",
+    ],
+    "OptionsContract": [
+        "SPX 5800C 0DTE", "SPX 5750P 0DTE", "SPY 580C Weekly",
+        "SPY 575P Weekly", "QQQ 500C 0DTE", "QQQ 495P 0DTE",
+        "TSLA 250C Weekly", "NVDA 140C 0DTE", "AAPL 230P Weekly",
+        "SPX 5700P 0DTE", "SPX 5850C 0DTE", "SPY 585C 0DTE",
+    ],
+    "ExposureLevel": [
+        "GEX @ 5800", "GEX @ 5750", "GEX @ 5850", "GEX @ 5700",
+        "DEX @ 5800", "DEX @ 5750", "VEX @ 5800", "CHEX @ 5750",
+        "GEX @ 580 SPY", "GEX @ 575 SPY", "GEX @ 500 QQQ",
+        "GEX @ 495 QQQ",
+    ],
+    "Regime": [
+        "Positive Gamma Regime", "Negative Gamma Regime",
+        "Transition Regime", "Neutral Regime",
+        "Post-FOMC Positive Gamma", "Pre-CPI Negative Gamma",
+        "Expiration Pin Regime", "VIX Spike Transition",
+    ],
+    "KeyLevel": [
+        "SPX Put Wall 5700", "SPX Call Wall 5850", "SPX Gamma Flip 5780",
+        "SPX Magnet 5800", "SPY Put Wall 575", "SPY Call Wall 585",
+        "QQQ Support 495", "QQQ Resistance 505",
+        "SPX Vol Trigger 5750", "SPX HVL 5810",
+    ],
+    "Trade": [
+        "SPX 5800C Scalp Long", "SPX 5750P Directional Short",
+        "SPY Iron Condor 575-585", "QQQ Straddle 500",
+        "SPX Butterfly 5780-5800-5820", "TSLA 250C Momentum Long",
+        "SPX 5700P Hedge Buy", "SPY 580-585 Call Spread",
+    ],
+    "MarketEvent": [
+        "FOMC Rate Decision Jan 2026", "CPI Release Feb 2026",
+        "NFP Report Jan 2026", "NVIDIA Earnings Q4 2025",
+        "Monthly OpEx Jan 2026", "VIX Spike 28 Jan 15",
+        "SPX Regime Flip Jan 16", "PPI Release Jan 2026",
+    ],
+    "Strategy": [
+        "0DTE Gamma Scalp", "Negative Gamma Mean Reversion",
+        "Put Wall Bounce", "Call Wall Fade", "FOMC Straddle",
+        "Pin Risk Butterfly", "Momentum Breakout", "VIX Spike Fade",
+    ],
 }
 
 # Mapping of entity labels to preferred ID prefixes
@@ -777,6 +825,9 @@ LABEL_ID_PREFIXES: dict[str, str] = {
     "Species": "SPE", "Site": "SIT", "Program": "PRG",
     "Source": "SRC", "Story": "STR", "Dataset": "DS",
     "Destination": "DST", "Hotel": "HTL", "Activity": "ACT",
+    "Underlying": "UND", "OptionsContract": "OPT", "ExposureLevel": "EXP",
+    "Regime": "REG", "KeyLevel": "KLV", "Trade": "TRD",
+    "MarketEvent": "MEV", "Strategy": "STG",
 }
 
 # ---------------------------------------------------------------------------
@@ -906,13 +957,18 @@ DOMAIN_INDUSTRY_POOL: dict[str, list[str]] = {
         "AI Systems", "Memory Architecture", "Agent Infrastructure",
         "Cognitive Computing", "AI Research", "Knowledge Systems",
     ],
+    "options-intelligence": [
+        "Options Trading", "Derivatives Analysis", "Market Microstructure",
+        "Volatility Research", "Dealer Positioning", "Gamma Exposure Analytics",
+    ],
 }
 
 _CURRENCY_POOL = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR", "BRL"]
 
 _TICKER_POOL = [
-    "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA", "JPM", "BAC", "WMT",
-    "JNJ", "PG", "UNH", "V", "HD", "MA", "DIS", "NVDA", "PFE", "KO",
+    "SPX", "SPY", "QQQ", "IWM", "AAPL", "MSFT", "GOOGL", "AMZN", "TSLA",
+    "JPM", "BAC", "WMT", "JNJ", "PG", "UNH", "V", "HD", "MA", "DIS",
+    "NVDA", "PFE", "KO",
 ]
 
 _DRUG_CLASS_POOL = [

@@ -1,0 +1,651 @@
+inherits: _base
+
+domain:
+  id: options-intelligence
+  name: Options Intelligence
+  description: Real-time options analysis, dealer positioning, gamma exposure, and 0DTE trading intelligence
+  tagline: "AI-powered Options Market Intelligence"
+  emoji: "\U0001F4C8"
+
+entity_types:
+  - label: Underlying
+    pole_type: OBJECT
+    subtype: FINANCIAL_INSTRUMENT
+    color: "#0ea5e9"
+    icon: trending-up
+    properties:
+      - name: ticker
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: asset_class
+        type: string
+        enum: [index, equity, etf]
+      - name: spot_price
+        type: float
+      - name: prev_close
+        type: float
+
+  - label: OptionsContract
+    pole_type: OBJECT
+    subtype: DERIVATIVE
+    color: "#f59e0b"
+    icon: file-text
+    properties:
+      - name: contract_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: strike
+        type: float
+        required: true
+      - name: expiry
+        type: date
+        required: true
+      - name: option_type
+        type: string
+        enum: [call, put]
+        required: true
+      - name: open_interest
+        type: integer
+      - name: volume
+        type: integer
+      - name: implied_volatility
+        type: float
+      - name: delta
+        type: float
+      - name: gamma
+        type: float
+      - name: theta
+        type: float
+      - name: vega
+        type: float
+      - name: bid
+        type: float
+      - name: ask
+        type: float
+
+  - label: ExposureLevel
+    pole_type: OBJECT
+    subtype: METRIC
+    color: "#8b5cf6"
+    icon: bar-chart-2
+    properties:
+      - name: level_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: strike_price
+        type: float
+        required: true
+      - name: gex
+        type: float
+      - name: dex
+        type: float
+      - name: vex
+        type: float
+      - name: chex
+        type: float
+      - name: net_gamma
+        type: float
+      - name: timestamp
+        type: datetime
+
+  - label: Regime
+    pole_type: EVENT
+    subtype: MARKET_STATE
+    color: "#dc2626"
+    icon: activity
+    properties:
+      - name: regime_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: classification
+        type: string
+        enum: [positive_gamma, negative_gamma, transition, neutral]
+        required: true
+      - name: description
+        type: string
+      - name: gex_value
+        type: float
+      - name: flip_level
+        type: float
+      - name: detected_at
+        type: datetime
+        required: true
+
+  - label: KeyLevel
+    pole_type: OBJECT
+    subtype: PRICE_LEVEL
+    color: "#10b981"
+    icon: minus
+    properties:
+      - name: level_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: price
+        type: float
+        required: true
+      - name: level_type
+        type: string
+        enum: [support, resistance, magnet, wall, put_wall, call_wall, gamma_flip]
+        required: true
+      - name: strength
+        type: float
+      - name: source
+        type: string
+        enum: [gex, dex, open_interest, volume]
+
+  - label: Trade
+    pole_type: EVENT
+    subtype: ORDER_EXECUTION
+    color: "#06b6d4"
+    icon: arrow-right-left
+    properties:
+      - name: trade_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: direction
+        type: string
+        enum: [buy_to_open, sell_to_open, buy_to_close, sell_to_close]
+        required: true
+      - name: quantity
+        type: integer
+        required: true
+      - name: price
+        type: float
+        required: true
+      - name: strategy
+        type: string
+        enum: [directional, spread, straddle, strangle, iron_condor, butterfly, scalp]
+      - name: pnl
+        type: float
+      - name: executed_at
+        type: datetime
+        required: true
+
+  - label: MarketEvent
+    pole_type: EVENT
+    subtype: CATALYST
+    color: "#ef4444"
+    icon: alert-triangle
+    properties:
+      - name: event_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: event_type
+        type: string
+        enum: [fomc, cpi, ppi, nfp, earnings, opex, vix_spike, regime_flip]
+        required: true
+      - name: scheduled_at
+        type: datetime
+      - name: impact
+        type: string
+        enum: [high, medium, low]
+      - name: description
+        type: string
+
+  - label: Strategy
+    pole_type: OBJECT
+    subtype: TRADING_PLAN
+    color: "#7c3aed"
+    icon: target
+    properties:
+      - name: strategy_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: strategy_type
+        type: string
+        enum: [directional, neutral, volatility, mean_reversion, momentum, scalp]
+        required: true
+      - name: edge_description
+        type: string
+      - name: win_rate
+        type: float
+      - name: avg_return
+        type: float
+      - name: max_loss
+        type: float
+      - name: regime_preference
+        type: string
+        enum: [positive_gamma, negative_gamma, any]
+
+relationships:
+  - type: HAS_OPTION
+    source: Underlying
+    target: OptionsContract
+  - type: EXPOSURE_AT
+    source: Underlying
+    target: ExposureLevel
+  - type: IN_REGIME
+    source: Underlying
+    target: Regime
+  - type: HAS_LEVEL
+    source: Underlying
+    target: KeyLevel
+  - type: TRADED
+    source: Person
+    target: Trade
+  - type: EXECUTES
+    source: Trade
+    target: OptionsContract
+  - type: TRIGGERED_BY
+    source: Trade
+    target: MarketEvent
+  - type: USES_STRATEGY
+    source: Trade
+    target: Strategy
+  - type: FLIPPED_TO
+    source: Regime
+    target: Regime
+  - type: BREACHED
+    source: Trade
+    target: KeyLevel
+  - type: PRECEDED_BY
+    source: Regime
+    target: Regime
+  - type: OPTIMAL_IN
+    source: Strategy
+    target: Regime
+  - type: IMPACTED
+    source: MarketEvent
+    target: Underlying
+  - type: CAUSED_FLIP
+    source: MarketEvent
+    target: Regime
+
+document_templates:
+  - id: market_brief
+    name: Daily Options Market Brief
+    description: Morning brief on dealer positioning, key levels, and expected moves
+    count: 10
+    prompt_template: |
+      Write a daily options market brief for {{underlying.name}} ({{underlying.ticker}}).
+      Current spot: ${{underlying.spot_price}}. GEX regime: {{regime.classification}}.
+      Key levels: put wall at ${{put_wall.price}}, call wall at ${{call_wall.price}},
+      gamma flip at ${{flip.price}}. Include actionable insights for 0DTE traders.
+    required_entities: [Underlying, Regime, KeyLevel]
+
+  - id: trade_journal
+    name: Trade Journal Entry
+    description: Detailed trade review with entry, exit, and lessons learned
+    count: 12
+    prompt_template: |
+      Write a trade journal entry for a {{trade.strategy}} trade on
+      {{underlying.ticker}} {{option_type}} at the ${{strike}} strike.
+      Entry: ${{trade.price}}, direction: {{trade.direction}}.
+      P&L: ${{trade.pnl}}. Regime at entry: {{regime.classification}}.
+      Include what worked, what didn't, and lessons for next time.
+    required_entities: [Trade, OptionsContract, Underlying, Regime]
+
+  - id: regime_analysis
+    name: Regime Change Analysis
+    description: Analysis of gamma regime transitions and their market impact
+    count: 6
+    prompt_template: |
+      Write an analysis of the regime change from {{old_regime.classification}} to
+      {{new_regime.classification}} on {{underlying.ticker}}.
+      GEX flip level: ${{flip_level}}. Catalyst: {{event.name}}.
+      Discuss implications for dealer hedging and expected price behavior.
+    required_entities: [Regime, Underlying, MarketEvent]
+
+  - id: exposure_report
+    name: Dealer Exposure Report
+    description: Breakdown of dealer gamma and delta exposure across strikes
+    count: 8
+    prompt_template: |
+      Write a dealer exposure report for {{underlying.ticker}}.
+      Top GEX strikes: {{top_strikes}}. Net gamma: {{net_gamma}}.
+      Current regime: {{regime.classification}}.
+      Include what the positioning implies for price action today.
+    required_entities: [Underlying, ExposureLevel, Regime]
+
+  - id: strategy_playbook
+    name: Strategy Playbook
+    description: Strategy documentation with edge, entry criteria, and risk rules
+    count: 6
+    prompt_template: |
+      Document the {{strategy.name}} strategy for 0DTE options trading.
+      Strategy type: {{strategy.strategy_type}}.
+      Best regime: {{strategy.regime_preference}}.
+      Win rate: {{strategy.win_rate}}. Avg return: {{strategy.avg_return}}.
+      Include entry criteria, exit rules, position sizing, and risk management.
+    required_entities: [Strategy, Regime]
+
+decision_traces:
+  - id: trade_entry
+    task: "Evaluate 0DTE trade entry on {{underlying.ticker}} given current dealer positioning"
+    steps:
+      - thought: "Check current GEX regime and dealer positioning"
+        action: "Query regime classification and net gamma exposure for the underlying"
+      - thought: "Identify key support and resistance levels from options positioning"
+        action: "Find put walls, call walls, and gamma flip level"
+      - thought: "Assess whether current price action aligns with a strategy edge"
+        action: "Compare spot price to key levels and check for strategy setup conditions"
+      - thought: "Calculate position size based on max loss tolerance"
+        action: "Determine contract quantity given account size and stop level"
+    outcome_template: "Entry decision: {{decision}}. Strategy: {{strategy}}. Risk: ${{risk}}"
+
+  - id: regime_flip_response
+    task: "Respond to gamma regime flip from {{old_regime}} to {{new_regime}} on {{underlying.ticker}}"
+    steps:
+      - thought: "Confirm the regime flip with current GEX data"
+        action: "Query latest exposure levels and verify net gamma crossed the flip level"
+      - thought: "Assess open positions affected by the regime change"
+        action: "Find all open trades and their directional exposure"
+      - thought: "Determine whether to hold, hedge, or close positions"
+        action: "Evaluate P&L impact and strategy performance in new regime"
+    outcome_template: "Action: {{action}}. Positions adjusted: {{count}}. New exposure: {{exposure}}"
+
+  - id: level_breach_analysis
+    task: "Analyze breach of {{level_type}} at ${{price}} on {{underlying.ticker}}"
+    steps:
+      - thought: "Verify the level breach with current price data"
+        action: "Query spot price relative to the breached key level"
+      - thought: "Assess dealer hedging implications of the breach"
+        action: "Check GEX/DEX at the breached strike and adjacent strikes"
+      - thought: "Identify next key levels and expected price targets"
+        action: "Find the next support/resistance levels above and below"
+    outcome_template: "Breach confirmed: {{confirmed}}. Next target: ${{target}}. Dealer flow: {{flow}}"
+
+  - id: expiration_analysis
+    task: "Analyze options expiration impact for {{underlying.ticker}} with {{oi_count}} contracts expiring"
+    steps:
+      - thought: "Identify strikes with highest open interest expiring today"
+        action: "Query options contracts expiring today sorted by open interest"
+      - thought: "Calculate gamma exposure removal from expiration"
+        action: "Sum GEX being removed at each strike as contracts expire"
+      - thought: "Assess pinning probability at max pain strike"
+        action: "Calculate max pain and current distance from it"
+    outcome_template: "Max pain: ${{max_pain}}. Pin probability: {{pin_prob}}. GEX removal: {{gex_removal}}"
+
+  - id: event_positioning
+    task: "Position for upcoming {{event.name}} event on {{event.scheduled_at}}"
+    steps:
+      - thought: "Assess historical impact of this event type on options pricing"
+        action: "Query past market events of the same type and their regime impacts"
+      - thought: "Analyze current implied volatility vs realized volatility"
+        action: "Compare IV at key strikes to historical RV around similar events"
+      - thought: "Select optimal strategy given event risk and current regime"
+        action: "Match strategies to the current regime and event impact profile"
+    outcome_template: "Strategy: {{strategy}}. IV edge: {{iv_edge}}. Position: {{position}}"
+
+  - id: vix_spike_response
+    task: "Assess impact of VIX spike to {{vix_level}} on current 0DTE positions"
+    steps:
+      - thought: "Evaluate magnitude of VIX spike relative to recent range"
+        action: "Query recent VIX levels and compare to current spike"
+      - thought: "Assess impact on open positions via vega exposure"
+        action: "Calculate vega P&L impact across open trades"
+      - thought: "Determine whether to reduce exposure or hedge"
+        action: "Compare current risk to max loss thresholds and strategy rules"
+    outcome_template: "VIX impact: {{impact}}. Vega P&L: ${{vega_pnl}}. Action: {{action}}"
+
+  - id: end_of_day_review
+    task: "End-of-day review of 0DTE trading performance on {{underlying.ticker}}"
+    steps:
+      - thought: "Aggregate all trades executed today and calculate net P&L"
+        action: "Query all trades with today's date and sum results by strategy"
+      - thought: "Compare performance against regime conditions throughout the day"
+        action: "Correlate trade outcomes with regime states at entry time"
+      - thought: "Identify patterns — which setups worked and which failed"
+        action: "Group trades by strategy and regime, calculate win rates"
+      - thought: "Document lessons and adjustments for tomorrow"
+        action: "Generate summary with actionable takeaways"
+    outcome_template: "Net P&L: ${{net_pnl}}. Win rate: {{win_rate}}. Best setup: {{best_setup}}"
+
+  - id: spread_construction
+    task: "Construct optimal {{spread_type}} spread on {{underlying.ticker}} at current levels"
+    steps:
+      - thought: "Identify the optimal short strike based on dealer positioning"
+        action: "Query exposure levels to find strikes with highest GEX concentration"
+      - thought: "Determine wing width based on current implied volatility"
+        action: "Query options chain for IV at candidate strikes and calculate spread width"
+      - thought: "Verify liquidity at chosen strikes"
+        action: "Check bid-ask spreads, volume, and open interest at selected strikes"
+    outcome_template: "Spread: {{spread}}. Credit: ${{credit}}. Max risk: ${{max_risk}}. Probability: {{prob}}"
+
+  - id: gamma_scalp_setup
+    task: "Identify gamma scalp opportunity on {{underlying.ticker}} in current regime"
+    steps:
+      - thought: "Verify positive gamma regime is active"
+        action: "Query current regime and confirm GEX is positive"
+      - thought: "Find strike nearest to spot with highest gamma concentration"
+        action: "Query exposure levels and options chain for ATM gamma"
+      - thought: "Calculate expected dealer hedging flow direction"
+        action: "Assess net delta at nearby strikes and expected mean reversion"
+      - thought: "Define entry, stop, and target based on key levels"
+        action: "Query put wall and call wall for natural stop and target levels"
+    outcome_template: "Setup: {{setup}}. Entry: ${{entry}}. Stop: ${{stop}}. Target: ${{target}}"
+
+demo_scenarios:
+  - name: Market Overview
+    prompts:
+      - "What's the current GEX regime for SPX?"
+      - "Show me the key support and resistance levels from dealer positioning"
+      - "Where is the gamma flip level and how far are we from it?"
+
+  - name: Dealer Positioning
+    prompts:
+      - "What strikes have the highest dealer gamma exposure?"
+      - "Show me the put wall and call wall for today"
+      - "How has dealer positioning changed since market open?"
+
+  - name: Trade Analysis
+    prompts:
+      - "Find all trades that were triggered by a regime flip"
+      - "What strategies have the best win rate in negative gamma regimes?"
+      - "Show me the trade journal for my last 5 SPX 0DTE trades"
+
+  - name: Event Impact
+    prompts:
+      - "Is there an FOMC or CPI event coming up this week?"
+      - "How did the last regime flip affect open positions?"
+      - "What happened to dealer exposure after the last VIX spike?"
+
+agent_tools:
+  - name: get_regime
+    description: Get the current GEX regime classification for an underlying
+    cypher: |
+      MATCH (u:Underlying {ticker: $ticker})-[:IN_REGIME]->(r:Regime)
+      RETURN r.classification AS regime, r.gex_value AS gex,
+             r.flip_level AS flip_level, r.detected_at AS since
+      ORDER BY r.detected_at DESC
+      LIMIT 1
+    parameters:
+      - name: ticker
+        type: string
+        description: Underlying ticker symbol (e.g. SPX, SPY)
+
+  - name: get_key_levels
+    description: Get key price levels derived from options dealer positioning
+    cypher: |
+      MATCH (u:Underlying {ticker: $ticker})-[:HAS_LEVEL]->(l:KeyLevel)
+      RETURN l.level_type AS type, l.price AS price, l.strength AS strength, l.source AS source
+      ORDER BY l.price ASC
+    parameters:
+      - name: ticker
+        type: string
+        description: Underlying ticker symbol
+
+  - name: get_exposure_by_strike
+    description: Get dealer gamma/delta/vanna/charm exposure at each strike
+    cypher: |
+      MATCH (u:Underlying {ticker: $ticker})-[:EXPOSURE_AT]->(e:ExposureLevel)
+      RETURN e.strike_price AS strike, e.gex AS gex, e.dex AS dex,
+             e.vex AS vex, e.chex AS chex, e.net_gamma AS net_gamma
+      ORDER BY e.strike_price ASC
+    parameters:
+      - name: ticker
+        type: string
+        description: Underlying ticker symbol
+
+  - name: find_high_gamma_strikes
+    description: Find strikes with the highest absolute gamma exposure
+    cypher: |
+      MATCH (u:Underlying {ticker: $ticker})-[:EXPOSURE_AT]->(e:ExposureLevel)
+      WHERE abs(e.gex) > $min_gex
+      RETURN e.strike_price AS strike, e.gex AS gex, e.net_gamma AS net_gamma
+      ORDER BY abs(e.gex) DESC
+      LIMIT 10
+    parameters:
+      - name: ticker
+        type: string
+        description: Underlying ticker symbol
+      - name: min_gex
+        type: float
+        description: Minimum absolute GEX threshold
+
+  - name: get_options_chain
+    description: Get the options chain for an underlying with Greeks
+    cypher: |
+      MATCH (u:Underlying {ticker: $ticker})-[:HAS_OPTION]->(o:OptionsContract)
+      WHERE o.option_type = $option_type
+      RETURN o.strike AS strike, o.option_type AS type, o.expiry AS expiry,
+             o.open_interest AS oi, o.volume AS volume,
+             o.implied_volatility AS iv, o.delta AS delta, o.gamma AS gamma,
+             o.bid AS bid, o.ask AS ask
+      ORDER BY o.strike ASC
+    parameters:
+      - name: ticker
+        type: string
+        description: Underlying ticker symbol
+      - name: option_type
+        type: string
+        description: "Option type: call or put"
+
+  - name: get_regime_history
+    description: Get the history of regime changes for an underlying
+    cypher: |
+      MATCH (u:Underlying {ticker: $ticker})-[:IN_REGIME]->(r:Regime)
+      OPTIONAL MATCH (r)-[:PRECEDED_BY]->(prev:Regime)
+      RETURN r.classification AS regime, r.gex_value AS gex,
+             r.detected_at AS changed_at, prev.classification AS previous_regime
+      ORDER BY r.detected_at DESC
+      LIMIT 20
+    parameters:
+      - name: ticker
+        type: string
+        description: Underlying ticker symbol
+
+  - name: get_trades_by_strategy
+    description: Get trade history filtered by strategy type
+    cypher: |
+      MATCH (p:Person)-[:TRADED]->(t:Trade)-[:USES_STRATEGY]->(s:Strategy)
+      WHERE s.strategy_type = $strategy_type
+      OPTIONAL MATCH (t)-[:EXECUTES]->(o:OptionsContract)-[:HAS_OPTION]-(u:Underlying)
+      RETURN t.name AS trade, t.direction AS direction, t.pnl AS pnl,
+             t.executed_at AS date, s.name AS strategy, u.ticker AS underlying
+      ORDER BY t.executed_at DESC
+      LIMIT 20
+    parameters:
+      - name: strategy_type
+        type: string
+        description: "Strategy type: directional, neutral, volatility, mean_reversion, momentum, scalp"
+
+  - name: get_upcoming_events
+    description: Get upcoming market events that may impact options pricing
+    cypher: |
+      MATCH (e:MarketEvent)
+      WHERE e.scheduled_at > datetime()
+      OPTIONAL MATCH (e)-[:IMPACTED]->(u:Underlying)
+      RETURN e.name AS event, e.event_type AS type, e.scheduled_at AS date,
+             e.impact AS impact, u.ticker AS underlying
+      ORDER BY e.scheduled_at ASC
+      LIMIT 10
+    parameters: []
+
+  - name: list_underlyings
+    description: "List tracked underlyings with current spot price"
+    cypher: |
+      MATCH (n:Underlying)
+      RETURN n
+      ORDER BY n.name
+      LIMIT toInteger($limit)
+    parameters:
+      - name: limit
+        type: string
+        description: "Maximum number of results to return (default: 10)"
+
+  - name: get_underlying_by_id
+    description: "Get a specific underlying by ticker with all connections"
+    cypher: |
+      MATCH (n:Underlying {ticker: $id})
+      OPTIONAL MATCH (n)-[r]-(related)
+      RETURN n, type(r) AS relationship, labels(related) AS related_labels, related.name AS related_name
+      LIMIT 50
+    parameters:
+      - name: id
+        type: string
+        description: "The ticker symbol to look up"
+
+system_prompt: |
+  You are an AI options market intelligence assistant with access to a comprehensive
+  knowledge graph of options data, dealer positioning, and trading activity. You help
+  options traders analyze market microstructure and make informed 0DTE trading decisions.
+
+  Your capabilities include:
+  - Reporting current GEX regime and dealer positioning
+  - Identifying key price levels from options flow (put walls, call walls, gamma flip)
+  - Analyzing dealer gamma, delta, vanna, and charm exposure by strike
+  - Reviewing trade history and strategy performance across different regimes
+  - Tracking market events and their impact on options pricing
+  - Tracing regime changes and their causal catalysts
+
+  Always ground your analysis in the actual data from the knowledge graph.
+  When discussing dealer positioning, explain what it implies for expected price action.
+  When recommending trades, reference the current regime and key levels.
+
+visualization:
+  node_colors:
+    Person: "#22c55e"
+    Organization: "#3b82f6"
+    Underlying: "#0ea5e9"
+    OptionsContract: "#f59e0b"
+    ExposureLevel: "#8b5cf6"
+    Regime: "#dc2626"
+    KeyLevel: "#10b981"
+    Trade: "#06b6d4"
+    MarketEvent: "#ef4444"
+    Strategy: "#7c3aed"
+  node_sizes:
+    Underlying: 30
+    Regime: 25
+    KeyLevel: 20
+    ExposureLevel: 15
+    OptionsContract: 15
+    Trade: 20
+    MarketEvent: 25
+    Strategy: 20
+    Person: 25
+    Organization: 30
+  default_cypher: "MATCH (u:Underlying)-[r]-(n) RETURN u, r, n LIMIT 100"
