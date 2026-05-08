@@ -98,6 +98,10 @@ class CypherResultCollector:
         if preferences:
             self._push_event("preferences_detected", {"preferences": preferences})
 
+    def emit_chart_data(self, plotly_spec: dict) -> None:
+        """Emit a chart_data SSE event."""
+        self._push_event("chart_data", {"spec": plotly_spec})
+
     # -- existing collection methods -------------------------------------------
 
     def collect(self, records: list[dict]) -> None:

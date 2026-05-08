@@ -10,6 +10,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { API_BASE, DEMO_SCENARIOS, DOMAIN } from "@/lib/config";
 import type { GraphData } from "@/lib/config";
+import ChartPanel from "./ChartPanel";
 
 interface ToolCall {
   name: string;
@@ -31,6 +32,11 @@ interface DetectedPreference {
   confidence?: number;
 }
 
+interface PlotlySpec {
+  data: Record<string, unknown>[];
+  layout?: Record<string, unknown>;
+}
+
 interface Message {
   id: string;
   role: "user" | "assistant";
@@ -39,6 +45,7 @@ interface Message {
   retryInput?: string;
   entities?: ExtractedEntity[];
   preferences?: DetectedPreference[];
+  charts?: PlotlySpec[];
 }
 
 interface ChatInterfaceProps {
@@ -265,6 +272,7 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
       let buffer = "";
       let fullText = "";
       let toolCalls: ToolCall[] = [];
+      let streamingCharts: PlotlySpec[] = [];
 
       while (true) {
         const { done, value } = await reader.read();
@@ -339,6 +347,12 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
                   }
                   break;
 
+                case "chart_data":
+                  if (data.spec) {
+                    streamingCharts = [...streamingCharts, data.spec];
+                  }
+                  break;
+
                 case "done":
                   // Flush any remaining buffered text
                   if (flushTimerRef.current) {
@@ -352,6 +366,7 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
                       role: "assistant",
                       content: data.response || fullText,
                       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+                      charts: streamingCharts.length > 0 ? [...streamingCharts] : undefined,
                     },
                   ]);
                   // Attach entities/preferences from the streaming state
@@ -525,6 +540,9 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
                             </Collapsible.Root>
                           )}
                           <ReactMarkdown remarkPlugins={[remarkGfm]}>{response || msg.content}</ReactMarkdown>
+                          {msg.charts && msg.charts.length > 0 && (
+                            <ChartPanel charts={msg.charts} />
+                          )}
                         </>
                       );
                     })()}

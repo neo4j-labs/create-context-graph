@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+import sys
 from pathlib import Path
 
 import click
@@ -28,6 +29,86 @@ from create_context_graph.ontology import list_available_domains, load_domain
 from create_context_graph.renderer import ProjectRenderer
 
 console = Console()
+
+
+def _refine_discovered_system_prompt(
+    ontology,
+    discovered_schema: dict,
+    anthropic_api_key: str | None,
+) -> None:
+    """Interactively refine the discovered ontology system prompt."""
+    if not sys.stdin.isatty():
+        return
+
+    import questionary
+
+    from create_context_graph.discovery import refine_system_prompt
+
+    original_prompt = ontology.system_prompt
+    console.print("\n[bold]Auto-generated system prompt:[/bold]\n")
+    console.print(original_prompt)
+
+    user_input = questionary.text(
+        "Edit the system prompt, enter a rough description, or press Enter to keep:",
+    ).ask()
+    if user_input is None:
+        raise SystemExit("Aborted.")
+    user_input = user_input.strip()
+    if not user_input:
+        return
+
+    if not anthropic_api_key:
+        ontology.system_prompt = user_input
+        return
+
+    refined_prompt = refine_system_prompt(
+        user_input,
+        discovered_schema,
+        anthropic_api_key,
+    )
+    console.print("\n[bold]Refined system prompt:[/bold]\n")
+    console.print(refined_prompt)
+
+    while True:
+        action = questionary.select(
+            "How would you like to proceed?",
+            choices=[
+                questionary.Choice("Accept", value="accept"),
+                questionary.Choice("Refine further", value="refine"),
+                questionary.Choice("Edit manually", value="edit"),
+                questionary.Choice("Use my original text", value="original"),
+            ],
+        ).ask()
+
+        if action is None:
+            raise SystemExit("Aborted.")
+        if action == "accept":
+            ontology.system_prompt = refined_prompt
+            return
+        if action == "original":
+            ontology.system_prompt = user_input
+            return
+        if action == "edit":
+            manual_prompt = questionary.text(
+                "Edit system prompt:",
+                default=refined_prompt,
+            ).ask()
+            if manual_prompt is None:
+                raise SystemExit("Aborted.")
+            ontology.system_prompt = manual_prompt
+            return
+
+        feedback = questionary.text("What should be refined?").ask()
+        if feedback is None:
+            raise SystemExit("Aborted.")
+        refined_prompt = refine_system_prompt(
+            user_input,
+            discovered_schema,
+            anthropic_api_key,
+            feedback=feedback,
+        )
+        console.print("\n[bold]Refined system prompt:[/bold]\n")
+        console.print(refined_prompt)
 
 
 @click.command()
@@ -86,6 +167,12 @@ console = Console()
 @click.option("--demo", is_flag=True, help="Shortcut for --reset-database --demo-data --ingest")
 @click.option("--dry-run", is_flag=True, help="Preview what would be generated without creating files")
 @click.option("--reset-database", is_flag=True, help="Clear all Neo4j data before ingesting")
+@click.option(
+    "--from-database",
+    is_flag=True,
+    default=False,
+    help="Discover schema from an existing Neo4j database (no --domain required)",
+)
 @click.option("--verbose", is_flag=True, help="Enable verbose debug output")
 @click.option("--list-domains", is_flag=True, help="List available domains and exit")
 @click.version_option(package_name="create-context-graph")
@@ -137,6 +224,7 @@ def main(
     demo: bool,
     dry_run: bool,
     reset_database: bool,
+    from_database: bool,
     verbose: bool,
     list_domains: bool,
 ) -> None:
@@ -155,6 +243,10 @@ def main(
         reset_database = True
         demo_data = True
         ingest = True
+
+    if from_database and not neo4j_uri:
+        console.print("[red]Error:[/red] --neo4j-uri is required with --from-database.")
+        raise SystemExit(1)
 
     # Validate --import-type / --import-file co-dependency
     if import_type and not import_file:
@@ -201,6 +293,45 @@ def main(
         display_ontology_summary(custom_ontology, console)
         domain = custom_ontology.domain.id
 
+    discovered_ontology = None
+    if from_database:
+        from create_context_graph.discovery import (
+            build_ontology_from_discovery,
+            discover_ontology_from_database,
+        )
+
+        console.print("[bold]Discovering schema from Neo4j database...[/bold]")
+        try:
+            discovered_schema = discover_ontology_from_database(
+                neo4j_uri,
+                neo4j_username,
+                neo4j_password,
+            )
+        except ConnectionError as e:
+            console.print(f"[red]Error:[/red] {e}")
+            raise SystemExit(1)
+
+        property_count = sum(
+            len(properties)
+            for properties in (discovered_schema.get("properties") or {}).values()
+        )
+        console.print(
+            "  "
+            f"{len(discovered_schema.get('labels') or [])} labels, "
+            f"{len(discovered_schema.get('relationship_types') or [])} relationship types, "
+            f"{property_count} properties"
+        )
+        discovered_ontology = build_ontology_from_discovery(
+            discovered_schema,
+            "discovered-database",
+        )
+        _refine_discovered_system_prompt(
+            discovered_ontology,
+            discovered_schema,
+            anthropic_api_key,
+        )
+        domain = discovered_ontology.domain.id
+
     # Resolve deprecated framework aliases
     if framework:
         framework = FRAMEWORK_ALIASES.get(framework, framework)
@@ -217,6 +348,8 @@ def main(
         neo4j_type_resolved = "local"
     elif neo4j_uri and "aura" in (neo4j_uri or ""):
         neo4j_type_resolved = "aura"
+    elif from_database:
+        neo4j_type_resolved = "existing"
     else:
         neo4j_type_resolved = "docker"
 
@@ -229,12 +362,13 @@ def main(
     if not project_name and (domain or custom_domain) and framework:
         domain_part = domain or "custom"
         project_name = f"{domain_part}-{framework}-app"
+    if not project_name and from_database and framework and domain:
+        project_name = f"{domain}-{framework}-app"
 
     # Non-TTY detection: give a helpful error when wizard would be required but stdin isn't interactive
-    import sys
     if not project_name and not sys.stdin.isatty():
         missing = []
-        if not domain and not custom_domain:
+        if not from_database and not domain and not custom_domain:
             missing.append("--domain")
         if not framework:
             missing.append("--framework")
@@ -244,12 +378,14 @@ def main(
         raise SystemExit(1)
 
     # If all required args are provided, skip wizard
-    if project_name and (domain or custom_domain) and framework:
+    if project_name and (domain or custom_domain or from_database) and framework:
         config = ProjectConfig(
             project_name=project_name,
             domain=domain or "custom",
             framework=framework,
-            data_source="saas" if connector else ("demo" if demo_data else "none"),
+            data_source="none"
+            if from_database
+            else ("saas" if connector else ("demo" if demo_data else "none")),
             neo4j_uri=neo4j_uri or "neo4j://localhost:7687",
             neo4j_username=neo4j_username,
             neo4j_password=neo4j_password,
@@ -257,17 +393,18 @@ def main(
             anthropic_api_key=anthropic_api_key,
             openai_api_key=openai_api_key,
             google_api_key=google_api_key,
-            generate_data=demo_data,
+            generate_data=False if from_database else demo_data,
             custom_domain_yaml=custom_domain_yaml,
-            saas_connectors=list(connector),
+            saas_connectors=[] if from_database else list(connector),
             with_mcp=with_mcp,
             mcp_profile=mcp_profile,
             session_strategy=session_strategy,
             auto_extract=auto_extract,
             auto_preferences=auto_preferences,
+            from_database=from_database,
         )
         # Populate SaaS credentials from CLI flags
-        if "linear" in connector:
+        if "linear" in config.saas_connectors:
             creds = {}
             if linear_api_key:
                 creds["api_key"] = linear_api_key
@@ -279,7 +416,7 @@ def main(
                     "[yellow]Warning:[/yellow] --connector linear requires a Linear API key. "
                     "Set LINEAR_API_KEY in your .env or pass --linear-api-key."
                 )
-        if "google-workspace" in connector:
+        if "google-workspace" in config.saas_connectors:
             creds = {
                 "folder_id": gws_folder_id or "",
                 "include_comments": str(gws_include_comments).lower(),
@@ -292,7 +429,7 @@ def main(
                 "max_files": str(gws_max_files),
             }
             config.saas_credentials["google-workspace"] = creds
-        if "claude-code" in connector:
+        if "claude-code" in config.saas_connectors:
             creds = {
                 "scope": claude_code_scope,
                 "project_filter": claude_code_project or "",
@@ -341,6 +478,8 @@ def main(
         console.print(f"  Framework:  {config.framework}")
         console.print(f"  Neo4j:      {config.neo4j_type} ({config.neo4j_uri})")
         console.print(f"  Data:       {config.data_source}")
+        if config.from_database:
+            console.print("  Schema:     discovered from database")
         if config.saas_connectors:
             console.print(f"  Connectors: {', '.join(config.saas_connectors)}")
         console.print(f"  Memory:     strategy={config.session_strategy}, extract={config.auto_extract}, preferences={config.auto_preferences}")
@@ -354,7 +493,9 @@ def main(
         raise SystemExit(1)
 
     # Load domain ontology
-    if custom_ontology:
+    if discovered_ontology:
+        ontology = discovered_ontology
+    elif custom_ontology:
         ontology = custom_ontology
     elif config.custom_domain_yaml:
         from create_context_graph.ontology import load_domain_from_yaml_string
@@ -383,7 +524,7 @@ def main(
 
     # Generate demo data if requested
     fixture_path = out / "data" / "fixtures.json"
-    if config.generate_data or demo_data:
+    if not config.from_database and (config.generate_data or demo_data):
         console.print("\n[bold]Generating demo data...[/bold]")
         from create_context_graph.generator import generate_fixture_data
 
@@ -394,7 +535,7 @@ def main(
         )
 
     # Import data from SaaS connectors if configured
-    if config.saas_connectors:
+    if not config.from_database and config.saas_connectors:
         import json
 
         from create_context_graph.connectors import get_connector, merge_connector_results, NormalizedData
@@ -467,7 +608,9 @@ def main(
         _step("make docker-up",   "Start Neo4j")
     elif config.neo4j_type == "local":
         _step("make neo4j-start", "Start Neo4j (requires Node.js)")
-    if config.saas_connectors:
+    if config.from_database:
+        _step("make start",       "Start backend + frontend (data already in Neo4j)")
+    elif config.saas_connectors:
         _step("make import",      "Fetch real data from connected services")
         _step("make seed",        "Apply schema + ingest data into Neo4j")
     elif ingest:
@@ -476,7 +619,8 @@ def main(
         _step("make seed",        "Apply schema + seed sample data")
     if config.with_mcp:
         _step("make mcp-server",  "Start MCP server for Claude Desktop")
-    _step("make start",       "Start backend + frontend")
+    if not config.from_database:
+        _step("make start",       "Start backend + frontend")
     console.print()
     console.print("  Backend:  http://localhost:8000")
     console.print("  Frontend: http://localhost:3000")
