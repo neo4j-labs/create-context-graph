@@ -198,6 +198,27 @@ class TestGoogleApiKey:
         )
         assert config.google_api_key == "test-key-123"
 
+
+class TestFromDatabase:
+    def test_default_false(self):
+        config = ProjectConfig(
+            project_name="Test",
+            domain="healthcare",
+            framework="pydanticai",
+        )
+        assert config.from_database is False
+
+    def test_set_true(self):
+        config = ProjectConfig(
+            project_name="Test",
+            domain="healthcare",
+            framework="pydanticai",
+            from_database=True,
+        )
+        assert config.from_database is True
+
+
+class TestMemoryConfig:
     def test_memory_defaults(self):
         """Verify default values for memory enhancement fields."""
         config = ProjectConfig(

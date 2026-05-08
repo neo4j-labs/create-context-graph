@@ -1,0 +1,22 @@
+[project]
+name = "vollai-2-backend"
+version = "0.1.0"
+description = "Discovered Database Context Graph Backend"
+requires-python = ">=3.10, <3.14"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.30",
+    "pydantic>=2.0",
+    "pydantic-settings>=2.0",
+    "neo4j>=5.20",
+    "neo4j-agent-memory[spacy,gliner]>=0.1.0",
+    "sentence-transformers>=2.0",
+    "pydantic-ai>=0.1",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

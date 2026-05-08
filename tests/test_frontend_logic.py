@@ -15,6 +15,7 @@ import pytest
 
 TEMPLATES_BASE = Path(__file__).resolve().parent.parent / "src" / "create_context_graph" / "templates"
 ROUTES_TEMPLATE = TEMPLATES_BASE / "backend" / "shared" / "routes.py.j2"
+CONTEXT_GRAPH_CLIENT_TEMPLATE = TEMPLATES_BASE / "backend" / "shared" / "context_graph_client.py.j2"
 CHAT_TEMPLATE = TEMPLATES_BASE / "frontend" / "components" / "ChatInterface.tsx.j2"
 GRAPH_VIEW_TEMPLATE = TEMPLATES_BASE / "frontend" / "components" / "ContextGraphView.tsx.j2"
 
@@ -275,6 +276,7 @@ class TestSSEContractValidation:
     @pytest.fixture(autouse=True)
     def _load_templates(self):
         self.routes_src = ROUTES_TEMPLATE.read_text()
+        self.context_graph_client_src = CONTEXT_GRAPH_CLIENT_TEMPLATE.read_text()
         self.chat_src = CHAT_TEMPLATE.read_text()
 
     def _extract_backend_event_types(self) -> set[str]:
@@ -286,10 +288,11 @@ class TestSSEContractValidation:
         #   f"event: {event_type}\n"  — that covers all queue-based events.
         # Also pick up the docstring listing the canonical event types.
         docstring_events = set(re.findall(r"- (\w+):", self.routes_src))
+        collector_events = set(re.findall(r'_push_event\("(\w+)"', self.context_graph_client_src))
         # Filter to known event names only
         known = {"session_id", "tool_start", "tool_end", "text_delta", "done", "error",
-                 "entities_extracted", "preferences_detected"}
-        return (literal_events | docstring_events) & known
+                 "entities_extracted", "preferences_detected", "chart_data"}
+        return (literal_events | docstring_events | collector_events) & known
 
     def _extract_frontend_event_types(self) -> set[str]:
         """Extract event types handled by frontend case statements."""
@@ -339,6 +342,28 @@ class TestSSEContractValidation:
 
         # preferences_detected must contain "preferences"
         assert "data.preferences" in self.chat_src
+
+        # chart_data must contain "spec"
+        assert '"spec": plotly_spec' in self.context_graph_client_src
+        assert "data.spec" in self.chat_src
+
+    def test_chart_data_event_in_backend(self):
+        """Verify the backend template exposes chart_data SSE emission."""
+        assert "def emit_chart_data" in self.context_graph_client_src
+        assert '"chart_data"' in self.context_graph_client_src
+
+    def test_chart_data_event_in_frontend(self):
+        """Verify the frontend template handles chart_data SSE events."""
+        assert 'case "chart_data"' in self.chat_src
+        assert 'import ChartPanel from "./ChartPanel"' in self.chat_src
+
+    def test_chart_data_event_contract(self):
+        """Verify chart_data is emitted by the backend and handled by the frontend."""
+        backend = self._extract_backend_event_types()
+        frontend = self._extract_frontend_event_types()
+        expected = {"chart_data"}
+        assert expected <= backend
+        assert expected <= frontend
 
 
 # ---------------------------------------------------------------------------

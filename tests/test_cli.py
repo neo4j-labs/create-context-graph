@@ -15,6 +15,7 @@
 """Integration tests for the CLI module."""
 
 import json
+from unittest.mock import patch
 
 import pytest
 from click.testing import CliRunner
@@ -25,6 +26,41 @@ from create_context_graph.cli import main
 @pytest.fixture
 def runner():
     return CliRunner()
+
+
+def _sample_discovered_schema() -> dict:
+    return {
+        "labels": ["Match", "Player", "Team"],
+        "relationship_types": ["PLAYED_FOR"],
+        "properties": {
+            "Match": [
+                {"name": "match_id", "types": ["String"], "mandatory": True},
+            ],
+            "Player": [
+                {"name": "player_id", "types": ["String"], "mandatory": True},
+                {"name": "name", "types": ["String"], "mandatory": True},
+            ],
+            "Team": [
+                {"name": "team_id", "types": ["String"], "mandatory": True},
+                {"name": "name", "types": ["String"], "mandatory": True},
+            ],
+        },
+        "rel_properties": {},
+        "constraints": [],
+        "indexes": [],
+        "schema_graph": [
+            {
+                "start_label": "Player",
+                "rel_type": "PLAYED_FOR",
+                "end_label": "Team",
+            },
+        ],
+        "sample_counts": {
+            "Match": 3,
+            "Player": 12,
+            "Team": 4,
+        },
+    }
 
 
 class TestListDomains:
@@ -234,6 +270,39 @@ class TestCLIValidation:
             "--verbose",
         ])
         assert result.exit_code == 0
+
+
+class TestFromDatabaseCLI:
+    """Tests for --from-database CLI wiring."""
+
+    def test_from_database_requires_neo4j_uri(self, runner):
+        result = runner.invoke(main, [
+            "from-db-test",
+            "--from-database",
+            "--framework", "pydanticai",
+        ])
+
+        assert result.exit_code != 0
+        assert "neo4j-uri" in result.output
+
+    def test_from_database_dry_run(self, runner, tmp_path):
+        out = tmp_path / "from-db-test"
+
+        with patch(
+            "create_context_graph.discovery.discover_ontology_from_database",
+            return_value=_sample_discovered_schema(),
+        ):
+            result = runner.invoke(main, [
+                "from-db-test",
+                "--from-database",
+                "--neo4j-uri", "neo4j://localhost:7687",
+                "--framework", "pydanticai",
+                "--output-dir", str(out),
+                "--dry-run",
+            ])
+
+        assert result.exit_code == 0, result.output
+        assert "discovered from database" in result.output
 
 
 class TestV060CLIFlags:
