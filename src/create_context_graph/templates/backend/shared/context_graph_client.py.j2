@@ -376,5 +376,9 @@ async def expand_node(element_id: str) -> dict:
 
 async def reset_database() -> None:
     """Drop all data and recreate schema."""
-    await execute_cypher("MATCH (n) DETACH DELETE n", collect=False)
+    await connect_neo4j()
+    try:
+        await execute_cypher("MATCH (n) DETACH DELETE n", collect=False)
+    finally:
+        await close_neo4j()
 {% endraw %}
