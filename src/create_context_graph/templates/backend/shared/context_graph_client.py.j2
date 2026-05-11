@@ -375,6 +375,13 @@ async def expand_node(element_id: str) -> dict:
 
 
 async def reset_database() -> None:
-    """Drop all data and recreate schema."""
-    await execute_cypher("MATCH (n) DETACH DELETE n", collect=False)
+    """Drop all data. Opens a connection if not already connected; preserves an existing connection."""
+    was_connected = _driver is not None
+    if not was_connected:
+        await connect_neo4j()
+    try:
+        await execute_cypher("MATCH (n) DETACH DELETE n", collect=False)
+    finally:
+        if not was_connected:
+            await close_neo4j()
 {% endraw %}

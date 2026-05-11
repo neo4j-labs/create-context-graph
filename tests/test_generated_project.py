@@ -1055,6 +1055,38 @@ class TestCollectorThreadSafety:
         assert "_loop" in client_py
 
 
+class TestResetDatabase:
+    """Verify reset_database() handles connection lifecycle correctly (fix for #26)."""
+
+    def test_reset_database_connects_when_not_connected(self, generated_project):
+        """reset_database must open its own connection when _driver is None."""
+        out, _ = generated_project
+        client = (out / "backend" / "app" / "context_graph_client.py").read_text()
+        assert "was_connected = _driver is not None" in client
+        assert "await connect_neo4j()" in client
+
+    def test_reset_database_closes_connection_it_opened(self, generated_project):
+        """reset_database must close a connection it opened (try/finally pattern)."""
+        out, _ = generated_project
+        client = (out / "backend" / "app" / "context_graph_client.py").read_text()
+        assert "try:" in client
+        assert "finally:" in client
+        assert "await close_neo4j()" in client
+
+    def test_reset_database_preserves_existing_connection(self, generated_project):
+        """reset_database must NOT close a pre-existing connection."""
+        out, _ = generated_project
+        client = (out / "backend" / "app" / "context_graph_client.py").read_text()
+        # The guard ensures close_neo4j is only called when was_connected is False
+        assert "if not was_connected:" in client
+
+    def test_reset_database_uses_detach_delete(self, generated_project):
+        """reset_database must use DETACH DELETE to clear all nodes and relationships."""
+        out, _ = generated_project
+        client = (out / "backend" / "app" / "context_graph_client.py").read_text()
+        assert "MATCH (n) DETACH DELETE n" in client
+
+
 class TestToolPromptSuffix:
     """Verify all agent frameworks include tool-use emphasis in system prompt."""
 
