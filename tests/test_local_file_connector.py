@@ -458,7 +458,8 @@ class TestPDFParserPdfOxide:
     def test_tier0_falls_through_on_import_error(self, tmp_path):
         """When pdf_oxide is absent, parse() should fall through to pypdf tiers."""
         pytest.importorskip("reportlab")
-        import sys, unittest.mock as mock
+        import sys
+        import unittest.mock as mock
         from create_context_graph.connectors._local_file.parsers import pdf as pdf_parser
 
         pdf_path = tmp_path / "nopdfoxide.pdf"
