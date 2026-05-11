@@ -83,4 +83,5 @@ asyncio_mode = "auto"
 markers = [
     "slow: marks tests as slow (run with --slow)",
     "integration: marks tests requiring Neo4j (run with --integration)",
+    "functional: marks functional tests that ingest realistic on-disk fixtures (run with --functional)",
 ]
