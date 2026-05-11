@@ -87,6 +87,160 @@ That installs `markdown-it-py`, `mdit-py-plugins`, `pypdf`, `pdfplumber`,
 
 ---
 
+## Running the connector / app against this vault
+
+The functional test only exercises **parsing** — it calls
+`LocalFileConnector.fetch()` and inspects the in-memory `NormalizedData`
+result. **No Neo4j is involved, no app is started, no ports are opened.**
+That's deliberate: the test is fast (~1s) and runs anywhere.
+
+If you want to actually scaffold the full-stack app and **ingest the
+vault into a real graph**, the steps below pick up where the test stops.
+
+### Option A — In-memory smoke test (no Neo4j, no scaffold)
+
+Fastest sanity check. Just runs the connector and prints what it found:
+
+```bash
+source .venv/bin/activate
+
+python -c "
+from create_context_graph.connectors.local_file_connector import LocalFileConnector
+c = LocalFileConnector()
+c.authenticate({'paths': ['tests/fixtures/local_file_vault']})
+data = c.fetch()
+print(f\"{len(data.entities['Document'])} docs, \"
+      f\"{len(data.entities['Section'])} sections, \"
+      f\"{len(data.relationships)} edges\")
+"
+```
+
+Useful while iterating on parsers — same path the functional test takes.
+
+### Option B — Full scaffold + ingest (requires Neo4j)
+
+This builds a complete FastAPI + Next.js app pointed at your vault and
+loads the parsed data into Neo4j. You need a running Neo4j first.
+
+**1. Get Neo4j running.** Pick one:
+
+| Option | Command | When to use |
+|---|---|---|
+| Neo4j Desktop | Download from https://neo4j.com/download/ → create a DB → note URI + password | Recommended for hands-on exploration; ships with Neo4j Browser |
+| neo4j-local (ephemeral, no Docker) | `npx @johnymontana/neo4j-local` | One-off testing; spins up `bolt://localhost:7687` with `neo4j` / `password` |
+| Neo4j Aura (cloud) | Create a free instance at https://neo4j.com/cloud/aura/ → download the connection `.env` | Persistent, shareable, no local install |
+
+**2. Install the CLI in editable mode** (so you're running this checkout,
+not the published PyPI build):
+
+```bash
+cd /path/to/create-context-graph
+uv venv && uv pip install -e ".[connectors,dev]"
+```
+
+The `[connectors]` extra pulls in the parser libs
+(`markdown-it-py`, `pypdf`, `pdfplumber`, `beautifulsoup4`, `lxml`,
+`python-docx`, `mdit-py-plugins`).
+
+**3. Scaffold + ingest in one command:**
+
+```bash
+source .venv/bin/activate
+
+create-context-graph my-analyst-app \
+  --domain financial-services \
+  --framework pydanticai \
+  --connector local-file \
+  --local-file-path tests/fixtures/local_file_vault \
+  --ingest \
+  --neo4j-uri bolt://localhost:7687 \
+  --neo4j-username neo4j \
+  --neo4j-password password
+```
+
+Or with `--neo4j-local` if you used `npx @johnymontana/neo4j-local`:
+
+```bash
+create-context-graph my-analyst-app \
+  --domain financial-services \
+  --framework pydanticai \
+  --connector local-file \
+  --local-file-path tests/fixtures/local_file_vault \
+  --neo4j-local \
+  --ingest
+```
+
+Or with Neo4j Aura:
+
+```bash
+create-context-graph my-analyst-app \
+  --domain financial-services \
+  --framework pydanticai \
+  --connector local-file \
+  --local-file-path tests/fixtures/local_file_vault \
+  --neo4j-aura-env /path/to/Neo4j-AuraDB-credentials.env \
+  --ingest
+```
+
+**4. Start the app:**
+
+```bash
+cd my-analyst-app
+make install      # one-time
+make dev          # backend on :8000, frontend on :3000
+```
+
+Open http://localhost:3000 and ask the agent things like:
+
+- "What does ACME do?"
+- "Who are the people I should know about on the Strategy team?"
+- "What was decided at the Q2 thesis call?"
+- "Show me the customer concentration story for ACME."
+
+The agent will use the graph tools to traverse `:Document` → `:Section`
+hierarchies and follow `:LINKS_TO` edges across documents.
+
+### Useful Cypher to inspect the result
+
+After ingest, point Neo4j Browser at the database and run:
+
+```cypher
+// Top-level structure
+MATCH (d:Document) RETURN d.name, d.title, d.sourceType LIMIT 25;
+
+// All H1 headings across documents
+MATCH (s:Section) WHERE s.headingLevel = 1 RETURN s.title, s.name LIMIT 25;
+
+// Cross-document link graph
+MATCH (s:Section)-[:LINKS_TO]->(target)
+RETURN s.title AS from_section, target.name AS to;
+
+// Unfetched URL references — the lazy-loading pattern
+// (spec §6.5). Each row is a candidate for a future web-fetcher.
+MATCH (d:Document)
+WHERE d.sourceType = 'URL_LINK' AND NOT (d)-[:HAS_SECTION]->()
+RETURN d.name AS url;
+```
+
+### Customising the ingest
+
+The connector accepts five flags; useful subsets for this vault:
+
+```bash
+# Markdown only — fastest, skips PDF/HTML/DOCX/AsciiDoc parsers
+--local-file-pattern "**/*.md"
+
+# Two roots, exclude the memos directory
+--local-file-path tests/fixtures/local_file_vault/companies \
+--local-file-path tests/fixtures/local_file_vault/methodology \
+--local-file-exclude "**/memos/**"
+
+# Single file rather than a directory
+--local-file-path tests/fixtures/local_file_vault/companies/acme-corp.md
+```
+
+---
+
 ## What the test asserts
 
 The test ingests the vault end-to-end through `LocalFileConnector.fetch()` and
