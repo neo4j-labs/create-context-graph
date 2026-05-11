@@ -114,54 +114,15 @@ def _heading_level(tag) -> int:
     return int(tag.name[1])
 
 
-def _collect_section_range(heading_tag, headings) -> tuple[list, list]:
-    """Return (body_nodes, child_heading_tags) belonging to ``heading_tag``.
-
-    Walks forward through ``heading_tag.next_elements`` until it hits a
-    sibling heading of the same-or-shallower level. Anything in between
-    counts as part of ``heading_tag``'s "span". Within that span, deeper
-    headings are direct children.
-    """
-    own_level = _heading_level(heading_tag)
-    own_idx = headings.index(heading_tag)
-    # Walk subsequent headings until we hit one of <= own_level.
-    end_tag = None
-    children: list = []
-    for h in headings[own_idx + 1:]:
-        h_level = _heading_level(h)
-        if h_level <= own_level:
-            end_tag = h
-            break
-        # Direct child = next heading whose level is exactly own_level + 1
-        # OR the smallest level deeper than own_level when levels are skipped.
-        # We collect all deeper headings here; the caller filters to direct
-        # children using level-stack logic.
-        children.append(h)
-
-    # Body is text/markup between heading_tag (exclusive) and the first
-    # descendant heading (exclusive) or end_tag (exclusive).
-    body_nodes: list = []
-    first_child_heading = children[0] if children else None
-    stop_node = first_child_heading or end_tag
-    for node in heading_tag.next_elements:
-        if node is heading_tag:
-            continue
-        if node is stop_node:
-            break
-        body_nodes.append(node)
-    return body_nodes, children
-
-
 def _build_section_tree(soup, headings) -> list[ParsedSection]:
     """Build the nested ParsedSection tree from a flat list of <hN> tags."""
     root: list[ParsedSection] = []
     stack: list[ParsedSection] = []
 
-    for h in headings:
+    for idx, h in enumerate(headings):
         own_level = _heading_level(h)
         title = h.get_text(strip=True)
         # Find the first deeper heading (if any) — that bounds the body.
-        idx = headings.index(h)
         first_deeper = None
         end_same_or_shallower = None
         for h2 in headings[idx + 1:]:

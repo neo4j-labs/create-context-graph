@@ -96,6 +96,13 @@ def parse(path: str | Path) -> ParsedDocument:
     # Tier 3: font-size heuristics.
     logger.info("PDF parser: falling back to font-size heuristics for %s", p)
     sections, preamble = _try_font_heuristic(p)
+    if not sections:
+        logger.warning(
+            "PDF parser: no heading structure detected in '%s' (outline absent, "
+            "no structure tree, font heuristic found no larger-font spans). "
+            "Document will be ingested as flat text with no sections.",
+            p,
+        )
     return ParsedDocument(
         uri=uri,
         title=title,
@@ -346,15 +353,14 @@ def _try_font_heuristic(path: Path) -> tuple[list[ParsedSection], str]:
     Algorithm:
       1. Read every page's character stream via ``pdfplumber.page.chars``.
       2. Group chars into single-line "spans" of identical ``size``.
-      3. Identify the dominant body size (the largest size whose total
-         character count is at least 60% of the most-frequent size — i.e.
-         body text). Anything strictly larger than the body size is a
-         heading candidate.
+      3. The dominant body size is whichever size accumulates the most
+         total characters across all spans. Any span with a strictly
+         larger size is a heading candidate (no minimum char-count filter
+         is applied — any single-character span at a larger size qualifies).
       4. Assign distinct heading sizes to H1..H6 in descending order.
 
     Sections are built in document order. If pdfplumber isn't available
-    or yields no chars, returns empty sections and the raw concatenated
-    text as the preamble.
+    or the PDF yields no character data, returns ([], "").
     """
     try:
         import pdfplumber

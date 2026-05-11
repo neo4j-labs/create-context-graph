@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import click
@@ -319,15 +320,16 @@ def main(
                 )
                 raise SystemExit(1)
             # ProjectConfig.saas_credentials values are typed as
-            # ``dict[str, str]`` — list-valued fields are stored as
-            # comma-separated strings here and split back into lists in
-            # LocalFileConnector.authenticate.
+            # ``dict[str, str]`` — list-valued fields are stored joined by
+            # os.pathsep here and split back in LocalFileConnector.authenticate.
+            # os.pathsep (':' on POSIX, ';' on Windows) cannot appear in a
+            # well-formed filesystem path, so this is safe for all platforms.
             config.saas_credentials["local-file"] = {
-                "paths": ",".join(local_file_path),
+                "paths": os.pathsep.join(local_file_path),
                 "pattern": local_file_pattern,
                 "recursive": str(local_file_recursive).lower(),
                 "follow_links": str(local_file_follow_links).lower(),
-                "exclude": ",".join(local_file_exclude),
+                "exclude": os.pathsep.join(local_file_exclude),
             }
         if import_type and import_file:
             creds = {

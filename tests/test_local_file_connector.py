@@ -1092,15 +1092,26 @@ class TestLocalFileConnectorAuthenticate:
         conn = LocalFileConnector()
         conn.authenticate({
             "paths": [str(a)],
-            "pattern": "**/*.md",
+            "pattern": "*.md",  # non-recursive pattern — no '**'
             "recursive": "false",
             "follow_links": "true",
             "exclude": ["**/node_modules/**"],
         })
-        assert conn._pattern == "**/*.md"
+        assert conn._pattern == "*.md"
         assert conn._recursive is False
         assert conn._follow_links is True
         assert conn._exclude == ["**/node_modules/**"]
+
+    def test_authenticate_rejects_glob_starstar_when_not_recursive(self, tmp_path):
+        a = tmp_path / "a.md"
+        a.write_text("# A", encoding="utf-8")
+        conn = LocalFileConnector()
+        with pytest.raises(ValueError, match="contains '\\*\\*'"):
+            conn.authenticate({
+                "paths": [str(a)],
+                "pattern": "**/*.md",
+                "recursive": "false",
+            })
 
 
 class TestLocalFileConnectorFetch:

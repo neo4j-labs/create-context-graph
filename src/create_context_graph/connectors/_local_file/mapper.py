@@ -84,12 +84,22 @@ class DocumentMapper:
         self._sections: dict[str, dict] = {}
         # All relationships emitted so far.
         self._relationships: list[dict] = []
-        # URIs of documents we parsed during this run (used to distinguish
-        # "real" from "stub" link targets at the end).
+        # URIs of documents that WILL be fully parsed in this run.  Pre-registered
+        # by LocalFileConnector.fetch() before the first add() call so that
+        # _emit_links_to can suppress stub creation for targets we know will
+        # receive a full _upsert_document / _upsert_section call later.
         self._parsed_doc_uris: set[str] = set()
         # Stamp once per run — the existing ingest pipeline overwrites
         # ``loadedAt`` on re-merge, which is acceptable per spec §7.
         self._loaded_at = datetime.now(tz=timezone.utc).isoformat()
+
+    def register_known_uris(self, uris: Iterable[str]) -> None:
+        """Pre-register document URIs that will be fully parsed in this run.
+
+        Call this before the first :meth:`add` call so that link targets
+        pointing to documents in the same batch are not emitted as stubs.
+        """
+        self._parsed_doc_uris.update(uris)
 
     # ---- accumulation ---------------------------------------------------
 
@@ -231,12 +241,17 @@ class DocumentMapper:
         target: tuple[str, str],
     ) -> None:
         target_label, target_uri = target
-        # Stub creation for unfetched documents/sections.
+        # Only create a stub for targets NOT parsed in this run. Documents
+        # and sections in _parsed_doc_uris will receive a full upsert from
+        # their own add() call, so creating a stub would be redundant and
+        # would suppress the real data if ordering causes the link to be
+        # processed before the target document is added.
         if target_label == "Document":
-            if target_uri not in self._documents:
+            if target_uri not in self._documents and target_uri not in self._parsed_doc_uris:
                 self._upsert_document_stub(target_uri)
         elif target_label == "Section":
-            if target_uri not in self._sections:
+            doc_uri = target_uri.split("#", 1)[0]
+            if target_uri not in self._sections and doc_uri not in self._parsed_doc_uris:
                 self._upsert_section_stub(target_uri)
         self._relationships.append({
             "type": "LINKS_TO",

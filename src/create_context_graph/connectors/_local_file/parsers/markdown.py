@@ -45,11 +45,12 @@ def parse(path: str | Path) -> ParsedDocument:
     """
     try:
         from markdown_it import MarkdownIt
+        from mdit_py_plugins.front_matter import front_matter_plugin
         from mdit_py_plugins.tasklists import tasklists_plugin
     except ImportError as exc:  # pragma: no cover - exercised at runtime only.
         raise ImportError(
             "Markdown parsing requires 'markdown-it-py' and 'mdit-py-plugins'. "
-            "Install with: pip install 'markdown-it-py>=4.2' 'mdit-py-plugins>=0.4'"
+            "Install with: pip install 'markdown-it-py>=4.0' 'mdit-py-plugins>=0.4'"
         ) from exc
 
     p = Path(path)
@@ -58,7 +59,13 @@ def parse(path: str | Path) -> ParsedDocument:
     # GFM-like enables tables + strikethrough + linkify; we keep tables and
     # strikethrough but disable linkify (which needs ``linkify-it-py`` and is
     # not in our dependency surface). Tasklists come from ``mdit-py-plugins``.
-    md = MarkdownIt("gfm-like", {"linkify": False}).use(tasklists_plugin)
+    # front_matter_plugin strips YAML/TOML frontmatter (--- ... ---) so it is
+    # not mistaken for a Setext H2 heading by the CommonMark tokeniser.
+    md = (
+        MarkdownIt("gfm-like", {"linkify": False})
+        .use(front_matter_plugin)
+        .use(tasklists_plugin)
+    )
     tokens = md.parse(text)
     lines = text.splitlines()
 

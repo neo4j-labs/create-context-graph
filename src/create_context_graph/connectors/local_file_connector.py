@@ -30,6 +30,7 @@ from __future__ import annotations
 
 import fnmatch
 import logging
+import os
 from pathlib import Path
 from typing import Any, Iterable
 
@@ -110,7 +111,11 @@ class LocalFileConnector(BaseConnector):
         """
         raw_paths = credentials.get("paths") or []
         if isinstance(raw_paths, str):
-            raw_paths = [p.strip() for p in raw_paths.split(",") if p.strip()]
+            # CLI flow joins paths with os.pathsep; wizard flow uses comma-separated
+            # text entered by the user. Try os.pathsep first; fall back to comma so
+            # wizard input still works.
+            sep = os.pathsep if os.pathsep in raw_paths else ","
+            raw_paths = [p.strip() for p in raw_paths.split(sep) if p.strip()]
         self._paths = [Path(p).expanduser() for p in raw_paths if p]
         if not self._paths:
             raise ValueError(
@@ -123,17 +128,25 @@ class LocalFileConnector(BaseConnector):
         self._recursive = (
             str(recursive_raw).lower() != "false" if recursive_raw is not None else True
         )
+        if not self._recursive and "**" in self._pattern:
+            raise ValueError(
+                f"Pattern {self._pattern!r} contains '**' but --local-file-no-recursive "
+                "was set. Either enable recursion or use a non-recursive pattern (e.g. '*' "
+                "to match only direct children)."
+            )
         follow_links_raw = credentials.get("follow_links", False)
         self._follow_links = str(follow_links_raw).lower() == "true"
         excludes_raw = credentials.get("exclude") or []
         if isinstance(excludes_raw, str):
-            excludes_raw = [p.strip() for p in excludes_raw.split(",") if p.strip()]
+            sep = os.pathsep if os.pathsep in excludes_raw else ","
+            excludes_raw = [p.strip() for p in excludes_raw.split(sep) if p.strip()]
         self._exclude = list(excludes_raw)
 
     def fetch(self, **kwargs: Any) -> NormalizedData:
         """Discover supported files under each configured path and parse them."""
-        mapper = DocumentMapper()
         files = list(self._discover_files())
+        mapper = DocumentMapper()
+        mapper.register_known_uris(posix_uri(f) for f in files)
         if not files:
             logger.info("Local-file connector: no files matched the configured paths.")
             return mapper.build()
