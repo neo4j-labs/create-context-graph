@@ -483,6 +483,7 @@ all = [
     { name = "neo4j-agent-memory", extra = ["gliner", "spacy"] },
     { name = "notion-client" },
     { name = "openai" },
+    { name = "pdf-oxide" },
     { name = "pdfplumber" },
     { name = "pygithub" },
     { name = "pypdf" },
@@ -499,6 +500,7 @@ connectors = [
     { name = "markdown-it-py" },
     { name = "mdit-py-plugins" },
     { name = "notion-client" },
+    { name = "pdf-oxide" },
     { name = "pdfplumber" },
     { name = "pygithub" },
     { name = "pypdf" },
@@ -536,6 +538,7 @@ requires-dist = [
     { name = "neo4j-agent-memory", extras = ["spacy", "gliner"], marker = "extra == 'ingest'", specifier = ">=0.0.5" },
     { name = "notion-client", marker = "extra == 'connectors'", specifier = ">=2.0" },
     { name = "openai", marker = "extra == 'generate'", specifier = ">=1.0" },
+    { name = "pdf-oxide", marker = "extra == 'connectors'", specifier = ">=0.3" },
     { name = "pdfplumber", marker = "extra == 'connectors'", specifier = ">=0.11" },
     { name = "pydantic", specifier = ">=2.0" },
     { name = "pygithub", marker = "extra == 'connectors'", specifier = ">=2.0" },
@@ -1705,6 +1708,22 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/65/ee/299d360cdc32edc7d2cf530f3accf79c4fca01e96ffc950d8a52213bd8e4/packaging-26.0.tar.gz", hash = "sha256:00243ae351a257117b6a241061796684b084ed1c516a08c48a3f7e147a9d80b4", size = 143416, upload-time = "2026-01-21T20:50:39.064Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/b7/b9/c538f279a4e237a006a2c98387d081e9eb060d203d8ed34467cc0f0b9b53/packaging-26.0-py3-none-any.whl", hash = "sha256:b36f1fef9334a5588b4166f8bcd26a14e521f2b55e6b9de3aaa80d3ff7a37529", size = 74366, upload-time = "2026-01-21T20:50:37.788Z" },
+]
+
+[[package]]
+name = "pdf-oxide"
+version = "0.3.46"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/4b/2e/0d1604e1e93296ae4fa9cd6104d7584e7fb9827ca07a4fea25df9f68d2a7/pdf_oxide-0.3.46.tar.gz", hash = "sha256:cba0259f1a8e9a35b565cb795c1213f34c0f56fa52e9309f93e84820f46f9302", size = 2391037, upload-time = "2026-05-11T05:07:41.006Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9f/23/7b8ea17f1f145335ac068553b28f1adfb22c3f57f591456e891f9cb14aa6/pdf_oxide-0.3.46-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:4677647a62670cdae0bb65f11d94a2d2a0141db4cc895527862a5911ddebbab8", size = 7919399, upload-time = "2026-05-11T05:07:26.308Z" },
+    { url = "https://files.pythonhosted.org/packages/9d/e2/c2ee1384b995728a96b940b7a474368e6cee70bb7e15ff06e0df53a16d22/pdf_oxide-0.3.46-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:3d1a268e83e63c38fd88fa6b8e34e80ba35d7e33e21c5b51e306a4de3e53b81b", size = 7419951, upload-time = "2026-05-11T05:07:28.212Z" },
+    { url = "https://files.pythonhosted.org/packages/cc/f9/357fc2ba7503d3a9c2abb6c66b950d921cc2cf2dc13251dfa526d1ff9240/pdf_oxide-0.3.46-cp38-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:1e72ccb39b642a1e3fbd6c01bf1bbe8ead5e6dccbebe5f661e6c5d21be93207c", size = 7729428, upload-time = "2026-05-11T05:07:29.787Z" },
+    { url = "https://files.pythonhosted.org/packages/2e/27/53cd558ac4df65e47392ca3fa2cd7bd5aa8949bc8ce563442864ca0d570e/pdf_oxide-0.3.46-cp38-abi3-manylinux_2_28_x86_64.whl", hash = "sha256:370e37fd7786521db0805ddb8793fe29fe39a44e87d21b67cf7b3629a57b40fc", size = 8204398, upload-time = "2026-05-11T05:07:31.475Z" },
+    { url = "https://files.pythonhosted.org/packages/40/2c/5845efae8617f137ad070b67a5c7936ae4541963852011a80523b9f2528d/pdf_oxide-0.3.46-cp38-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:14b7c06470e91774a6abcda0dcb666cc039c6ea8b8a5d9d6aa5aa8a1fec66a89", size = 7913833, upload-time = "2026-05-11T05:07:33.346Z" },
+    { url = "https://files.pythonhosted.org/packages/da/b8/94f1fb884baaae732d6216819c0fab7d32719930cab6e2bfaf40f276409a/pdf_oxide-0.3.46-cp38-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:5c00ccd577ae899cabe5795a2a7aa2fdc07ea50b75d178ba53b42ab6933d8593", size = 8452590, upload-time = "2026-05-11T05:07:35.692Z" },
+    { url = "https://files.pythonhosted.org/packages/a5/da/421c4d175e7b95d0b9c6282a6cb239b89a819e24f9246804f64f23723945/pdf_oxide-0.3.46-cp38-abi3-win_amd64.whl", hash = "sha256:66e6e6bf5e9ff2ee69d5b03742e2abec4ef9afcda1f8aa250097ecd5478c871c", size = 8210000, upload-time = "2026-05-11T05:07:37.692Z" },
+    { url = "https://files.pythonhosted.org/packages/e7/10/6c3beb8b817d4725883c7df94cd640c3ecd577ef291993893863555f2a47/pdf_oxide-0.3.46-cp38-abi3-win_arm64.whl", hash = "sha256:1dc28dc066d565ec406ab0519f9f7af511791e4b604b73f9bed86f683b84f4c5", size = 7633374, upload-time = "2026-05-11T05:07:39.287Z" },
 ]
 
 [[package]]

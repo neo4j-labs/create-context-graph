@@ -14,8 +14,12 @@
 
 """PDF parser for the Local File document connector.
 
-Three-tier deterministic strategy (spec §4 PDF Strategy):
+Four-tier deterministic strategy, tried in order:
 
+0. **pdf-oxide** (``pdf_oxide``) — bundled with the ``connectors`` extra
+   (MIT/Apache-2.0). Uses ``PdfDocument.to_markdown_all(detect_headings=True)``
+   which handles both outline-bearing and unstructured PDFs. Falls through to
+   tiers 1–3 only on an unexpected parsing error.
 1. **PDF outline** (``PdfReader.outline``) — most common heading source for
    real-world long-form documents (LaTeX/Word/Acrobat emit them by
    default). Bookmark depth = heading level; body text is the page range
@@ -24,8 +28,8 @@ Three-tier deterministic strategy (spec §4 PDF Strategy):
    PDFs (~3-10%). Walk ``/StructElem`` nodes, mapping ``/H1``..``/H6`` to
    heading levels.
 3. **Font-size heuristics** (``pdfplumber.page.chars``) — fallback for
-   untagged PDFs with no bookmarks. Distinct font sizes used in >10
-   characters of text are sorted descending and assigned H1..H6.
+   untagged PDFs with no bookmarks. Distinct font sizes sorted descending
+   and assigned H1..H6.
 
 The chosen strategy is logged at INFO; pure-Python and fully
 deterministic given the same input file.
@@ -53,9 +57,20 @@ logger = logging.getLogger(__name__)
 def parse(path: str | Path) -> ParsedDocument:
     """Parse a PDF file into a :class:`ParsedDocument`.
 
+    Tries tier 0 (pdf-oxide) first, then falls through to pypdf/pdfplumber.
+
     Raises:
-        ImportError: if ``pypdf`` is not installed.
+        ImportError: if ``pypdf`` is not installed (required for tiers 1–3).
     """
+    p = Path(path)
+    uri = posix_uri(p)
+
+    # Tier 0: pdf-oxide — bundled with connectors extra, MIT/Apache-2.
+    doc = _try_pdf_oxide(p, uri)
+    if doc is not None:
+        return doc
+
+    # Tiers 1–3: pypdf + pdfplumber (bundled, BSD/MIT).
     try:
         from pypdf import PdfReader
     except ImportError as exc:  # pragma: no cover - exercised at runtime only.
@@ -63,16 +78,14 @@ def parse(path: str | Path) -> ParsedDocument:
             "PDF parsing requires 'pypdf'. Install with: pip install 'pypdf>=6.11'"
         ) from exc
 
-    p = Path(path)
     reader = PdfReader(str(p))
-    uri = posix_uri(p)
     title = _document_title(reader, p)
     doc_links = _collect_uri_links(reader)
 
     # Tier 1: outline.
     sections = _try_outline(reader)
     if sections is not None:
-        logger.info("PDF parser: using outline strategy for %s", p)
+        logger.info("PDF parser: tier 1 (pypdf/outline) for %s", p)
         return ParsedDocument(
             uri=uri,
             title=title,
@@ -84,7 +97,7 @@ def parse(path: str | Path) -> ParsedDocument:
     # Tier 2: structure tree.
     sections = _try_structure_tree(reader)
     if sections is not None:
-        logger.info("PDF parser: using structure tree strategy for %s", p)
+        logger.info("PDF parser: tier 2 (pypdf/StructTree) for %s", p)
         return ParsedDocument(
             uri=uri,
             title=title,
@@ -94,7 +107,7 @@ def parse(path: str | Path) -> ParsedDocument:
         )
 
     # Tier 3: font-size heuristics.
-    logger.info("PDF parser: falling back to font-size heuristics for %s", p)
+    logger.info("PDF parser: tier 3 (pdfplumber/font) for %s", p)
     sections, preamble = _try_font_heuristic(p)
     if not sections:
         logger.warning(
@@ -131,6 +144,119 @@ def _document_title(reader, path: Path) -> str:
     except Exception:  # pragma: no cover - metadata is best-effort.
         pass
     return path.stem
+
+
+# ---------------------------------------------------------------------------
+# Tier 0: pdf-oxide (bundled with connectors extra)
+# ---------------------------------------------------------------------------
+
+
+def _try_pdf_oxide(p: Path, uri: str) -> ParsedDocument | None:
+    """Return a ParsedDocument using pdf-oxide, or None if not installed.
+
+    pdf-oxide (MIT/Apache-2.0) is bundled with the ``connectors`` extra.
+    It converts the PDF to Markdown (with ``detect_headings=True``) which
+    handles both outline-bearing and unstructured PDFs in a single pass.
+    Falls through to tiers 1–3 only on an unexpected exception.
+    """
+    try:
+        from pdf_oxide import PdfDocument
+    except ImportError:
+        return None
+
+    try:
+        doc = PdfDocument(str(p))
+        md = doc.to_markdown_all(detect_headings=True)
+    except Exception as exc:  # pragma: no cover - guard against malformed PDFs
+        logger.warning("PDF parser: pdf-oxide failed for '%s' (%s), falling through.", p, exc)
+        return None
+
+    title = _title_from_markdown(md, p.stem)
+    sections, preamble = _parse_markdown_sections(md)
+    links = _pdf_oxide_uri_links(md)
+
+    if not sections:
+        logger.warning(
+            "PDF parser: pdf-oxide found no heading structure in '%s'. "
+            "Document will be ingested as flat text with no sections.", p,
+        )
+    else:
+        logger.info("PDF parser: tier 0 (pdf-oxide) for %s", p)
+    return ParsedDocument(
+        uri=uri, title=title, preamble=preamble, sections=sections,
+        links=links, source_type="LOCAL_FILE",
+    )
+
+
+def _title_from_markdown(md: str, fallback: str) -> str:
+    """Return the first H1 heading as document title, or the fallback stem."""
+    for line in md.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith("# "):
+            return line[2:].strip()
+        break
+    return fallback
+
+
+def _parse_markdown_sections(md: str) -> tuple[list[ParsedSection], str]:
+    """Parse a Markdown string into a ParsedSection hierarchy.
+
+    Lines beginning with ``#``–``######`` become section headings.
+    Everything else is body text accumulated into the current section (or
+    the preamble if no heading has been seen yet).
+    """
+    import re
+    heading_re = re.compile(r"^(#{1,6})\s+(.*)")
+
+    root: list[ParsedSection] = []
+    stack: list[ParsedSection] = []
+    preamble_lines: list[str] = []
+    current: ParsedSection | None = None
+    current_body: list[str] = []
+
+    def flush() -> None:
+        if current is not None:
+            current.body = "\n".join(current_body).strip()
+
+    for line in md.splitlines():
+        m = heading_re.match(line)
+        if m:
+            flush()
+            current_body = []
+            level = len(m.group(1))
+            title = m.group(2).strip()
+            section = ParsedSection(title=title, level=level, body="", subsections=[], links=[])
+            while stack and stack[-1].level >= level:
+                stack.pop()
+            if stack:
+                stack[-1].subsections.append(section)
+            else:
+                root.append(section)
+            stack.append(section)
+            current = section
+        else:
+            (preamble_lines if current is None else current_body).append(line)
+    flush()
+    return root, "\n".join(preamble_lines).strip()
+
+
+def _pdf_oxide_uri_links(md: str) -> list[str]:
+    """Extract HTTP/S links from a Markdown string (inline and bare)."""
+    import re
+    seen: set[str] = set()
+    links: list[str] = []
+    for url in re.findall(r"\[(?:[^\]]*)\]\((https?://[^\)]+)\)", md):
+        if url not in seen:
+            seen.add(url)
+            links.append(url)
+    for url in re.findall(r"(?<!\()(https?://\S+)", md):
+        url = url.rstrip(".,;:!?)\"'")
+        if url and url not in seen:
+            seen.add(url)
+            links.append(url)
+    return links
 
 
 # ---------------------------------------------------------------------------

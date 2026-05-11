@@ -384,6 +384,93 @@ class TestPDFParser:
         assert any(s.level == 1 and "Big Heading" in s.title for s in doc.sections)
 
 
+class TestPDFParserPdfOxide:
+    """Tier 0 (pdf-oxide) tests — pdf-oxide is bundled so no mock needed for happy path."""
+
+    def test_tier0_outline_pdf(self):
+        """pdf-oxide should parse the fixture PDF and produce sections from the outline."""
+        pytest.importorskip("pdf_oxide")
+        from create_context_graph.connectors._local_file.parsers import pdf as pdf_parser
+
+        fixture = Path("tests/fixtures/local_file_vault/external/acme-10q-2026q1.pdf")
+        if not fixture.exists():
+            pytest.skip("fixture PDF not found")
+
+        doc = pdf_parser.parse(fixture)
+        assert doc.title  # should have a title (from first H1)
+        assert doc.sections  # outline-bearing PDF should have sections
+        top_titles = [s.title for s in doc.sections]
+        assert any("Part I" in t or "ACME" in t or "Financial" in t for t in top_titles)
+
+    def test_tier0_heading_structure(self):
+        """Sections parsed from the fixture PDF should have nested subsections."""
+        pytest.importorskip("pdf_oxide")
+        from create_context_graph.connectors._local_file.parsers import pdf as pdf_parser
+
+        fixture = Path("tests/fixtures/local_file_vault/external/acme-10q-2026q1.pdf")
+        if not fixture.exists():
+            pytest.skip("fixture PDF not found")
+
+        doc = pdf_parser.parse(fixture)
+        all_sections = []
+
+        def collect(sections):
+            for s in sections:
+                all_sections.append(s)
+                collect(s.subsections)
+
+        collect(doc.sections)
+        assert len(all_sections) >= 3
+
+    def test_tier0_markdown_parse_sections(self):
+        """_parse_markdown_sections should build correct hierarchy from markdown."""
+        from create_context_graph.connectors._local_file.parsers.pdf import _parse_markdown_sections
+
+        md = "# Title\n\nIntro text.\n\n## Section A\n\nBody A.\n\n### Sub A1\n\nSub body.\n\n## Section B\n\nBody B."
+        sections, preamble = _parse_markdown_sections(md)
+
+        assert preamble == ""
+        assert len(sections) == 1  # "Title" is the single root
+        title_sec = sections[0]
+        assert title_sec.title == "Title"
+        assert len(title_sec.subsections) == 2
+        assert title_sec.subsections[0].title == "Section A"
+        assert len(title_sec.subsections[0].subsections) == 1
+        assert title_sec.subsections[0].subsections[0].title == "Sub A1"
+
+    def test_tier0_title_from_first_h1(self):
+        """_title_from_markdown should use the first H1 line."""
+        from create_context_graph.connectors._local_file.parsers.pdf import _title_from_markdown
+
+        assert _title_from_markdown("# My Doc\n\nsome text", "fallback") == "My Doc"
+        assert _title_from_markdown("no heading here", "fallback") == "fallback"
+        assert _title_from_markdown("", "stem") == "stem"
+
+    def test_tier0_uri_links_extracted(self):
+        """_pdf_oxide_uri_links should collect inline and bare URLs."""
+        from create_context_graph.connectors._local_file.parsers.pdf import _pdf_oxide_uri_links
+
+        md = "See [docs](https://example.com/docs) and https://other.org/page for details."
+        links = _pdf_oxide_uri_links(md)
+        assert "https://example.com/docs" in links
+        assert "https://other.org/page" in links
+
+    def test_tier0_falls_through_on_import_error(self, tmp_path):
+        """When pdf_oxide is absent, parse() should fall through to pypdf tiers."""
+        pytest.importorskip("reportlab")
+        import sys, unittest.mock as mock
+        from create_context_graph.connectors._local_file.parsers import pdf as pdf_parser
+
+        pdf_path = tmp_path / "nopdfoxide.pdf"
+        _make_pdf_with_outline(pdf_path)
+
+        with mock.patch.dict(sys.modules, {"pdf_oxide": None}):
+            doc = pdf_parser.parse(pdf_path)
+
+        assert doc.title == "Test Document"
+        assert any(s.title == "Chapter 1" for s in doc.sections)
+
+
 # ---------------------------------------------------------------------------
 # HTML parser
 # ---------------------------------------------------------------------------
