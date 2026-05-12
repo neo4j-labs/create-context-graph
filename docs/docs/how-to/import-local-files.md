@@ -121,7 +121,7 @@ YAML/TOML frontmatter (`--- … ---` at the top of a file) is automatically stri
 
 ### Large document collections
 
-For vaults with hundreds or thousands of files, enable PyMuPDF (see above) and use `--local-file-exclude` to skip generated or binary files:
+For vaults with hundreds or thousands of files, use `--local-file-exclude` to skip generated or binary files:
 
 ```bash
 --local-file-exclude "**/.obsidian/**" \
