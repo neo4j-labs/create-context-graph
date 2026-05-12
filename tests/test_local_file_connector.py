@@ -1096,6 +1096,62 @@ class TestDocumentMapper:
         assert y_docs[0]["title"] == "Y"  # upgraded
         assert y_docs[0].get("description")  # has content
 
+    def test_anchor_link_creates_parent_document_stub(self):
+        # A link to an anchor on an un-ingested document should create:
+        # 1. A Section stub for the anchor target.
+        # 2. A Document stub for the parent document.
+        # 3. A HAS_SECTION edge between them so the graph is traversable.
+        source = _doc(
+            "/docs/x.md", "X",
+            sections=[_sec("A", 2, links=["./y.md#intro"])],
+        )
+        mapper = DocumentMapper()
+        mapper.add(source)
+        data = mapper.build()
+
+        section_stubs = [s for s in data.entities["Section"] if "#intro" in s["name"]]
+        assert len(section_stubs) == 1, "Section stub for anchor expected"
+
+        doc_stubs = [d for d in data.entities["Document"] if d["name"].endswith("/docs/y.md")]
+        assert len(doc_stubs) == 1, "Parent Document stub expected"
+
+        has_section = [
+            r for r in data.relationships
+            if r["type"] == "HAS_SECTION"
+            and r["source_name"].endswith("/docs/y.md")
+            and "#intro" in r["target_name"]
+        ]
+        assert len(has_section) == 1, "HAS_SECTION from stub Document to stub Section expected"
+
+    def test_anchor_link_stub_upgraded_on_later_ingest(self):
+        # After a stub Document + Section are created from an anchor link,
+        # ingesting the real document should upgrade both in-place without
+        # producing duplicates.
+        source = _doc(
+            "/docs/x.md", "X",
+            sections=[_sec("A", 2, links=["./y.md#intro"])],
+        )
+        target = _doc(
+            "/docs/y.md", "Y",
+            sections=[_sec("Intro", 1, body="real body")],
+        )
+        mapper = DocumentMapper()
+        mapper.add(source)
+        mapper.add(target)
+        data = mapper.build()
+
+        # Exactly one Document node for y.md (stub upgraded, not duplicated).
+        y_docs = [d for d in data.entities["Document"] if d["name"].endswith("/docs/y.md")]
+        assert len(y_docs) == 1
+        assert y_docs[0].get("title") == "Y"  # upgraded with real title
+
+        # Exactly one HAS_SECTION from y.md to its intro section.
+        has_section = [
+            r for r in data.relationships
+            if r["type"] == "HAS_SECTION" and r["source_name"].endswith("/docs/y.md")
+        ]
+        assert len(has_section) == 1
+
     def test_idempotent_mapping(self):
         d = _doc(
             "/docs/x.md", "X",

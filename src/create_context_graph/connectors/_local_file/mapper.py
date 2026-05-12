@@ -82,8 +82,10 @@ class DocumentMapper:
         # Per-entity dedup: URI → entity dict. Insertion order preserved.
         self._documents: dict[str, dict] = {}
         self._sections: dict[str, dict] = {}
-        # All relationships emitted so far.
+        # All relationships emitted so far (insertion order preserved).
         self._relationships: list[dict] = []
+        # Dedup key set: (type, source_name, target_name).
+        self._rel_seen: set[tuple[str, str, str]] = set()
         # URIs of documents that WILL be fully parsed in this run.  Pre-registered
         # by LocalFileConnector.fetch() before the first add() call so that
         # _emit_links_to can suppress stub creation for targets we know will
@@ -162,6 +164,14 @@ class DocumentMapper:
             traces=[],
         )
 
+    def _add_relationship(self, rel: dict) -> None:
+        """Append *rel* to the relationships list, silently dropping duplicates."""
+        key = (rel["type"], rel["source_name"], rel["target_name"])
+        if key not in self._rel_seen:
+            self._rel_seen.add(key)
+            self._relationships.append(rel)
+
+
     # ---- internals ------------------------------------------------------
 
     def _add_section_recursive(
@@ -211,7 +221,7 @@ class DocumentMapper:
         )
 
         # HAS_SECTION: parent → this section.
-        self._relationships.append({
+        self._add_relationship({
             "type": "HAS_SECTION",
             "source_name": parent_uri,
             "source_label": parent_label,
@@ -253,7 +263,7 @@ class DocumentMapper:
             doc_uri = target_uri.split("#", 1)[0]
             if target_uri not in self._sections and doc_uri not in self._parsed_doc_uris:
                 self._upsert_section_stub(target_uri)
-        self._relationships.append({
+        self._add_relationship({
             "type": "LINKS_TO",
             "source_name": source_uri,
             "source_label": source_label,
@@ -324,9 +334,21 @@ class DocumentMapper:
     def _upsert_section_stub(self, uri: str) -> None:
         if uri in self._sections:
             return
-        self._sections[uri] = {
-            "name": uri,
-        }
+        self._sections[uri] = {"name": uri}
+        # Ensure the parent Document stub exists and has a HAS_SECTION edge to
+        # this section.  When the document is later ingested, _upsert_document()
+        # upgrades the stub in-place and _add_section_recursive() emits the
+        # same HAS_SECTION edge — the ingest MERGE matches it without creating
+        # a duplicate.
+        doc_uri = uri.split("#", 1)[0]
+        self._upsert_document_stub(doc_uri)
+        self._add_relationship({
+            "type": "HAS_SECTION",
+            "source_name": doc_uri,
+            "source_label": "Document",
+            "target_name": uri,
+            "target_label": "Section",
+        })
 
     # ---- link classification -------------------------------------------
 

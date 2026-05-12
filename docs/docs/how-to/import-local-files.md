@@ -82,7 +82,7 @@ Each document becomes a `:Document` node and each heading-delimited section beco
 
 - **`name`** (the MERGE key) is a POSIX-normalised absolute path URI — the same file always produces the same URI on macOS, Linux, and Windows.
 - **`description`** on each node holds the section's immediate body text plus URI pointers to its direct children, making it searchable via the graph's vector index.
-- **`LINKS_TO`** edges are created for hyperlinks. Targets not parsed in the same run become lightweight stub nodes that are upgraded in place on the next ingest.
+- **`LINKS_TO`** edges point at the most specific target: a URL with a fragment (`doc.md#heading`) resolves to a `:Section`; a bare URL resolves to a `:Document`. The parent `:Document` is always reachable from any `:Section` via `[:HAS_SECTION*]`. Targets not parsed in the same run become lightweight stub nodes — when a linked document with an anchor (`#`) is encountered, its parent `:Document` stub and a `HAS_SECTION` edge are created immediately so the graph stays traversable before that document is ingested. Stubs are upgraded in place on the next ingest.
 - Re-ingesting the same files is safe and idempotent (`ON CREATE / ON MATCH SET`).
 
 ## PDF performance
