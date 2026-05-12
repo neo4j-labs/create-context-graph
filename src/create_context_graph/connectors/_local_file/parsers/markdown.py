@@ -69,7 +69,8 @@ def parse(path: str | Path) -> ParsedDocument:
     tokens = md.parse(text)
     lines = text.splitlines()
 
-    return _build_document(tokens, lines, p, text)
+    author, language = _frontmatter_author_language(tokens)
+    return _build_document(tokens, lines, p, text, author=author, language=language)
 
 
 # ---------------------------------------------------------------------------
@@ -77,8 +78,30 @@ def parse(path: str | Path) -> ParsedDocument:
 # ---------------------------------------------------------------------------
 
 
+def _frontmatter_author_language(tokens) -> tuple[str | None, str | None]:
+    """Extract author and language from a YAML frontmatter token if present."""
+    for tok in tokens:
+        if tok.type == "front_matter":
+            try:
+                import yaml
+                data = yaml.safe_load(tok.content)
+                if not isinstance(data, dict):
+                    break
+                raw_author = data.get("author") or data.get("authors")
+                if isinstance(raw_author, list):
+                    raw_author = ", ".join(str(a) for a in raw_author if a)
+                author = str(raw_author).strip() or None if raw_author else None
+                raw_lang = data.get("lang") or data.get("language")
+                language = str(raw_lang).strip() or None if raw_lang else None
+                return author, language
+            except Exception:
+                break
+    return None, None
+
+
 def _build_document(
-    tokens, lines: list[str], path: Path, text: str
+    tokens, lines: list[str], path: Path, text: str,
+    *, author: str | None = None, language: str | None = None,
 ) -> ParsedDocument:
     """Build a ``ParsedDocument`` tree from a token stream.
 
@@ -108,6 +131,8 @@ def _build_document(
         sections=sections,
         links=preamble_links,
         source_type="LOCAL_FILE",
+        author=author,
+        language=language,
     )
 
 

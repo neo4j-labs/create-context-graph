@@ -80,6 +80,8 @@ def parse(path: str | Path) -> ParsedDocument:
 
     reader = PdfReader(str(p))
     title = _document_title(reader, p)
+    author, language = _pdf_author_language(reader)
+    page_count = len(reader.pages)
     doc_links = _collect_uri_links(reader)
 
     # Tier 1: outline.
@@ -87,11 +89,9 @@ def parse(path: str | Path) -> ParsedDocument:
     if sections is not None:
         logger.info("PDF parser: tier 1 (pypdf/outline) for %s", p)
         return ParsedDocument(
-            uri=uri,
-            title=title,
-            sections=sections,
-            links=doc_links,
+            uri=uri, title=title, sections=sections, links=doc_links,
             source_type="LOCAL_FILE",
+            author=author, language=language, page_count=page_count,
         )
 
     # Tier 2: structure tree.
@@ -99,11 +99,9 @@ def parse(path: str | Path) -> ParsedDocument:
     if sections is not None:
         logger.info("PDF parser: tier 2 (pypdf/StructTree) for %s", p)
         return ParsedDocument(
-            uri=uri,
-            title=title,
-            sections=sections,
-            links=doc_links,
+            uri=uri, title=title, sections=sections, links=doc_links,
             source_type="LOCAL_FILE",
+            author=author, language=language, page_count=page_count,
         )
 
     # Tier 3: font-size heuristics.
@@ -117,12 +115,9 @@ def parse(path: str | Path) -> ParsedDocument:
             p,
         )
     return ParsedDocument(
-        uri=uri,
-        title=title,
-        preamble=preamble,
-        sections=sections,
-        links=doc_links,
-        source_type="LOCAL_FILE",
+        uri=uri, title=title, preamble=preamble, sections=sections,
+        links=doc_links, source_type="LOCAL_FILE",
+        author=author, language=language, page_count=page_count,
     )
 
 
@@ -144,6 +139,26 @@ def _document_title(reader, path: Path) -> str:
     except Exception:  # pragma: no cover - metadata is best-effort.
         pass
     return path.stem
+
+
+def _pdf_author_language(reader) -> tuple[str | None, str | None]:
+    """Extract author and language from a pypdf PdfReader's metadata dict."""
+    try:
+        meta = reader.metadata
+        if meta is None:
+            return None, None
+        raw_author = getattr(meta, "author", None)
+        if raw_author is None and hasattr(meta, "get"):
+            raw_author = meta.get("/Author")
+        author = str(raw_author).strip() or None if raw_author else None
+
+        raw_lang = None
+        if hasattr(meta, "get"):
+            raw_lang = meta.get("/Lang") or meta.get("/Language")
+        language = str(raw_lang).strip() or None if raw_lang else None
+        return author, language
+    except Exception:  # pragma: no cover - metadata is best-effort.
+        return None, None
 
 
 # ---------------------------------------------------------------------------
@@ -182,9 +197,20 @@ def _try_pdf_oxide(p: Path, uri: str) -> ParsedDocument | None:
         )
     else:
         logger.info("PDF parser: tier 0 (pdf-oxide) for %s", p)
+
+    page_count = doc.page_count()
+    # Enrich with author/language from pypdf metadata — best effort.
+    author = language = None
+    try:
+        from pypdf import PdfReader
+        reader = PdfReader(str(p))
+        author, language = _pdf_author_language(reader)
+    except Exception:  # pragma: no cover - metadata is best-effort.
+        pass
     return ParsedDocument(
         uri=uri, title=title, preamble=preamble, sections=sections,
         links=links, source_type="LOCAL_FILE",
+        author=author, language=language, page_count=page_count,
     )
 
 

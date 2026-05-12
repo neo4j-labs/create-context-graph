@@ -85,6 +85,46 @@ Each document becomes a `:Document` node and each heading-delimited section beco
 - **`LINKS_TO`** edges point at the most specific target: a URL with a fragment (`doc.md#heading`) resolves to a `:Section`; a bare URL resolves to a `:Document`. The parent `:Document` is always reachable from any `:Section` via `[:HAS_SECTION*]`. Targets not parsed in the same run become lightweight stub nodes — when a linked document with an anchor (`#`) is encountered, its parent `:Document` stub and a `HAS_SECTION` edge are created immediately so the graph stays traversable before that document is ingested. Stubs are upgraded in place on the next ingest.
 - Re-ingesting the same files is safe and idempotent (`ON CREATE / ON MATCH SET`).
 
+### `:Document` node properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | String | MERGE key — POSIX-normalised absolute path URI |
+| `title` | String | First H1 heading, document metadata title, or filename stem |
+| `description` | String | Preamble text + `uri:` child pointers |
+| `sourceType` | String | `LOCAL_FILE` for parsed files; `URL_LINK` for link-target stubs |
+| `fileExtension` | String | Lowercase extension without dot: `md`, `pdf`, `html`, `docx`, `adoc` |
+| `fileSize` | Integer | File size in bytes |
+| `createdAt` | ZonedDateTime | File creation time (macOS/Windows `st_birthtime`; Linux falls back to `st_mtime`) |
+| `modifiedAt` | ZonedDateTime | File last-modified time (`st_mtime`) |
+| `loadedAt` | ZonedDateTime | Timestamp when this ingest run started |
+| `author` | String | From document metadata where available (see format table below) |
+| `language` | String | Language tag (e.g. `en`, `de`, `fr`) where available |
+| `pageCount` | Integer | Number of pages (PDF only) |
+| `domain` | String | Set by the ingest pipeline for cross-domain isolation |
+
+### `:Section` node properties
+
+| Property | Type | Description |
+|----------|------|-------------|
+| `name` | String | MERGE key — `{docUri}#{slug}` or `{parentUri}/{slug}` for nested sections |
+| `title` | String | Heading text |
+| `description` | String | Immediate body text + `uri:` child pointers |
+| `headingLevel` | Integer | 1–6; the actual heading level in the source |
+| `fileExtension` | String | Inherited from parent document URI |
+| `loadedAt` | ZonedDateTime | Timestamp when this ingest run started |
+| `domain` | String | Set by the ingest pipeline |
+
+### Author and language availability by format
+
+| Format | `author` | `language` |
+|--------|----------|-----------|
+| Markdown | YAML/TOML frontmatter `author:` / `authors:` | frontmatter `lang:` / `language:` |
+| PDF | `/Author` in PDF metadata dictionary | `/Lang` in metadata (rare) |
+| DOCX | Core properties `author` field | Core properties `language` field |
+| HTML | `<meta name="author">` | `<html lang="">` or `<meta http-equiv="content-language">` |
+| AsciiDoc | `:author:` document attribute | `:lang:` / `:language:` document attribute |
+
 ## PDF performance
 
 PDF ingestion uses a four-tier strategy, tried in order until one succeeds:

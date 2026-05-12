@@ -81,6 +81,7 @@ def parse(path: str | Path) -> ParsedDocument:
         for href in item["links"]:
             if href not in preamble_links:
                 preamble_links.append(href)
+    author, language = _docx_author_language(document)
     if first_heading_idx is None:
         return ParsedDocument(
             uri=posix_uri(p),
@@ -89,6 +90,8 @@ def parse(path: str | Path) -> ParsedDocument:
             sections=[],
             links=preamble_links,
             source_type="LOCAL_FILE",
+            author=author,
+            language=language,
         )
 
     sections = _build_section_tree(paragraphs[first_heading_idx:])
@@ -99,12 +102,29 @@ def parse(path: str | Path) -> ParsedDocument:
         sections=sections,
         links=preamble_links,
         source_type="LOCAL_FILE",
+        author=author,
+        language=language,
     )
 
 
 # ---------------------------------------------------------------------------
 # Internals
 # ---------------------------------------------------------------------------
+
+
+def _docx_author_language(document) -> tuple[str | None, str | None]:
+    """Extract author and language from DOCX core properties."""
+    author = language = None
+    try:
+        core = document.core_properties
+        if core is not None:
+            raw = getattr(core, "author", None)
+            author = str(raw).strip() or None if raw else None
+            raw = getattr(core, "language", None)
+            language = str(raw).strip() or None if raw else None
+    except Exception:  # pragma: no cover - missing or malformed core properties.
+        pass
+    return author, language
 
 
 def _document_title(document, path: Path) -> str:

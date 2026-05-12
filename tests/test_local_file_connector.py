@@ -1416,3 +1416,306 @@ class TestLocalFileConnectorFetch:
         names = {d["name"] for d in merged.entities["Document"]}
         assert any(name.endswith("/a.md") for name in names)
         assert any(name.endswith("/b.md") for name in names)
+
+
+# ---------------------------------------------------------------------------
+# File metadata: parse_file() enrichment (stat-derived fields)
+# ---------------------------------------------------------------------------
+
+
+class TestFileMetadataFromStat:
+    """parse_file() populates stat-derived fields on ParsedDocument."""
+
+    def test_file_extension_set(self, tmp_path):
+        f = tmp_path / "guide.md"
+        f.write_text("# Title\n\nbody\n")
+        doc = parse_file(f)
+        assert doc.file_extension == "md"
+
+    def test_file_size_positive(self, tmp_path):
+        f = tmp_path / "guide.md"
+        content = "# Title\n\nbody\n"
+        f.write_text(content)
+        doc = parse_file(f)
+        assert doc.file_size == f.stat().st_size
+        assert doc.file_size > 0
+
+    def test_created_at_is_datetime(self, tmp_path):
+        from datetime import datetime, timezone
+        f = tmp_path / "guide.md"
+        f.write_text("# Title\n")
+        doc = parse_file(f)
+        assert isinstance(doc.created_at, datetime)
+        assert doc.created_at.tzinfo is not None
+
+    def test_modified_at_is_datetime(self, tmp_path):
+        from datetime import datetime, timezone
+        f = tmp_path / "guide.md"
+        f.write_text("# Title\n")
+        doc = parse_file(f)
+        assert isinstance(doc.modified_at, datetime)
+        assert doc.modified_at.tzinfo is not None
+
+    def test_no_extension_gives_none(self, tmp_path):
+        # Files without a supported extension raise ValueError; this tests
+        # that the extension derivation itself returns None for bare stems.
+        from create_context_graph.connectors._local_file.parser import ParsedDocument
+        doc = ParsedDocument(uri="/tmp/README", title="README")
+        assert doc.file_extension is None
+
+    def test_html_extension(self, tmp_path):
+        pytest.importorskip("bs4")
+        f = tmp_path / "page.html"
+        f.write_text("<html><body><h1>Title</h1></body></html>")
+        doc = parse_file(f)
+        assert doc.file_extension == "html"
+
+
+# ---------------------------------------------------------------------------
+# Per-format parser: author / language extraction
+# ---------------------------------------------------------------------------
+
+
+class TestMarkdownParserMetadata:
+    def test_frontmatter_author(self, tmp_path):
+        f = tmp_path / "doc.md"
+        f.write_text("---\nauthor: Alice\n---\n# Title\n\nbody\n")
+        doc = parse_file(f)
+        assert doc.author == "Alice"
+
+    def test_frontmatter_language(self, tmp_path):
+        f = tmp_path / "doc.md"
+        f.write_text("---\nlang: de\n---\n# Title\n")
+        doc = parse_file(f)
+        assert doc.language == "de"
+
+    def test_frontmatter_language_key_alias(self, tmp_path):
+        f = tmp_path / "doc.md"
+        f.write_text("---\nlanguage: fr\n---\n# Title\n")
+        doc = parse_file(f)
+        assert doc.language == "fr"
+
+    def test_frontmatter_authors_list(self, tmp_path):
+        f = tmp_path / "doc.md"
+        f.write_text("---\nauthors:\n  - Alice\n  - Bob\n---\n# Title\n")
+        doc = parse_file(f)
+        assert doc.author == "Alice, Bob"
+
+    def test_no_frontmatter_gives_none(self, tmp_path):
+        f = tmp_path / "doc.md"
+        f.write_text("# Title\n\nno frontmatter\n")
+        doc = parse_file(f)
+        assert doc.author is None
+        assert doc.language is None
+
+    def test_empty_frontmatter_gives_none(self, tmp_path):
+        f = tmp_path / "doc.md"
+        f.write_text("---\n---\n# Title\n")
+        doc = parse_file(f)
+        assert doc.author is None
+        assert doc.language is None
+
+
+class TestHTMLParserMetadata:
+    def test_meta_author(self, tmp_path):
+        pytest.importorskip("bs4")
+        f = tmp_path / "page.html"
+        f.write_text(
+            '<html><head><meta name="author" content="Bob"/></head>'
+            '<body><h1>Title</h1></body></html>'
+        )
+        doc = parse_file(f)
+        assert doc.author == "Bob"
+
+    def test_html_lang_attribute(self, tmp_path):
+        pytest.importorskip("bs4")
+        f = tmp_path / "page.html"
+        f.write_text('<html lang="en-US"><body><h1>Title</h1></body></html>')
+        doc = parse_file(f)
+        assert doc.language == "en-US"
+
+    def test_meta_content_language_fallback(self, tmp_path):
+        pytest.importorskip("bs4")
+        f = tmp_path / "page.html"
+        f.write_text(
+            '<html><head><meta http-equiv="content-language" content="fr"/></head>'
+            '<body><h1>Title</h1></body></html>'
+        )
+        doc = parse_file(f)
+        assert doc.language == "fr"
+
+    def test_no_metadata_gives_none(self, tmp_path):
+        pytest.importorskip("bs4")
+        f = tmp_path / "page.html"
+        f.write_text("<html><body><h1>Title</h1><p>body</p></body></html>")
+        doc = parse_file(f)
+        assert doc.author is None
+        assert doc.language is None
+
+
+class TestAsciiDocParserMetadata:
+    def test_author_attribute(self, tmp_path):
+        f = tmp_path / "doc.adoc"
+        f.write_text("= Title\n:author: Carol\n\nBody text.\n")
+        doc = parse_file(f)
+        assert doc.author == "Carol"
+
+    def test_lang_attribute(self, tmp_path):
+        f = tmp_path / "doc.adoc"
+        f.write_text("= Title\n:lang: ja\n\nBody text.\n")
+        doc = parse_file(f)
+        assert doc.language == "ja"
+
+    def test_language_attribute_alias(self, tmp_path):
+        f = tmp_path / "doc.adoc"
+        f.write_text("= Title\n:language: es\n\nBody text.\n")
+        doc = parse_file(f)
+        assert doc.language == "es"
+
+    def test_no_attributes_gives_none(self, tmp_path):
+        f = tmp_path / "doc.adoc"
+        f.write_text("= Title\n\nJust a body.\n")
+        doc = parse_file(f)
+        assert doc.author is None
+        assert doc.language is None
+
+
+# ---------------------------------------------------------------------------
+# Mapper: new metadata fields reach the entity dict and sections get
+# fileExtension
+# ---------------------------------------------------------------------------
+
+
+class TestDocumentMapperMetadata:
+    """Verify all new metadata properties flow from ParsedDocument → entity dict."""
+
+    def _make_doc(self, **kwargs) -> ParsedDocument:
+        from datetime import datetime, timezone
+        defaults = dict(
+            uri="/tmp/test/guide.md",
+            title="Guide",
+            preamble="intro",
+            sections=[],
+            links=[],
+            source_type="LOCAL_FILE",
+            file_extension="md",
+            file_size=1234,
+            created_at=datetime(2025, 1, 15, 10, 0, 0, tzinfo=timezone.utc),
+            modified_at=datetime(2025, 6, 1, 12, 0, 0, tzinfo=timezone.utc),
+            author="Alice",
+            language="en",
+            page_count=None,
+        )
+        defaults.update(kwargs)
+        return ParsedDocument(**defaults)
+
+    def test_file_metadata_on_document_entity(self):
+        from create_context_graph.connectors._local_file.mapper import DocumentMapper
+        mapper = DocumentMapper()
+        mapper.add(self._make_doc())
+        data = mapper.build()
+        entity = data.entities["Document"][0]
+        assert entity["fileExtension"] == "md"
+        assert entity["fileSize"] == 1234
+        assert entity["author"] == "Alice"
+        assert entity["language"] == "en"
+
+    def test_loadedAt_is_datetime_not_string(self):
+        from datetime import datetime
+        from create_context_graph.connectors._local_file.mapper import DocumentMapper
+        mapper = DocumentMapper()
+        mapper.add(self._make_doc())
+        data = mapper.build()
+        entity = data.entities["Document"][0]
+        assert isinstance(entity["loadedAt"], datetime), (
+            "loadedAt must be a native datetime for Neo4j ZonedDateTime storage"
+        )
+
+    def test_created_at_and_modified_at_stored(self):
+        from datetime import datetime, timezone
+        from create_context_graph.connectors._local_file.mapper import DocumentMapper
+        mapper = DocumentMapper()
+        doc = self._make_doc()
+        mapper.add(doc)
+        data = mapper.build()
+        entity = data.entities["Document"][0]
+        assert entity["createdAt"] == doc.created_at
+        assert entity["modifiedAt"] == doc.modified_at
+
+    def test_page_count_stored_when_present(self):
+        from create_context_graph.connectors._local_file.mapper import DocumentMapper
+        mapper = DocumentMapper()
+        mapper.add(self._make_doc(page_count=42))
+        data = mapper.build()
+        entity = data.entities["Document"][0]
+        assert entity["pageCount"] == 42
+
+    def test_page_count_none_when_absent(self):
+        from create_context_graph.connectors._local_file.mapper import DocumentMapper
+        mapper = DocumentMapper()
+        mapper.add(self._make_doc(page_count=None))
+        data = mapper.build()
+        entity = data.entities["Document"][0]
+        assert entity["pageCount"] is None
+
+    def test_section_gets_file_extension(self):
+        from create_context_graph.connectors._local_file.mapper import DocumentMapper
+        from create_context_graph.connectors._local_file.parser import ParsedSection
+        doc = self._make_doc(sections=[
+            ParsedSection(title="Intro", level=1, body="hello", subsections=[], links=[])
+        ])
+        mapper = DocumentMapper()
+        mapper.add(doc)
+        data = mapper.build()
+        sections = data.entities.get("Section", [])
+        assert sections, "expected at least one Section entity"
+        assert sections[0]["fileExtension"] == "md"
+
+    def test_section_file_extension_from_pdf_uri(self):
+        from create_context_graph.connectors._local_file.mapper import DocumentMapper
+        from create_context_graph.connectors._local_file.parser import ParsedSection
+        doc = self._make_doc(
+            uri="/tmp/report.pdf",
+            file_extension="pdf",
+            sections=[
+                ParsedSection(title="Ch1", level=1, body="text", subsections=[], links=[])
+            ]
+        )
+        mapper = DocumentMapper()
+        mapper.add(doc)
+        data = mapper.build()
+        section = data.entities["Section"][0]
+        assert section["fileExtension"] == "pdf"
+
+    def test_stub_upgrade_preserves_metadata(self):
+        """When a stub Document is later ingested, metadata is filled in correctly."""
+        from create_context_graph.connectors._local_file.mapper import DocumentMapper
+        from create_context_graph.connectors._local_file.parser import ParsedSection
+        # First doc links to /tmp/linked.md — creates a stub.
+        linker = self._make_doc(
+            uri="/tmp/source.md",
+            sections=[
+                ParsedSection(title="S1", level=1, body="See [other](linked.md)", subsections=[], links=["linked.md"])
+            ]
+        )
+        mapper = DocumentMapper()
+        mapper.add(linker)
+
+        # Now ingest the linked doc as a real document.
+        linked = self._make_doc(
+            uri="/tmp/linked.md",
+            title="Linked",
+            author="Bob",
+            language="fr",
+            file_extension="md",
+            file_size=500,
+        )
+        mapper.add(linked)
+        data = mapper.build()
+
+        docs = {d["name"]: d for d in data.entities["Document"]}
+        assert "/tmp/linked.md" in docs
+        linked_entity = docs["/tmp/linked.md"]
+        assert linked_entity.get("title") == "Linked"
+        assert linked_entity.get("author") == "Bob"
+        assert linked_entity.get("language") == "fr"

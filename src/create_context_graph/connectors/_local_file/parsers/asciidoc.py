@@ -67,6 +67,7 @@ def parse(path: str | Path) -> ParsedDocument:
 
     headings, line_in_block = _scan_headings(lines)
     title = _document_title(lines, headings, p)
+    author, language = _asciidoc_author_language(lines)
     preamble_text, preamble_links = _collect_preamble(lines, headings, line_in_block)
     sections = _build_section_tree(lines, headings, line_in_block)
 
@@ -77,6 +78,8 @@ def parse(path: str | Path) -> ParsedDocument:
         sections=sections,
         links=preamble_links,
         source_type="LOCAL_FILE",
+        author=author,
+        language=language,
     )
 
 
@@ -132,6 +135,25 @@ def _scan_headings(lines: list[str]) -> tuple[list[dict], list[bool]]:
 # ---------------------------------------------------------------------------
 # Title + preamble extraction
 # ---------------------------------------------------------------------------
+
+
+# AsciiDoc document attribute: `:name: value`
+_ATTR_RE = re.compile(r"^:([^:]+):\s*(.*?)\s*$")
+
+
+def _asciidoc_author_language(lines: list[str]) -> tuple[str | None, str | None]:
+    """Scan the document header (first 50 lines) for :author: and :lang: attributes."""
+    author = language = None
+    for line in lines[:50]:
+        m = _ATTR_RE.match(line)
+        if not m:
+            continue
+        key, value = m.group(1).lower().strip(), m.group(2).strip()
+        if key == "author" and not author:
+            author = value or None
+        elif key in ("lang", "language") and not language:
+            language = value or None
+    return author, language
 
 
 def _document_title(lines: list[str], headings: list[dict], path: Path) -> str:

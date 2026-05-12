@@ -93,7 +93,9 @@ class DocumentMapper:
         self._parsed_doc_uris: set[str] = set()
         # Stamp once per run — the existing ingest pipeline overwrites
         # ``loadedAt`` on re-merge, which is acceptable per spec §7.
-        self._loaded_at = datetime.now(tz=timezone.utc).isoformat()
+        # Stored as a native datetime so the Neo4j driver writes a ZonedDateTime
+        # property, enabling temporal range filtering in the vector index.
+        self._loaded_at: datetime = datetime.now(tz=timezone.utc)
 
     def register_known_uris(self, uris: Iterable[str]) -> None:
         """Pre-register document URIs that will be fully parsed in this run.
@@ -131,6 +133,13 @@ class DocumentMapper:
             title=doc.title,
             description=desc,
             source_type=doc.source_type,
+            file_extension=doc.file_extension,
+            file_size=doc.file_size,
+            created_at=doc.created_at,
+            modified_at=doc.modified_at,
+            author=doc.author,
+            language=doc.language,
+            page_count=doc.page_count,
         )
 
         # ---- LINKS_TO edges from document preamble links. ----------------
@@ -280,6 +289,13 @@ class DocumentMapper:
         title: str,
         description: str,
         source_type: str,
+        file_extension: str | None = None,
+        file_size: int | None = None,
+        created_at: datetime | None = None,
+        modified_at: datetime | None = None,
+        author: str | None = None,
+        language: str | None = None,
+        page_count: int | None = None,
     ) -> None:
         existing = self._documents.get(uri)
         if existing is None:
@@ -289,6 +305,13 @@ class DocumentMapper:
                 "description": description,
                 "loadedAt": self._loaded_at,
                 "sourceType": source_type,
+                "fileExtension": file_extension,
+                "fileSize": file_size,
+                "createdAt": created_at,
+                "modifiedAt": modified_at,
+                "author": author,
+                "language": language,
+                "pageCount": page_count,
             }
             return
         # Upgrade a stub (or refresh data) — preserve loadedAt if already
@@ -296,6 +319,13 @@ class DocumentMapper:
         existing["title"] = title
         existing["description"] = description
         existing["sourceType"] = source_type
+        existing["fileExtension"] = file_extension
+        existing["fileSize"] = file_size
+        existing["createdAt"] = created_at
+        existing["modifiedAt"] = modified_at
+        existing["author"] = author
+        existing["language"] = language
+        existing["pageCount"] = page_count
         existing.setdefault("loadedAt", self._loaded_at)
 
     def _upsert_document_stub(self, uri: str) -> None:
@@ -315,6 +345,10 @@ class DocumentMapper:
         heading_level: int,
         description: str,
     ) -> None:
+        # Derive fileExtension from the parent document URI (everything before '#').
+        doc_uri = uri.split("#", 1)[0]
+        file_extension = posixpath.splitext(doc_uri)[1].lstrip(".").lower() or None
+
         existing = self._sections.get(uri)
         if existing is None:
             self._sections[uri] = {
@@ -323,12 +357,14 @@ class DocumentMapper:
                 "headingLevel": heading_level,
                 "description": description,
                 "loadedAt": self._loaded_at,
+                "fileExtension": file_extension,
             }
             return
         # Upgrade stub: stubs only carry `name`. Fill in the real fields.
         existing["title"] = title
         existing["headingLevel"] = heading_level
         existing["description"] = description
+        existing["fileExtension"] = file_extension
         existing.setdefault("loadedAt", self._loaded_at)
 
     def _upsert_section_stub(self, uri: str) -> None:

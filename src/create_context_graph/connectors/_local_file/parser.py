@@ -33,6 +33,7 @@ from __future__ import annotations
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
@@ -83,6 +84,15 @@ class ParsedDocument:
     sections: list[ParsedSection] = field(default_factory=list)
     links: list[str] = field(default_factory=list)
     source_type: str = "LOCAL_FILE"
+    # Filesystem metadata — populated by parse_file(); None for in-memory docs.
+    file_extension: str | None = None
+    file_size: int | None = None
+    created_at: datetime | None = None
+    modified_at: datetime | None = None
+    # Document-level metadata — populated by per-format parsers where available.
+    author: str | None = None
+    language: str | None = None
+    page_count: int | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -213,4 +223,16 @@ def parse_file(path: str | Path) -> ParsedDocument:
         f"create_context_graph.connectors._local_file.parsers.{module_name}"
     )
     parse_fn: Callable[[Path], ParsedDocument] = module.parse
-    return parse_fn(p)
+    doc = parse_fn(p)
+
+    # Attach filesystem metadata so the mapper can store it on the graph node.
+    st = p.stat()
+    doc.file_extension = p.suffix.lstrip(".").lower() or None
+    doc.file_size = st.st_size
+    doc.modified_at = datetime.fromtimestamp(st.st_mtime, tz=timezone.utc)
+    # st_birthtime is macOS/Windows only; fall back to mtime on Linux.
+    birthtime = getattr(st, "st_birthtime", None)
+    doc.created_at = datetime.fromtimestamp(
+        birthtime if birthtime is not None else st.st_mtime, tz=timezone.utc
+    )
+    return doc

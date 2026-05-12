@@ -24,6 +24,7 @@ section's text range; ``<img>`` tags are NOT treated as links.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 from create_context_graph.connectors._local_file.parser import (
@@ -57,6 +58,8 @@ def parse(path: str | Path) -> ParsedDocument:
     title = _document_title(soup, p)
     headings = soup.find_all(_HEADING_TAGS)
 
+    author, language = _html_author_language(soup)
+
     if not headings:
         # No headings: whole body becomes the preamble.
         preamble = soup.get_text("\n", strip=True)
@@ -68,6 +71,8 @@ def parse(path: str | Path) -> ParsedDocument:
             sections=[],
             links=links,
             source_type="LOCAL_FILE",
+            author=author,
+            language=language,
         )
 
     preamble_text, preamble_links = _collect_preamble(soup, headings[0])
@@ -79,6 +84,8 @@ def parse(path: str | Path) -> ParsedDocument:
         sections=sections,
         links=preamble_links,
         source_type="LOCAL_FILE",
+        author=author,
+        language=language,
     )
 
 
@@ -93,6 +100,29 @@ def _make_soup(BeautifulSoup, html: str):
         return BeautifulSoup(html, "lxml")
     except Exception:  # pragma: no cover - fallback for environments lacking lxml.
         return BeautifulSoup(html, "html.parser")
+
+
+def _html_author_language(soup) -> tuple[str | None, str | None]:
+    """Extract author and language from HTML meta tags and the html[lang] attribute."""
+    author = language = None
+    # Language: <html lang="..."> takes priority over <meta> tags.
+    html_tag = soup.find("html")
+    if html_tag and html_tag.get("lang"):
+        language = str(html_tag["lang"]).strip() or None
+    # Author: <meta name="author" content="...">
+    meta = soup.find("meta", attrs={"name": re.compile(r"^author$", re.I)})
+    if meta:
+        author = str(meta.get("content", "")).strip() or None
+    # Fallback language from <meta name="language"> or http-equiv="content-language".
+    if not language:
+        meta = soup.find("meta", attrs={"name": re.compile(r"^(language|content-language)$", re.I)})
+        if meta:
+            language = str(meta.get("content", "")).strip() or None
+    if not language:
+        meta = soup.find("meta", attrs={"http-equiv": re.compile(r"^content-language$", re.I)})
+        if meta:
+            language = str(meta.get("content", "")).strip() or None
+    return author, language
 
 
 def _document_title(soup, path: Path) -> str:
