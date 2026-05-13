@@ -312,7 +312,7 @@ class RedditConnector(BaseConnector):
                 seen_techs.add(name)
                 entities["Technology"].append({
                     "name": name,
-                    "description": f"Technology/product mentioned in community posts",
+                    "description": "Technology/product mentioned in community posts",
                 })
 
         def _ensure_topic(name: str) -> None:
@@ -320,7 +320,7 @@ class RedditConnector(BaseConnector):
                 seen_topics.add(name)
                 entities["Topic"].append({
                     "name": name,
-                    "description": f"Discussion topic found in r/ communities",
+                    "description": "Discussion topic found in r/ communities",
                 })
 
         # Pre-populate Product/Technology nodes directly from the keyword list.
@@ -515,19 +515,19 @@ class RedditConnector(BaseConnector):
                                 uc = uc.strip()
                                 if uc:
                                     if uc not in seen_use_cases:
-                                    seen_use_cases.add(uc)
-                                    entities["UseCase"].append({
-                                        "name": uc,
-                                        "description": uc,
-                                        "frequency": 1,
-                                    })
-                                    relationships.append({
-                                    "type": "DEMONSTRATES",
-                                    "source_name": post_name,
-                                    "source_label": "Post",
-                                    "target_name": uc,
-                                    "target_label": "UseCase",
-                                    })
+                                        seen_use_cases.add(uc)
+                                        entities["UseCase"].append({
+                                            "name": uc,
+                                            "description": uc,
+                                            "frequency": 1,
+                                        })
+                                        relationships.append({
+                                        "type": "DEMONSTRATES",
+                                        "source_name": post_name,
+                                        "source_label": "Post",
+                                        "target_name": uc,
+                                        "target_label": "UseCase",
+                                        })
 
                             for topic in enriched.get("topics", []):
                                 topic = topic.strip()
