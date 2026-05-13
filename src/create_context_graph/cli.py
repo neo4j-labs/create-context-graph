@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 import logging
+import os
 from pathlib import Path
 
 import click
@@ -53,7 +54,7 @@ console = Console()
 @click.option("--openai-api-key", envvar="OPENAI_API_KEY", help="OpenAI API key for LLM generation")
 @click.option("--google-api-key", envvar="GOOGLE_API_KEY", help="Google/Gemini API key (required for google-adk framework)")
 @click.option("--custom-domain", type=str, help="Natural language description for custom domain generation (requires --anthropic-api-key)")
-@click.option("--connector", multiple=True, help="SaaS connector to enable (github, slack, jira, notion, gmail, gcal, salesforce, linear, google-workspace, claude-code, claude-ai, chatgpt)")
+@click.option("--connector", multiple=True, help="SaaS connector to enable (github, slack, jira, notion, gmail, gcal, salesforce, linear, google-workspace, claude-code, claude-ai, chatgpt, local-file)")
 @click.option("--linear-api-key", envvar="LINEAR_API_KEY", help="Linear API key (required for --connector linear)")
 @click.option("--linear-team", envvar="LINEAR_TEAM", help="Linear team key to filter import (e.g., ENG)")
 @click.option("--claude-code-scope", type=click.Choice(["current", "all"]), default="current", help="Import sessions from current project (default) or all projects")
@@ -61,6 +62,11 @@ console = Console()
 @click.option("--claude-code-since", help="Import Claude Code sessions since date (ISO format)")
 @click.option("--claude-code-max-sessions", type=int, default=0, help="Maximum number of Claude Code sessions to import (0=all)")
 @click.option("--claude-code-content", type=click.Choice(["truncated", "full", "none"]), default="truncated", help="Content storage mode for Claude Code messages")
+@click.option("--local-file-path", "local_file_path", multiple=True, type=click.Path(), help="Path to a file or directory to ingest with --connector local-file (repeatable)")
+@click.option("--local-file-pattern", default="**/*", help="Glob pattern filter for local-file ingest")
+@click.option("--local-file-recursive/--local-file-no-recursive", default=True, help="Recurse into subdirectories during local-file ingest")
+@click.option("--local-file-follow-links", is_flag=True, default=False, help="Follow symlinks during local-file ingest")
+@click.option("--local-file-exclude", "local_file_exclude", multiple=True, help="Glob pattern to exclude from local-file ingest (repeatable)")
 @click.option("--gws-folder-id", envvar="GWS_FOLDER_ID", help="Google Drive folder ID to scope import")
 @click.option("--gws-include-comments/--gws-no-comments", default=True, help="Import comment threads from Docs/Sheets/Slides")
 @click.option("--gws-include-revisions/--gws-no-revisions", default=True, help="Import revision history metadata")
@@ -121,6 +127,11 @@ def main(
     claude_code_since: str | None,
     claude_code_max_sessions: int,
     claude_code_content: str,
+    local_file_path: tuple[str, ...],
+    local_file_pattern: str,
+    local_file_recursive: bool,
+    local_file_follow_links: bool,
+    local_file_exclude: tuple[str, ...],
     import_type: str | None,
     import_file: str | None,
     import_depth: str,
@@ -301,6 +312,25 @@ def main(
                 "content_mode": claude_code_content,
             }
             config.saas_credentials["claude-code"] = creds
+        if "local-file" in connector:
+            if not local_file_path:
+                console.print(
+                    "[red]Error:[/red] --connector local-file requires at least one "
+                    "--local-file-path."
+                )
+                raise SystemExit(1)
+            # ProjectConfig.saas_credentials values are typed as
+            # ``dict[str, str]`` — list-valued fields are stored joined by
+            # os.pathsep here and split back in LocalFileConnector.authenticate.
+            # os.pathsep (':' on POSIX, ';' on Windows) cannot appear in a
+            # well-formed filesystem path, so this is safe for all platforms.
+            config.saas_credentials["local-file"] = {
+                "paths": os.pathsep.join(local_file_path),
+                "pattern": local_file_pattern,
+                "recursive": str(local_file_recursive).lower(),
+                "follow_links": str(local_file_follow_links).lower(),
+                "exclude": os.pathsep.join(local_file_exclude),
+            }
         if import_type and import_file:
             creds = {
                 "file_path": str(Path(import_file).resolve()),

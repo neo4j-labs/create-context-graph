@@ -217,6 +217,7 @@ Required env vars: `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD`, plus `ANTHRO
 | `make test-slow` | Full suite including matrix + perf + generated project tests (1,165 tests) |
 | `make test-matrix` | Domain × framework matrix only (176 combos) |
 | `make test-coverage` | Tests with HTML coverage report |
+| `make test-functional` | Functional test ingesting `tests/fixtures/local_file_vault/` end-to-end through the local-file connector (see `tests/fixtures/local_file_vault_TESTING.md` for the edge-case checklist) |
 | `make smoke-test` | E2E smoke tests for 3 key frameworks (requires Neo4j + API keys) |
 | `make lint` | Run ruff linter on `src/` and `tests/` |
 | `make scaffold` | Scaffold a test project to `/tmp/test-scaffold` |

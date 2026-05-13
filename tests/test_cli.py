@@ -867,6 +867,7 @@ class TestClaudeCodeConnectorCLI:
         memory = (out / "backend" / "app" / "memory.py").read_text()
         assert "auto_extract=false" in memory.lower() or "auto_extract=False" in memory
 
+
     def test_mcp_profile_core_flag(self, runner, tmp_path):
         """Verify --mcp-profile core sets core profile."""
         out = tmp_path / "my-app"
@@ -895,3 +896,81 @@ class TestClaudeCodeConnectorCLI:
         assert result.exit_code == 0, result.output
         assert "per_day" in result.output
         assert "MCP" in result.output
+
+
+class TestLocalFileConnectorCLI:
+    """Tests for --connector local-file CLI integration."""
+
+    def test_requires_path(self, runner, tmp_path):
+        """--connector local-file without --local-file-path should error."""
+        out = tmp_path / "lf-nopath"
+        result = runner.invoke(main, [
+            "lf-nopath",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "local-file",
+            "--dry-run",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code != 0
+        assert "local-file-path" in result.output
+
+    def test_dry_run_with_path(self, runner, tmp_path):
+        """--connector local-file with --local-file-path should succeed in dry-run."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        out = tmp_path / "lf-dry"
+        result = runner.invoke(main, [
+            "lf-dry",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "local-file",
+            "--local-file-path", str(docs),
+            "--dry-run",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        assert "local-file" in result.output
+
+    def test_generates_connector_file(self, runner, tmp_path):
+        """--connector local-file should generate the template into the project."""
+        docs = tmp_path / "docs"
+        docs.mkdir()
+        out = tmp_path / "lf-gen"
+        result = runner.invoke(main, [
+            "lf-gen",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "local-file",
+            "--local-file-path", str(docs),
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        target = out / "backend" / "app" / "connectors" / "local_file_connector.py"
+        assert target.exists()
+        # The generated file must be valid Python.
+        import ast
+        ast.parse(target.read_text())
+
+    def test_multiple_paths_and_exclude(self, runner, tmp_path):
+        """All --local-file-* flags should be accepted."""
+        a = tmp_path / "a"
+        b = tmp_path / "b"
+        a.mkdir()
+        b.mkdir()
+        out = tmp_path / "lf-multi"
+        result = runner.invoke(main, [
+            "lf-multi",
+            "--domain", "software-engineering",
+            "--framework", "pydanticai",
+            "--connector", "local-file",
+            "--local-file-path", str(a),
+            "--local-file-path", str(b),
+            "--local-file-pattern", "**/*.md",
+            "--local-file-no-recursive",
+            "--local-file-follow-links",
+            "--local-file-exclude", "**/node_modules/**",
+            "--dry-run",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output

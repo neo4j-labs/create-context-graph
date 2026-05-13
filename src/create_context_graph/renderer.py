@@ -472,6 +472,7 @@ class ProjectRenderer:
                 "linear": "linear_connector",
                 "google-workspace": "google_workspace_connector",
                 "claude-code": "claude_code_connector",
+                "local-file": "local_file_connector",
             }
             for conn_id in self.config.saas_connectors:
                 template_name = connector_templates.get(conn_id)

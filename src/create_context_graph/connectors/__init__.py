@@ -164,3 +164,4 @@ from create_context_graph.connectors.claude_code_connector import ClaudeCodeConn
 from create_context_graph.connectors.claude_ai_connector import ClaudeAIConnector  # noqa: E402, F401
 from create_context_graph.connectors.chatgpt_connector import ChatGPTConnector  # noqa: E402, F401
 from create_context_graph.connectors.reddit_connector import RedditConnector  # noqa: E402, F401
+from create_context_graph.connectors.local_file_connector import LocalFileConnector  # noqa: E402, F401
