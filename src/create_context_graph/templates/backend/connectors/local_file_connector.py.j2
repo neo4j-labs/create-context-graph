@@ -1,0 +1,557 @@
+{% raw %}"""Local-file document connector (generated project copy).
+
+Ingests structured local documents into the context graph. This is the
+scaffolded-project copy of the ``LocalFileConnector`` shipped with
+``create-context-graph``. It bundles a markdown parser, the
+URI-/section-construction logic, and the connector class into a single
+file so the generated project depends only on ``markdown-it-py`` for the
+primary use case (Markdown). To enable other formats (PDF, HTML, Word,
+AsciiDoc) install the matching optional deps and add a parser case in
+``_dispatch_extension`` below.
+
+Entities/relationships emitted:
+
+* ``:Document`` nodes keyed on the URI (``name`` field).
+* ``:Section`` nodes keyed on ``{document_uri}#{slug-path}`` (``name``).
+* ``HAS_SECTION`` edges from Document → top-level Sections and Section →
+  nested Sections.
+* ``LINKS_TO`` edges from Section/Document → linked Document or Section.
+
+URIs are POSIX-normalised so the same file produces the same URI on every
+operating system.
+"""
+
+from __future__ import annotations
+
+import fnmatch
+import logging
+import os
+import posixpath
+import re
+import unicodedata
+from dataclasses import dataclass, field
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any, Iterable
+from urllib.parse import urlsplit, unquote
+
+logger = logging.getLogger(__name__)
+
+
+# ---------------------------------------------------------------------------
+# Intermediate representation
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ParsedSection:
+    title: str
+    level: int
+    body: str = ""
+    subsections: list["ParsedSection"] = field(default_factory=list)
+    links: list[str] = field(default_factory=list)
+
+
+@dataclass
+class ParsedDocument:
+    uri: str
+    title: str
+    preamble: str = ""
+    sections: list[ParsedSection] = field(default_factory=list)
+    links: list[str] = field(default_factory=list)
+    source_type: str = "LOCAL_FILE"
+
+
+SUPPORTED_EXTENSIONS: tuple[str, ...] = (".md", ".mdx", ".markdown")
+
+
+# ---------------------------------------------------------------------------
+# Deterministic helpers
+# ---------------------------------------------------------------------------
+
+
+_SLUG_NON_ALNUM_UNDERSCORE = re.compile(r"[^a-z0-9_]+")
+
+
+def slugify(text: str) -> str:
+    """GitHub/Pandoc-style HTML-anchor slug."""
+    if not text:
+        return ""
+    ascii_only = (
+        unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii")
+    )
+    return _SLUG_NON_ALNUM_UNDERSCORE.sub("-", ascii_only.lower()).strip("-")
+
+
+def posix_uri(path) -> str:
+    """Return a POSIX-normalised absolute URI for ``path``."""
+    return Path(path).resolve().as_posix()
+
+
+def read_text_file(path) -> str:
+    with open(path, encoding="utf-8", errors="replace") as fh:
+        return fh.read()
+
+
+# ---------------------------------------------------------------------------
+# Markdown parser
+# ---------------------------------------------------------------------------
+
+
+def _parse_markdown(path: Path) -> ParsedDocument:
+    """Parse a Markdown file using markdown-it-py (with GFM extensions)."""
+    try:
+        from markdown_it import MarkdownIt
+        from mdit_py_plugins.tasklists import tasklists_plugin
+    except ImportError as exc:
+        raise ImportError(
+            "Markdown parsing requires 'markdown-it-py' and 'mdit-py-plugins'. "
+            "Install with: pip install 'markdown-it-py>=4.2' 'mdit-py-plugins>=0.4'"
+        ) from exc
+
+    text = read_text_file(path)
+    md = MarkdownIt("gfm-like", {"linkify": False}).use(tasklists_plugin)
+    tokens = md.parse(text)
+    lines = text.splitlines()
+
+    headings = _md_collect_headings(tokens)
+    title = next((h["title"] for h in headings if h["level"] == 1), path.stem)
+    spans = _md_build_spans(headings, total_lines=len(lines))
+    preamble_text = "\n".join(lines[spans[0][0]: spans[0][1]]).strip() if spans else text
+    preamble_links = _md_links_in_range(tokens, spans[0]) if spans else []
+
+    sections = _md_build_section_tree(headings, spans[1:], tokens, lines)
+    return ParsedDocument(
+        uri=posix_uri(path),
+        title=title,
+        preamble=preamble_text,
+        sections=sections,
+        links=preamble_links,
+        source_type="LOCAL_FILE",
+    )
+
+
+def _md_collect_headings(tokens) -> list[dict]:
+    headings = []
+    i = 0
+    while i < len(tokens):
+        tok = tokens[i]
+        if tok.type == "heading_open":
+            level = int(tok.tag[1:])
+            inline = tokens[i + 1] if i + 1 < len(tokens) else None
+            title = (inline.content if inline else "").strip()
+            start = (tok.map or [0, 0])[0]
+            headings.append({"level": level, "title": title, "start_line": start})
+            j = i + 1
+            while j < len(tokens) and tokens[j].type != "heading_close":
+                j += 1
+            i = j + 1
+        else:
+            i += 1
+    return headings
+
+
+def _md_build_spans(headings, *, total_lines: int):
+    if not headings:
+        return [(0, total_lines)]
+    spans = [(0, headings[0]["start_line"])]
+    for idx, h in enumerate(headings):
+        start = h["start_line"] + 1
+        end = headings[idx + 1]["start_line"] if idx + 1 < len(headings) else total_lines
+        spans.append((start, end))
+    return spans
+
+
+def _md_links_in_range(tokens, span):
+    start, end = span
+    links: list[str] = []
+    seen: set[str] = set()
+    for tok in tokens:
+        if tok.map is None or not (start <= tok.map[0] < end):
+            continue
+        if tok.type == "link_open":
+            href = dict(tok.attrs or {}).get("href")
+            if href and href not in seen:
+                seen.add(href)
+                links.append(href)
+        elif tok.type == "inline" and tok.children:
+            for child in tok.children:
+                if child.type == "link_open":
+                    href = dict(child.attrs or {}).get("href")
+                    if href and href not in seen:
+                        seen.add(href)
+                        links.append(href)
+    return links
+
+
+def _md_build_section_tree(headings, body_spans, tokens, lines):
+    root: list[ParsedSection] = []
+    stack: list[ParsedSection] = []
+    for h, span in zip(headings, body_spans):
+        body_lines = lines[span[0]: span[1]]
+        # Trim body to first descendant heading.
+        body_until_child = body_lines
+        for h2 in headings:
+            if h2["start_line"] <= h["start_line"]:
+                continue
+            offset = h2["start_line"] - (h["start_line"] + 1)
+            if 0 <= offset < len(body_lines):
+                body_until_child = body_lines[:offset]
+            break
+        body_text = "\n".join(body_until_child).strip()
+        body_span = (h["start_line"] + 1, h["start_line"] + 1 + len(body_until_child))
+        links = _md_links_in_range(tokens, body_span)
+        section = ParsedSection(
+            title=h["title"],
+            level=h["level"],
+            body=body_text,
+            subsections=[],
+            links=links,
+        )
+        while stack and stack[-1].level >= h["level"]:
+            stack.pop()
+        if stack:
+            stack[-1].subsections.append(section)
+        else:
+            root.append(section)
+        stack.append(section)
+    return root
+
+
+# ---------------------------------------------------------------------------
+# Format dispatch — extend here by adding more parsers + extensions.
+# ---------------------------------------------------------------------------
+
+
+def _dispatch_extension(ext: str):
+    if ext in (".md", ".mdx", ".markdown"):
+        return _parse_markdown
+    return None
+
+
+def parse_file(path) -> ParsedDocument:
+    p = Path(path)
+    if not p.exists():
+        raise FileNotFoundError(f"File not found: {p}")
+    parser = _dispatch_extension(p.suffix.lower())
+    if parser is None:
+        raise ValueError(
+            f"Unsupported file extension {p.suffix.lower()!r}. "
+            f"Supported: {', '.join(SUPPORTED_EXTENSIONS)}"
+        )
+    return parser(p)
+
+
+# ---------------------------------------------------------------------------
+# DocumentMapper: ParsedDocument → entity/relationship dicts
+# ---------------------------------------------------------------------------
+
+
+_NON_DOCUMENT_SCHEMES = frozenset({
+    "mailto", "tel", "javascript", "data", "ftp", "ftps", "sms",
+})
+_HTTP_SCHEMES = frozenset({"http", "https"})
+
+
+class DocumentMapper:
+    """Accumulate parsed docs and emit the connector's NormalizedData fields."""
+
+    def __init__(self) -> None:
+        self._documents: dict[str, dict] = {}
+        self._sections: dict[str, dict] = {}
+        self._relationships: list[dict] = []
+        self._loaded_at = datetime.now(tz=timezone.utc).isoformat()
+
+    def add(self, doc: ParsedDocument) -> None:
+        top_used_slugs: dict[str, int] = {}
+        children_uris = [
+            self._add_section(s, parent_uri=doc.uri, parent_label="Document",
+                              used_slugs=top_used_slugs)
+            for s in doc.sections
+        ]
+        self._upsert_document(
+            uri=doc.uri,
+            title=doc.title,
+            description=_format_description(doc.preamble, children_uris),
+            source_type=doc.source_type,
+        )
+        for raw in doc.links:
+            target = self._resolve_link(raw, source_doc_uri=doc.uri)
+            if target is None:
+                continue
+            self._emit_links_to(
+                source_uri=doc.uri, source_label="Document", target=target
+            )
+
+    def build(self) -> dict:
+        entities: dict[str, list[dict]] = {}
+        if self._documents:
+            entities["Document"] = list(self._documents.values())
+        if self._sections:
+            entities["Section"] = list(self._sections.values())
+        return {
+            "entities": entities,
+            "relationships": list(self._relationships),
+            "documents": [],
+            "traces": [],
+        }
+
+    def _add_section(self, section, *, parent_uri, parent_label, used_slugs) -> str:
+        slug = _disambiguated_slug(section.title, used_slugs)
+        section_uri = (
+            f"{parent_uri}/{slug}" if parent_label == "Section"
+            else f"{parent_uri}#{slug}"
+        )
+        child_slugs: dict[str, int] = {}
+        child_uris = [
+            self._add_section(c, parent_uri=section_uri, parent_label="Section",
+                              used_slugs=child_slugs)
+            for c in section.subsections
+        ]
+        self._upsert_section(
+            uri=section_uri,
+            title=section.title,
+            heading_level=section.level,
+            description=_format_description(section.body, child_uris),
+        )
+        self._relationships.append({
+            "type": "HAS_SECTION",
+            "source_name": parent_uri,
+            "source_label": parent_label,
+            "target_name": section_uri,
+            "target_label": "Section",
+        })
+        section_doc_uri = section_uri.split("#", 1)[0]
+        for raw in section.links:
+            target = self._resolve_link(raw, source_doc_uri=section_doc_uri)
+            if target is None:
+                continue
+            self._emit_links_to(
+                source_uri=section_uri, source_label="Section", target=target
+            )
+        return section_uri
+
+    def _emit_links_to(self, *, source_uri, source_label, target):
+        target_label, target_uri = target
+        if target_label == "Document" and target_uri not in self._documents:
+            self._upsert_document_stub(target_uri)
+        elif target_label == "Section" and target_uri not in self._sections:
+            self._upsert_section_stub(target_uri)
+        self._relationships.append({
+            "type": "LINKS_TO",
+            "source_name": source_uri,
+            "source_label": source_label,
+            "target_name": target_uri,
+            "target_label": target_label,
+        })
+
+    def _upsert_document(self, *, uri, title, description, source_type):
+        existing = self._documents.get(uri)
+        if existing is None:
+            self._documents[uri] = {
+                "name": uri,
+                "title": title,
+                "description": description,
+                "loadedAt": self._loaded_at,
+                "sourceType": source_type,
+            }
+            return
+        existing["title"] = title
+        existing["description"] = description
+        existing["sourceType"] = source_type
+        existing.setdefault("loadedAt", self._loaded_at)
+
+    def _upsert_document_stub(self, uri):
+        if uri in self._documents:
+            return
+        source_type = "URL_LINK" if urlsplit(uri).scheme in _HTTP_SCHEMES else "LOCAL_FILE"
+        self._documents[uri] = {"name": uri, "sourceType": source_type}
+
+    def _upsert_section(self, *, uri, title, heading_level, description):
+        existing = self._sections.get(uri)
+        if existing is None:
+            self._sections[uri] = {
+                "name": uri,
+                "title": title,
+                "headingLevel": heading_level,
+                "description": description,
+                "loadedAt": self._loaded_at,
+            }
+            return
+        existing["title"] = title
+        existing["headingLevel"] = heading_level
+        existing["description"] = description
+        existing.setdefault("loadedAt", self._loaded_at)
+
+    def _upsert_section_stub(self, uri):
+        if uri in self._sections:
+            return
+        self._sections[uri] = {"name": uri}
+
+    def _resolve_link(self, raw, *, source_doc_uri):
+        if not raw:
+            return None
+        href = raw.strip()
+        if not href:
+            return None
+        parts = urlsplit(href)
+        scheme = parts.scheme.lower()
+        if not parts.scheme and not parts.netloc and not parts.path:
+            if parts.fragment:
+                return ("Section", f"{source_doc_uri}#{parts.fragment}")
+            return None
+        if scheme in _NON_DOCUMENT_SCHEMES:
+            return None
+        if scheme in _HTTP_SCHEMES:
+            base = parts._replace(fragment="").geturl()
+            if parts.fragment:
+                return ("Section", f"{base}#{slugify(parts.fragment) or parts.fragment}")
+            return ("Document", base)
+        if scheme:
+            return None
+        raw_path = unquote(parts.path)
+        if raw_path.startswith("/"):
+            target_path = posixpath.normpath(raw_path)
+        else:
+            source_dir = posixpath.dirname(source_doc_uri)
+            target_path = posixpath.normpath(posixpath.join(source_dir, raw_path))
+        if parts.fragment:
+            slug = slugify(parts.fragment) or parts.fragment
+            return ("Section", f"{target_path}#{slug}")
+        return ("Document", target_path)
+
+
+def _format_description(body, child_uris):
+    body = (body or "").strip()
+    if not child_uris:
+        return body
+    pointers = "\n".join(f"uri:{u}" for u in child_uris)
+    if not body:
+        return pointers
+    return f"{body}\n\n{pointers}"
+
+
+def _disambiguated_slug(title, used_slugs):
+    base = slugify(title) or "section"
+    count = used_slugs.get(base, 0)
+    used_slugs[base] = count + 1
+    return base if count == 0 else f"{base}-{count}"
+
+
+# ---------------------------------------------------------------------------
+# Connector class
+# ---------------------------------------------------------------------------
+
+
+class LocalFileConnector:
+    """Import documents from the local filesystem (generated-project copy)."""
+
+    service_name = "Local File"
+    service_description = (
+        "Ingest documents from the local filesystem. Markdown supported "
+        "out of the box; install additional parser deps to enable other "
+        "formats."
+    )
+    requires_oauth = False
+
+    def __init__(self) -> None:
+        self._paths: list[Path] = []
+        self._pattern: str = "**/*"
+        self._recursive: bool = True
+        self._follow_links: bool = False
+        self._exclude: list[str] = []
+
+    def get_credential_prompts(self) -> list[dict[str, Any]]:
+        return [
+            {
+                "name": "paths",
+                "prompt": "Path(s) to ingest (comma-separated)",
+                "secret": False,
+                "description": (
+                    "Absolute or relative path(s) to a file or directory."
+                ),
+            }
+        ]
+
+    def authenticate(self, credentials: dict[str, Any]) -> None:
+        raw_paths = credentials.get("paths") or []
+        if isinstance(raw_paths, str):
+            sep = os.pathsep if os.pathsep in raw_paths else ","
+            raw_paths = [p.strip() for p in raw_paths.split(sep) if p.strip()]
+        self._paths = [Path(p).expanduser() for p in raw_paths if p]
+        if not self._paths:
+            raise ValueError(
+                "At least one path is required for the local-file connector."
+            )
+        self._pattern = credentials.get("pattern") or "**/*"
+        recursive_raw = credentials.get("recursive", True)
+        self._recursive = (
+            str(recursive_raw).lower() != "false" if recursive_raw is not None else True
+        )
+        if not self._recursive and "**" in self._pattern:
+            raise ValueError(
+                f"Pattern {self._pattern!r} contains '**' but recursion is disabled. "
+                "Either enable recursion or use a non-recursive pattern (e.g. '*')."
+            )
+        follow_links_raw = credentials.get("follow_links", False)
+        self._follow_links = str(follow_links_raw).lower() == "true"
+        excludes_raw = credentials.get("exclude") or []
+        if isinstance(excludes_raw, str):
+            sep = os.pathsep if os.pathsep in excludes_raw else ","
+            excludes_raw = [p.strip() for p in excludes_raw.split(sep) if p.strip()]
+        self._exclude = list(excludes_raw)
+
+    def fetch(self, **_: Any) -> dict:
+        files = list(self._discover_files())
+        mapper = DocumentMapper()
+        mapper.register_known_uris(posix_uri(f) for f in files)
+        if not files:
+            logger.info("Local-file connector: no files matched the configured paths.")
+            return mapper.build()
+        logger.info("Local-file connector: parsing %d file(s).", len(files))
+        for file_path in files:
+            try:
+                parsed = parse_file(file_path)
+            except (ImportError, ValueError) as exc:
+                logger.warning("Skipping %s: %s", file_path, exc)
+                continue
+            except Exception:
+                logger.warning("Skipping %s: parse error.", file_path, exc_info=True)
+                continue
+            mapper.add(parsed)
+        return mapper.build()
+
+    def _discover_files(self) -> Iterable[Path]:
+        seen: set[str] = set()
+        for root in self._paths:
+            if not root.exists():
+                logger.warning("Path does not exist, skipping: %s", root)
+                continue
+            if root.is_file():
+                candidates = [root]
+            elif self._recursive:
+                candidates = list(root.rglob(self._pattern))
+            else:
+                candidates = list(root.glob(self._pattern))
+            candidates.sort(key=lambda p: posix_uri(p))
+            for cand in candidates:
+                if not cand.is_file():
+                    continue
+                if not self._follow_links and cand.is_symlink():
+                    continue
+                if cand.suffix.lower() not in SUPPORTED_EXTENSIONS:
+                    continue
+                if self._is_excluded(cand):
+                    continue
+                key = posix_uri(cand)
+                if key in seen:
+                    continue
+                seen.add(key)
+                yield cand
+
+    def _is_excluded(self, path: Path) -> bool:
+        if not self._exclude:
+            return False
+        candidate = posix_uri(path)
+        return any(fnmatch.fnmatch(candidate, p) for p in self._exclude)
+{% endraw %}

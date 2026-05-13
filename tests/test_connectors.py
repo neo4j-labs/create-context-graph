@@ -78,10 +78,10 @@ class TestNormalizedData:
 
 class TestConnectorRegistry:
     def test_all_registered(self):
-        assert len(CONNECTOR_REGISTRY) == 12
+        assert len(CONNECTOR_REGISTRY) == 13
 
     def test_expected_connectors(self):
-        expected = {"github", "notion", "jira", "slack", "gmail", "gcal", "salesforce", "linear", "google-workspace", "claude-code", "claude-ai", "chatgpt"}
+        expected = {"github", "notion", "jira", "slack", "gmail", "gcal", "salesforce", "linear", "google-workspace", "claude-code", "claude-ai", "chatgpt", "local-file"}
         assert set(CONNECTOR_REGISTRY.keys()) == expected
 
     def test_get_connector(self):
@@ -94,9 +94,10 @@ class TestConnectorRegistry:
 
     def test_list_connectors(self):
         result = list_connectors()
-        assert len(result) == 12
+        assert len(result) == 13
         ids = {c["id"] for c in result}
         assert "github" in ids
+        assert "local-file" in ids
 
     def test_all_have_credential_prompts(self):
         for name, cls in CONNECTOR_REGISTRY.items():

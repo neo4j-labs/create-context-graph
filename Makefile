@@ -1,6 +1,6 @@
 # Create Context Graph — Development Makefile
 
-.PHONY: install test test-slow test-matrix smoke-test lint build publish-pypi publish-npm \
+.PHONY: install test test-slow test-matrix test-functional smoke-test lint build publish-pypi publish-npm \
         docs docs-build docs-serve scaffold clean help
 
 ## Setup
@@ -16,14 +16,17 @@ install-all:  ## Install all optional dependencies (dev + generate + connectors)
 test:  ## Run fast tests (602 tests, no Neo4j or API keys required)
 	uv run pytest tests/ -v --tb=short
 
-test-slow:  ## Run full test suite including matrix + perf tests (800 tests)
-	uv run pytest tests/ -v --tb=short --slow
+test-slow:  ## Run full suite including slow + functional vault tests (~2.7s extra)
+	uv run --extra connectors pytest tests/ -v --tb=short --slow --functional
 
 test-matrix:  ## Run domain x framework matrix only (176 combos)
 	uv run pytest tests/test_matrix.py -v --tb=short --slow
 
 test-coverage:  ## Run tests with coverage report
 	uv run pytest tests/ -v --cov=create_context_graph --cov-report=html
+
+test-functional:  ## Run optional functional tests (ingest the local-file vault fixture)
+	uv run --extra connectors pytest tests/test_local_file_vault.py --functional -v --tb=short
 
 smoke-test:  ## E2E smoke test: scaffold, start, and chat for 3 key frameworks (requires Neo4j + API keys)
 	@echo "Running smoke tests for pydanticai, google-adk, and strands..."
