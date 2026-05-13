@@ -156,7 +156,6 @@ class TestRedditConnector:
 
     def test_fetch_returns_normalized_data(self, monkeypatch):
         """fetch() returns NormalizedData with expected entity types when scrape returns posts."""
-        from create_context_graph.connectors.reddit_connector import _get_json
 
         sample_listing = {
             "data": {
