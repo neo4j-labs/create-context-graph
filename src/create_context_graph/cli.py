@@ -405,6 +405,11 @@ def main(
             try:
                 conn = get_connector(conn_id)
                 creds = config.saas_credentials.get(conn_id, {})
+                # Inject API keys so connectors can use them for enrichment
+                if config.anthropic_api_key:
+                    creds.setdefault("anthropic_api_key", config.anthropic_api_key)
+                if config.openai_api_key:
+                    creds.setdefault("openai_api_key", config.openai_api_key)
                 console.print(f"  Connecting to {conn.service_name}...")
                 conn.authenticate(creds)
                 console.print(f"  Fetching data from {conn.service_name}...")

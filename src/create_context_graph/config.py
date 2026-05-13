@@ -64,6 +64,58 @@ FRAMEWORK_DEPENDENCIES = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Reddit connector defaults
+# ---------------------------------------------------------------------------
+
+REDDIT_DEFAULT_SUBREDDITS: list[str] = [
+    "neo4j",
+    "graphdatabase",
+    "machinelearning",
+    "datascience",
+    "dataengineering",
+    "LocalLLaMA",
+    "ai_agents",
+    "LLMDevs",
+    "aiToolForBusiness",
+    "knowledgegraph",
+    "semanticweb",
+    "snowflake",
+    "databricks",
+    "microsoftfabric",
+    "rag",
+    "analytics", 
+    "dataanalysis",
+    "memgraph",
+    "apache", 
+    "hackathon",
+    "database"
+
+]
+
+REDDIT_DEFAULT_KEYWORDS: list[str] = [
+    "neo4j",
+    "knowledge graph",
+    "graph database",
+    "cypher",
+    "graph rag",
+    "graphrag",
+    "vector search",
+    "embeddings",
+    "llm",
+    "rag",
+    "retrieval augmented generation",
+    "ontology",
+    "memgraph",
+    "graph",
+    "tigergraph",
+    "aws neptune",
+    "arangodb",
+    ""
+]
+
+
+
 class ProjectConfig(BaseModel):
     """All configuration collected from the wizard or CLI flags."""
 

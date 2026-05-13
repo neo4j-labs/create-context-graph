@@ -163,3 +163,4 @@ from create_context_graph.connectors.google_workspace_connector import GoogleWor
 from create_context_graph.connectors.claude_code_connector import ClaudeCodeConnector  # noqa: E402, F401
 from create_context_graph.connectors.claude_ai_connector import ClaudeAIConnector  # noqa: E402, F401
 from create_context_graph.connectors.chatgpt_connector import ChatGPTConnector  # noqa: E402, F401
+from create_context_graph.connectors.reddit_connector import RedditConnector  # noqa: E402, F401
