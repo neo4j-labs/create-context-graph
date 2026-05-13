@@ -156,6 +156,7 @@ class RedditConnector(BaseConnector):
         self._max_pages: int = 1
         self._fetch_comments: bool = True
         self._enrich_posts: bool = True
+        self._anthropic_api_key: str | None = None
         self._max_post_age_days: int = 1095  # ~3 years
 
     # ------------------------------------------------------------------
@@ -494,37 +495,39 @@ class RedditConnector(BaseConnector):
 
                             for pp in enriched.get("pain_points", []):
                                 pp = pp.strip()
-                                if pp and pp not in seen_pain_points:
-                                    seen_pain_points.add(pp)
-                                    entities["PainPoint"].append({
-                                        "name": pp,
-                                        "description": pp,
-                                        "frequency": 1,
+                                if pp:
+                                    if pp not in seen_pain_points:
+                                        seen_pain_points.add(pp)
+                                        entities["PainPoint"].append({
+                                            "name": pp,
+                                            "description": pp,
+                                            "frequency": 1,
                                     })
-                                relationships.append({
-                                    "type": "HAS_PAIN_POINT",
-                                    "source_name": post_name,
-                                    "source_label": "Post",
-                                    "target_name": pp,
-                                    "target_label": "PainPoint",
-                                })
+                                    relationships.append({
+                                        "type": "HAS_PAIN_POINT",
+                                        "source_name": post_name,
+                                        "source_label": "Post",
+                                        "target_name": pp,
+                                        "target_label": "PainPoint",
+                                    })
 
                             for uc in enriched.get("use_cases", []):
                                 uc = uc.strip()
-                                if uc and uc not in seen_use_cases:
+                                if uc:
+                                    if uc not in seen_use_cases:
                                     seen_use_cases.add(uc)
                                     entities["UseCase"].append({
                                         "name": uc,
                                         "description": uc,
                                         "frequency": 1,
                                     })
-                                relationships.append({
+                                    relationships.append({
                                     "type": "DEMONSTRATES",
                                     "source_name": post_name,
                                     "source_label": "Post",
                                     "target_name": uc,
                                     "target_label": "UseCase",
-                                })
+                                    })
 
                             for topic in enriched.get("topics", []):
                                 topic = topic.strip()

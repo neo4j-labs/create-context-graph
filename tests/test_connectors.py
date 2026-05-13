@@ -81,7 +81,7 @@ class TestConnectorRegistry:
         assert len(CONNECTOR_REGISTRY) == 13
 
     def test_expected_connectors(self):
-        expected = {"github", "notion", "jira", "slack", "gmail", "gcal", "salesforce", "linear", "google-workspace", "claude-code", "claude-ai", "chatgpt", "local-file"}
+        expected = {"github", "notion", "jira", "slack", "gmail", "gcal", "salesforce", "linear", "google-workspace", "claude-code", "claude-ai", "chatgpt", "reddit"}
         assert set(CONNECTOR_REGISTRY.keys()) == expected
 
     def test_get_connector(self):
@@ -97,13 +97,120 @@ class TestConnectorRegistry:
         assert len(result) == 13
         ids = {c["id"] for c in result}
         assert "github" in ids
-        assert "local-file" in ids
+        assert "reddit" in ids
 
     def test_all_have_credential_prompts(self):
         for name, cls in CONNECTOR_REGISTRY.items():
             conn = cls()
             prompts = conn.get_credential_prompts()
             assert isinstance(prompts, list)
+
+
+# ---------------------------------------------------------------------------
+# Reddit connector
+# ---------------------------------------------------------------------------
+
+
+class TestRedditConnector:
+    def _make_connector(self, credentials: dict | None = None) -> object:
+        from create_context_graph.connectors.reddit_connector import RedditConnector
+        conn = RedditConnector()
+        conn.authenticate(credentials or {})
+        return conn
+
+    def test_service_metadata(self):
+        conn = get_connector("reddit")
+        assert conn.service_name == "Reddit"
+        assert conn.requires_oauth is False
+
+    def test_credential_prompts(self):
+        conn = get_connector("reddit")
+        prompts = conn.get_credential_prompts()
+        names = {p["name"] for p in prompts}
+        assert "subreddits" in names
+        assert "keywords" in names
+        assert "fetch_comments" in names
+        assert "enrich_posts" in names
+
+    def test_authenticate_defaults(self):
+        conn = self._make_connector({})
+        assert conn._subreddits == ["neo4j"]
+        assert conn._keywords == ["rag", "agentic ai", "knowledge graph"]
+        assert conn._max_pages == 1
+        assert conn._fetch_comments is True
+        assert conn._enrich_posts is True
+
+    def test_authenticate_custom_values(self):
+        conn = self._make_connector({
+            "subreddits": "python, datascience",
+            "keywords": "llm, vector search",
+            "max_pages": "3",
+            "fetch_comments": "no",
+            "enrich_posts": "no",
+        })
+        assert conn._subreddits == ["python", "datascience"]
+        assert conn._keywords == ["llm", "vector search"]
+        assert conn._max_pages == 3
+        assert conn._fetch_comments is False
+        assert conn._enrich_posts is False
+
+    def test_fetch_returns_normalized_data(self, monkeypatch):
+        """fetch() returns NormalizedData with expected entity types when scrape returns posts."""
+        from create_context_graph.connectors.reddit_connector import _get_json
+
+        sample_listing = {
+            "data": {
+                "children": [
+                    {
+                        "data": {
+                            "id": "abc123",
+                            "title": "How do I use RAG with Neo4j?",
+                            "selftext": "Looking for guidance on setting up a RAG pipeline.",
+                            "author": "testuser",
+                            "subreddit": "neo4j",
+                            "score": 42,
+                            "upvote_ratio": 0.95,
+                            "num_comments": 5,
+                            "link_flair_text": "Question",
+                            "permalink": "/r/neo4j/comments/abc123/",
+                            "created_utc": 1700000000,
+                            "is_self": True,
+                        }
+                    }
+                ],
+                "after": None,
+            }
+        }
+
+        def mock_get_json(url, params=None, retries=3):
+            if "search.json" in url:
+                return sample_listing
+            return None
+
+        monkeypatch.setattr(
+            "create_context_graph.connectors.reddit_connector._get_json",
+            mock_get_json,
+        )
+
+        conn = self._make_connector({
+            "fetch_comments": "no",
+            "enrich_posts": "no",
+            "subreddits": "neo4j",
+            "keywords": "rag",
+        })
+        result = conn.fetch()
+
+        assert len(result.entities["Post"]) == 1
+        assert len(result.entities["Person"]) == 1
+        assert len(result.entities["Subreddit"]) == 1
+        assert result.entities["Post"][0]["post_id"] == "abc123"
+        assert result.entities["Person"][0]["name"] == "testuser"
+
+        rel_types = {r["type"] for r in result.relationships}
+        assert "POSTED" in rel_types
+        assert "IN_SUBREDDIT" in rel_types
+
+        assert len(result.documents) == 1
 
 
 # ---------------------------------------------------------------------------
