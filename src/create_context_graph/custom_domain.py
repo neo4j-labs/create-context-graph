@@ -211,13 +211,14 @@ def generate_custom_domain(
     api_key: str,
     provider: str = "anthropic",
     max_retries: int = 3,
+    base_url: str | None = None,
 ) -> tuple[DomainOntology, str]:
     """Generate a complete domain ontology from a natural language description.
 
     Returns (DomainOntology, raw_yaml_string) on success.
     Raises ValueError if generation fails after max_retries.
     """
-    client, resolved_provider = _get_llm_client(api_key, provider)
+    client, resolved_provider = _get_llm_client(api_key, provider, base_url)
     if client is None:
         raise ValueError(
             "Could not initialize LLM client. Install 'anthropic' or 'openai' package."

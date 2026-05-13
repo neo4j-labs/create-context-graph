@@ -42,12 +42,15 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 
-def _get_llm_client(api_key: str, provider: str = "anthropic"):
+def _get_llm_client(api_key: str, provider: str = "anthropic", base_url: str | None = None):
     """Get an LLM client for generation."""
     if provider == "anthropic":
         try:
             import anthropic
-            return anthropic.Anthropic(api_key=api_key), "anthropic"
+            client_kwargs = {"api_key": api_key}
+            if base_url:
+                client_kwargs["base_url"] = base_url
+            return anthropic.Anthropic(**client_kwargs), "anthropic"
         except ImportError:
             pass
 
@@ -70,7 +73,23 @@ def _llm_generate(client, provider: str, prompt: str, system: str = "") -> str:
             system=system,
             messages=[{"role": "user", "content": prompt}],
         )
-        return response.content[0].text
+        if not response.content:
+            return ""
+        # Handle both text content and thinking blocks
+        content = response.content[0]
+        if hasattr(content, 'text'):
+            return content.text
+        elif hasattr(content, 'thinking'):
+            # Find the next text block after thinking
+            for block in response.content:
+                if hasattr(block, 'text'):
+                    return block.text
+        # Fallback: extract text from all blocks
+        text_parts = []
+        for block in response.content:
+            if hasattr(block, 'text'):
+                text_parts.append(block.text)
+        return ''.join(text_parts)
     elif provider == "openai":
         messages = []
         if system:

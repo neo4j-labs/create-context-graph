@@ -74,48 +74,74 @@ def _banner() -> None:
     )
 
 
-def run_wizard() -> ProjectConfig:
+def run_wizard(
+    project_name: str | None = None,
+    domain: str | None = None,
+    framework: str | None = None,
+    anthropic_api_key: str | None = None,
+    anthropic_base_url: str | None = None,
+    openai_api_key: str | None = None,
+    connector: tuple[str, ...] = (),
+    demo_data: bool = False,
+    neo4j_uri: str | None = None,
+    neo4j_username: str | None = None,
+    neo4j_password: str | None = None,
+    neo4j_local: bool = False,
+    neo4j_aura_env: str | None = None,
+) -> ProjectConfig:
     """Run the interactive wizard and return a ProjectConfig."""
     _banner()
 
     # Step 1: Project name
-    project_name = questionary.text(
-        "What is your project name?",
-        default="my-context-graph",
-    ).ask()
-    if not project_name:
-        raise SystemExit("Aborted.")
+    if project_name:
+        # Use provided project name
+        pass
+    else:
+        project_name = questionary.text(
+            "What is your project name?",
+            default="my-context-graph",
+        ).ask()
+        if not project_name:
+            raise SystemExit("Aborted.")
 
     # Step 2: Data source
-    data_source = questionary.select(
-        "How would you like to populate your context graph?",
-        choices=[
-            questionary.Choice("Generate demo data (synthetic documents & entities)", value="demo"),
-            questionary.Choice("Connect to SaaS services (Gmail, Slack, Jira, etc.)", value="saas"),
-        ],
-    ).ask()
-    if not data_source:
-        raise SystemExit("Aborted.")
+    if demo_data or connector:
+        # Use provided data source
+        data_source = "saas" if connector else ("demo" if demo_data else "none")
+    else:
+        data_source = questionary.select(
+            "How would you like to populate your context graph?",
+            choices=[
+                questionary.Choice("Generate demo data (synthetic documents & entities)", value="demo"),
+                questionary.Choice("Connect to SaaS services (Gmail, Slack, Jira, etc.)", value="saas"),
+            ],
+        ).ask()
+        if not data_source:
+            raise SystemExit("Aborted.")
 
     # Step 2b: SaaS connector selection (if SaaS data source)
     selected_connectors: list[str] = []
     saas_credentials: dict[str, dict[str, str]] = {}
     if data_source == "saas":
-        from create_context_graph.connectors import list_connectors, get_connector
-        from create_context_graph.connectors.oauth import check_gws_cli, install_gws_cli
+        if connector:
+            # Use provided connectors
+            selected_connectors = list(connector)
+        else:
+            from create_context_graph.connectors import list_connectors, get_connector
+            from create_context_graph.connectors.oauth import check_gws_cli, install_gws_cli
 
-        available = list_connectors()
-        connector_choices = [
-            questionary.Choice(f"{c['name']} — {c['description']}", value=c["id"])
-            for c in available
-        ]
+            available = list_connectors()
+            connector_choices = [
+                questionary.Choice(f"{c['name']} — {c['description']}", value=c["id"])
+                for c in available
+            ]
 
-        selected_connectors = questionary.checkbox(
-            "Select services to connect:",
-            choices=connector_choices,
-        ).ask()
-        if not selected_connectors:
-            raise SystemExit("Aborted. Select at least one connector.")
+            selected_connectors = questionary.checkbox(
+                "Select services to connect:",
+                choices=connector_choices,
+            ).ask()
+            if not selected_connectors:
+                raise SystemExit("Aborted. Select at least one connector.")
 
         # Check for Google Workspace CLI for Gmail/GCal
         google_connectors = {"gmail", "gcal"}
@@ -155,22 +181,25 @@ def run_wizard() -> ProjectConfig:
             saas_credentials[conn_id] = creds
 
     # Step 3: Domain selection
-    domains = list_available_domains()
-    domain_choices = [
-        questionary.Choice(d["name"], value=d["id"]) for d in domains
-    ]
-    domain_choices.append(questionary.Choice("Custom (describe your domain)", value="custom"))
+    if domain:
+        # Use provided domain
+        pass
+    else:
+        domains = list_available_domains()
+        domain_choices = [
+            questionary.Choice(d["name"], value=d["id"]) for d in domains
+        ]
+        domain_choices.append(questionary.Choice("Custom (describe your domain)", value="custom"))
 
-    domain = questionary.select(
-        "Select your industry domain:",
-        choices=domain_choices,
-    ).ask()
-    if not domain:
-        raise SystemExit("Aborted.")
+        domain = questionary.select(
+            "Select your industry domain:",
+            choices=domain_choices,
+        ).ask()
+        if not domain:
+            raise SystemExit("Aborted.")
 
     custom_domain_yaml = None
     custom_ontology = None
-    anthropic_api_key = None
     if domain == "custom":
         # Collect domain description
         domain_description = questionary.text(
@@ -180,12 +209,26 @@ def run_wizard() -> ProjectConfig:
             raise SystemExit("Aborted.")
 
         # Need an API key for LLM generation
-        custom_api_key = questionary.password(
-            "Anthropic API key (required for custom domain generation):",
-        ).ask()
-        if not custom_api_key:
-            console.print("[red]An API key is required for custom domain generation.[/red]")
-            raise SystemExit("API key required.")
+        if anthropic_api_key:
+            # Use provided API key
+            custom_api_key = anthropic_api_key
+        else:
+            custom_api_key = questionary.password(
+                "Anthropic API key (required for custom domain generation):",
+            ).ask()
+            if not custom_api_key:
+                console.print("[red]An API key is required for custom domain generation.[/red]")
+                raise SystemExit("API key required.")
+
+        # Ask for custom base URL
+        if anthropic_base_url:
+            # Use provided base URL
+            custom_base_url = anthropic_base_url
+        else:
+            custom_base_url = questionary.text(
+                "Anthropic-compatible API base URL (Enter to use default):",
+                default="",
+            ).ask()
 
         # Generate the domain
         from create_context_graph.custom_domain import (
@@ -198,7 +241,7 @@ def run_wizard() -> ProjectConfig:
             with console.status("[bold cyan]Generating custom domain ontology..."):
                 try:
                     custom_ontology, custom_domain_yaml = generate_custom_domain(
-                        domain_description, custom_api_key
+                        domain_description, custom_api_key, base_url=custom_base_url
                     )
                 except ValueError as e:
                     console.print(f"[red]Generation failed: {e}[/red]")
@@ -238,72 +281,94 @@ def run_wizard() -> ProjectConfig:
         if save:
             save_custom_domain(custom_ontology, custom_domain_yaml)
 
-        # Store the API key for later use
+        # Store the API key and base URL for later use
         anthropic_api_key = custom_api_key
+        anthropic_base_url = custom_base_url
 
     # Step 4: Agent framework
-    framework_choices = [
-        questionary.Choice(FRAMEWORK_DISPLAY_NAMES[fw], value=fw)
-        for fw in SUPPORTED_FRAMEWORKS
-    ]
-    framework = questionary.select(
-        "Select your agent framework:",
-        choices=framework_choices,
-    ).ask()
-    if not framework:
-        raise SystemExit("Aborted.")
+    if framework:
+        # Use provided framework
+        pass
+    else:
+        framework_choices = [
+            questionary.Choice(FRAMEWORK_DISPLAY_NAMES[fw], value=fw)
+            for fw in SUPPORTED_FRAMEWORKS
+        ]
+        framework = questionary.select(
+            "Select your agent framework:",
+            choices=framework_choices,
+        ).ask()
+        if not framework:
+            raise SystemExit("Aborted.")
 
     # Step 5: Neo4j connection
-    neo4j_type = questionary.select(
-        "How would you like to connect to Neo4j?",
-        choices=[
-            questionary.Choice("Neo4j Aura (cloud — free tier available)", value="aura"),
-            questionary.Choice("Local Neo4j via neo4j-local (no Docker required)", value="local"),
-            questionary.Choice("Local Neo4j via Docker", value="docker"),
-            questionary.Choice("Existing Neo4j instance", value="existing"),
-        ],
-    ).ask()
-    if not neo4j_type:
-        raise SystemExit("Aborted.")
+    if neo4j_aura_env:
+        neo4j_type = "aura"
+    elif neo4j_local:
+        neo4j_type = "local"
+    elif neo4j_uri and "aura" in (neo4j_uri or ""):
+        neo4j_type = "aura"
+    elif neo4j_uri:
+        neo4j_type = "existing"
+    else:
+        neo4j_type = questionary.select(
+            "How would you like to connect to Neo4j?",
+            choices=[
+                questionary.Choice("Neo4j Aura (cloud — free tier available)", value="aura"),
+                questionary.Choice("Local Neo4j via neo4j-local (no Docker required)", value="local"),
+                questionary.Choice("Local Neo4j via Docker", value="docker"),
+                questionary.Choice("Existing Neo4j instance", value="existing"),
+            ],
+        ).ask()
+        if not neo4j_type:
+            raise SystemExit("Aborted.")
 
     if neo4j_type == "aura":
-        console.print(Panel(
-            "[bold]Neo4j Aura — Free Cloud Database[/bold]\n\n"
-            "1. Sign up at [cyan]https://console.neo4j.io[/cyan]\n"
-            "2. Create a free AuraDB instance\n"
-            "3. Download the [bold].env[/bold] file with your credentials\n"
-            "4. Provide the path to the downloaded file below",
-            border_style="cyan",
-            title="Setup",
-        ))
-        aura_env_path = questionary.path(
-            "Path to Neo4j Aura .env file:",
-        ).ask()
-        if not aura_env_path:
-            raise SystemExit("Aborted.")
-        neo4j_uri, neo4j_username, neo4j_password = _parse_aura_env(aura_env_path)
+        if neo4j_aura_env:
+            # Use provided Aura env file
+            neo4j_uri, neo4j_username, neo4j_password = _parse_aura_env(neo4j_aura_env)
+        else:
+            console.print(Panel(
+                "[bold]Neo4j Aura — Free Cloud Database[/bold]\n\n"
+                "1. Sign up at [cyan]https://console.neo4j.io[/cyan]\n"
+                "2. Create a free AuraDB instance\n"
+                "3. Download the [bold].env[/bold] file with your credentials\n"
+                "4. Provide the path to the downloaded file below",
+                border_style="cyan",
+                title="Setup",
+            ))
+            aura_env_path = questionary.path(
+                "Path to Neo4j Aura .env file:",
+            ).ask()
+            if not aura_env_path:
+                raise SystemExit("Aborted.")
+            neo4j_uri, neo4j_username, neo4j_password = _parse_aura_env(aura_env_path)
     elif neo4j_type == "local":
-        neo4j_uri = "neo4j://localhost:7687"
-        neo4j_username = "neo4j"
-        neo4j_password = "password"
+        neo4j_uri = neo4j_uri or "neo4j://localhost:7687"
+        neo4j_username = neo4j_username or "neo4j"
+        neo4j_password = neo4j_password or "password"
         console.print(
             "[dim]Will use [bold]@johnymontana/neo4j-local[/bold] — "
             "run [bold]make neo4j-start[/bold] to launch Neo4j (requires Node.js)[/dim]"
         )
     elif neo4j_type == "docker":
-        neo4j_uri = "neo4j://localhost:7687"
-        neo4j_username = "neo4j"
-        neo4j_password = "password"
-    else:
-        neo4j_uri = questionary.text(
-            "Neo4j URI:",
-            default="neo4j+s://xxxx.databases.neo4j.io",
-        ).ask()
-        neo4j_username = questionary.text(
-            "Neo4j Username:",
-            default="neo4j",
-        ).ask()
-        neo4j_password = questionary.password("Neo4j Password:").ask()
+        neo4j_uri = neo4j_uri or "neo4j://localhost:7687"
+        neo4j_username = neo4j_username or "neo4j"
+        neo4j_password = neo4j_password or "password"
+    else:  # existing
+        if neo4j_uri and neo4j_username and neo4j_password:
+            # Use provided values
+            pass
+        else:
+            neo4j_uri = questionary.text(
+                "Neo4j URI:",
+                default=neo4j_uri or "neo4j+s://xxxx.databases.neo4j.io",
+            ).ask()
+            neo4j_username = questionary.text(
+                "Neo4j Username:",
+                default=neo4j_username or "neo4j",
+            ).ask()
+            neo4j_password = questionary.password("Neo4j Password:").ask()
 
     if not neo4j_uri:
         raise SystemExit("Aborted.")
@@ -352,11 +417,33 @@ def run_wizard() -> ProjectConfig:
 
     # Step 6: API Keys (skip Anthropic if already collected for custom domain)
     if custom_domain_yaml is None:
-        anthropic_api_key = questionary.password(
-            "Anthropic API key (for AI agent):",
+        if anthropic_api_key:
+            # Use provided API key
+            pass
+        else:
+            anthropic_api_key = questionary.password(
+                "Anthropic API key (for AI agent):",
+                default="",
+            ).ask()
+    # anthropic_api_key already set from custom domain flow otherwise
+
+    if openai_api_key:
+        # Use provided OpenAI API key
+        pass
+    else:
+        openai_api_key = questionary.password(
+            "OpenAI API key (for embeddings, or Enter to skip):",
             default="",
         ).ask()
-    # anthropic_api_key already set from custom domain flow otherwise
+
+    if anthropic_base_url:
+        # Use provided base URL
+        pass
+    else:
+        anthropic_base_url = questionary.text(
+            "Anthropic-compatible API base URL (Enter to use default):",
+            default="",
+        ).ask()
 
     if framework == "openai-agents":
         openai_api_key = questionary.password(
@@ -391,6 +478,7 @@ def run_wizard() -> ProjectConfig:
         neo4j_password=neo4j_password or "password",
         neo4j_type=neo4j_type,
         anthropic_api_key=anthropic_api_key or None,
+        anthropic_base_url=anthropic_base_url or None,
         openai_api_key=openai_api_key or None,
         google_api_key=google_api_key or None,
         generate_data=data_source == "demo",
@@ -432,6 +520,7 @@ def _show_summary(config: ProjectConfig) -> None:
     if config.with_mcp:
         table.add_row("MCP Server", f"enabled (profile: {config.mcp_profile})")
     table.add_row("Anthropic Key", "***" if config.anthropic_api_key else "(not set)")
+    table.add_row("Anthropic Base URL", config.anthropic_base_url or "(default)")
     table.add_row("OpenAI Key", "***" if config.openai_api_key else "(not set)")
     if config.google_api_key or config.resolved_framework == "google-adk":
         table.add_row("Google Key", "***" if config.google_api_key else "(not set)")

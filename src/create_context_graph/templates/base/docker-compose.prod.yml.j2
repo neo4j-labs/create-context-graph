@@ -33,6 +33,9 @@ services:
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-password}
 {% if 'anthropic' in framework or framework == 'pydanticai' or framework == 'claude-agent-sdk' %}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
+{% if anthropic_base_url %}
+      ANTHROPIC_BASE_URL: ${ANTHROPIC_BASE_URL}
+{% endif %}
 {% endif %}
 {% if 'openai' in framework or framework == 'langgraph' %}
       OPENAI_API_KEY: ${OPENAI_API_KEY}

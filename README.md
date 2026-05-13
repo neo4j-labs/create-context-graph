@@ -128,6 +128,29 @@ make start         # Start backend (port 8000) + frontend (port 3000)
 - **Backend API:** http://localhost:8000/docs — FastAPI auto-generated docs
 - **Neo4j Browser:** http://localhost:7474 — Query the graph directly
 
+## Known Issues
+
+### Neo4j Authentication
+
+If Neo4j connection fails or the password is lost, reset the database:
+
+```bash
+make neo4j-stop && rm -rf ~/.local/share/neo4j-local/default && make neo4j-start
+cat /tmp/neo4j-local.log  # View generated password
+```
+
+**Connection Details:**
+- URI: `neo4j://localhost:7687` (the `bolt://` form is also supported)
+- Username: `neo4j`
+- Database: `neo4j`
+- Password: Generated automatically (check logs)
+
+### Common Problems
+
+- **Port conflicts:** Ensure ports 7687 and 7474 are available
+- **Permissions:** Verify write access to `~/.local/share/neo4j-local/`
+- **Dependencies:** `neo4j-local` requires Node.js; Docker mode requires Docker Desktop
+
 ## Supported Domains
 
 22 industry domains, each with a purpose-built ontology, sample data, agent tools, and demo scenarios:

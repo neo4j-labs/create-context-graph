@@ -263,6 +263,7 @@ class ProjectRenderer:
             "neo4j_password": self.config.neo4j_password,
             "neo4j_type": self.config.neo4j_type,
             "anthropic_api_key": self.config.anthropic_api_key or "",
+            "anthropic_base_url": self.config.anthropic_base_url or "",
             "openai_api_key": self.config.openai_api_key or "",
             "google_api_key": self.config.google_api_key or "",
             "system_prompt": self._build_system_prompt(),
@@ -524,6 +525,7 @@ class ProjectRenderer:
 
     def _render_data(self, data_dir: Path, ctx: dict) -> None:
         """Copy ontology and create data directory structure."""
+        from create_context_graph.ontology import _get_domains_path
         data_dir.mkdir(parents=True, exist_ok=True)
         (data_dir / "documents").mkdir(exist_ok=True)
 
@@ -532,8 +534,6 @@ class ProjectRenderer:
             # Write custom domain YAML directly
             (data_dir / "ontology.yaml").write_text(self.config.custom_domain_yaml)
         else:
-            from create_context_graph.ontology import _get_domains_path
-
             domain_yaml = _get_domains_path() / f"{self.config.domain}.yaml"
             if domain_yaml.exists():
                 shutil.copy2(domain_yaml, data_dir / "ontology.yaml")

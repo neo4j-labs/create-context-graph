@@ -76,6 +76,7 @@ class ProjectConfig(BaseModel):
     neo4j_password: str = Field(default="password")
     neo4j_type: Literal["docker", "existing", "aura", "local"] = Field(default="docker")
     anthropic_api_key: str | None = Field(default=None)
+    anthropic_base_url: str | None = Field(default=None)
     openai_api_key: str | None = Field(default=None)
     google_api_key: str | None = Field(default=None)
     generate_data: bool = Field(default=False)

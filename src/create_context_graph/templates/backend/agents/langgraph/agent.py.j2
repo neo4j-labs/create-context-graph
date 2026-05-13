@@ -70,10 +70,11 @@ TOOLS = [
 ]
 
 {% raw %}
-model = ChatAnthropic(
-    model="claude-sonnet-4-20250514",
-    api_key=settings.anthropic_api_key,
-)
+_anthropic_kwargs = {"model": "claude-sonnet-4-20250514", "api_key": settings.anthropic_api_key}
+if settings.anthropic_base_url:
+    _anthropic_kwargs["base_url"] = settings.anthropic_base_url
+model = ChatAnthropic(**_anthropic_kwargs)
+{% endraw %}
 
 graph = create_react_agent(model, TOOLS, prompt=SYSTEM_PROMPT)
 
@@ -180,4 +181,3 @@ async def handle_message_stream(message: str, session_id: str | None = None) -> 
         "session_id": session_id,
         "graph_data": None,
     }
-{% endraw %}

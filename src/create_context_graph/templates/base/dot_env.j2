@@ -8,7 +8,8 @@ NEO4J_PASSWORD={{ neo4j_password }}
 
 # LLM API Keys
 ANTHROPIC_API_KEY={{ anthropic_api_key }}
-OPENAI_API_KEY={{ openai_api_key }}
+{% if anthropic_base_url %}ANTHROPIC_BASE_URL={{ anthropic_base_url }}
+{% endif %}OPENAI_API_KEY={{ openai_api_key }}
 GOOGLE_API_KEY={{ google_api_key }}
 
 # Application

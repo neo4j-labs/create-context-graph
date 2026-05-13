@@ -18,7 +18,12 @@ IMPORTANT: You MUST use the available tools to query the knowledge graph before 
 
 CRITICAL: Call tools DIRECTLY without any introductory text. Do NOT say "I'll search for..." or "Let me look up..." before calling a tool — just call the tool immediately. Only generate text AFTER you have received the tool results and are ready to provide your final answer."""
 
-client = anthropic.AsyncAnthropic(api_key=settings.anthropic_api_key)
+{% raw %}
+client_kwargs = {"api_key": settings.anthropic_api_key}
+if settings.anthropic_base_url:
+    client_kwargs["base_url"] = settings.anthropic_base_url
+{% endraw %}
+client = anthropic.AsyncAnthropic(**client_kwargs)
 
 # ---------------------------------------------------------------------------
 # Tool definitions for {{ domain.name }}

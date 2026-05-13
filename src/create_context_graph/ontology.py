@@ -238,9 +238,15 @@ def _merge_base(base: dict, domain_data: dict) -> dict:
 
 def load_domain(domain_id: str) -> DomainOntology:
     """Load a domain ontology by ID, merging with base definitions."""
+    # Check main domains directory first, then custom domains
     domains_dir = _get_domains_path()
     domain_path = domains_dir / f"{domain_id}.yaml"
-
+    
+    if not domain_path.exists():
+        # Try custom domains directory
+        custom_domains_dir = _get_custom_domains_path()
+        domain_path = custom_domains_dir / f"{domain_id}.yaml"
+    
     if not domain_path.exists():
         raise FileNotFoundError(f"Domain ontology not found: {domain_id}")
 

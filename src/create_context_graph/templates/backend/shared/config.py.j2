@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     neo4j_username: str = "{{ neo4j_username }}"
     neo4j_password: str = "{{ neo4j_password }}"
     anthropic_api_key: str = ""
+    anthropic_base_url: str = ""
     openai_api_key: str = ""
     domain_id: str = "{{ domain.id }}"
     session_strategy: str = "{{ session_strategy }}"
