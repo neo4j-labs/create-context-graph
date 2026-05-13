@@ -18,6 +18,10 @@ Uses the Reddit public JSON API (no API key or OAuth required).
 Rate limit: ~10 requests/min unauthenticated. A 6-second delay between
 requests is applied automatically.
 
+Designed as a general-purpose product discovery and community intelligence
+connector. Configure target subreddits and search keywords to track any
+product, technology, or topic across Reddit communities.
+
 Subreddits and keywords are configured in config.py via
 ``REDDIT_DEFAULT_SUBREDDITS`` and ``REDDIT_DEFAULT_KEYWORDS``, or can be
 overridden at runtime through the credential prompts.
@@ -54,21 +58,21 @@ HEADERS = {
     "Accept": "application/json",
 }
 
-_ENRICHMENT_SYSTEM_PROMPT = """You are a data extraction assistant. Extract structured knowledge from Reddit posts about graph databases, data engineering, and AI/ML.
+_ENRICHMENT_SYSTEM_PROMPT = """You are a data extraction assistant. Extract structured product discovery insights from Reddit posts.
 
 Return ONLY valid JSON with this exact structure:
 {
   "pain_points": ["concise description of a specific problem or frustration mentioned"],
   "use_cases": ["concise description of a specific application or use case mentioned"],
   "topics": ["topic tag"],
-  "technologies": ["TechnologyName"]
+  "technologies": ["ProductOrToolName"]
 }
 
 Rules:
-- pain_points: real problems/frustrations the author has, max 3, empty list if none
-- use_cases: concrete applications being built or described, max 3, empty list if none
-- topics: 1-4 word subject tags (e.g. "performance tuning", "data modeling"), max 5
-- technologies: proper-cased product/tool names explicitly mentioned (e.g. "Neo4j", "LangChain", "Snowflake"), max 10
+- pain_points: real problems, frustrations, or unmet needs the author describes, max 3, empty list if none
+- use_cases: concrete applications, workflows, or patterns being built or described, max 3, empty list if none
+- topics: 1-4 word subject tags describing the discussion theme (e.g. "performance", "getting started", "integration"), max 5
+- technologies: proper-cased product, tool, or service names explicitly mentioned, max 10
 - Return empty lists if nothing relevant found, never null"""
 
 
@@ -141,8 +145,8 @@ class RedditConnector(BaseConnector):
 
     service_name = "Reddit"
     service_description = (
-        "Import posts and comments from Reddit subreddits — no API key required. "
-        "Configure target subreddits and search keywords in config.py."
+        "Import posts and comments from Reddit subreddits for product discovery and community intelligence — "
+        "no API key required. Configure target subreddits and search keywords in config.py."
     )
     requires_oauth = False
 
@@ -318,31 +322,11 @@ class RedditConnector(BaseConnector):
                     "description": f"Discussion topic found in r/ communities",
                 })
 
-        # ----------------------------------------------------------------
-        # Keyword → technology entity mapping (augment graph richness)
-        # ----------------------------------------------------------------
-        KEYWORD_TECH_MAP: dict[str, str] = {
-            "neo4j": "Neo4j",
-            "graph database": "Graph Database",
-            "graphrag": "GraphRAG",
-            "knowledge graph": "Knowledge Graph",
-            "agentic ai": "Agentic AI",
-            "graph ai": "Graph AI",
-            "llm": "LLM",
-            "vector database": "Vector Database",
-            "langchain": "LangChain",
-            "llamaindex": "LlamaIndex",
-            "snowflake": "Snowflake",
-            "databricks": "Databricks",
-            "spark": "Apache Spark",
-            "dbt": "dbt",
-        }
-
-        # Pre-populate Technology nodes from the keyword list
+        # Pre-populate Product/Technology nodes directly from the keyword list.
+        # Keywords are treated as product/topic names — proper-cased for display.
         for kw in self._keywords:
-            tech = KEYWORD_TECH_MAP.get(kw.lower(), kw if len(kw) > 2 else None)
-            if tech:
-                _ensure_technology(tech)
+            if len(kw) > 2:
+                _ensure_technology(kw.title())
 
         # ----------------------------------------------------------------
         # Scrape
@@ -481,10 +465,7 @@ class RedditConnector(BaseConnector):
                         })
 
                         # Keyword → Technology link
-                        kw_lower = keyword.lower()
-                        tech = KEYWORD_TECH_MAP.get(kw_lower)
-                        if not tech and len(keyword) > 2:
-                            tech = keyword
+                        tech = keyword.title() if len(keyword) > 2 else None
                         if tech:
                             _ensure_technology(tech)
                             relationships.append({
