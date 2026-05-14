@@ -76,14 +76,15 @@ class TestBuildPlotlySpec:
         assert spec["data"][0]["y"] == [12, 8]
         assert spec["layout"]["title"] == "Wins by Team"
 
-    def test_line_chart_uses_line_trace(self, chart_builder_module):
+    def test_line_chart_uses_scatter_with_lines_mode(self, chart_builder_module):
         data = [{"day": "Mon", "score": 2}, {"day": "Tue", "score": 5}]
 
         spec = chart_builder_module.build_plotly_spec(
             "line", "Scores", data, x_field="day", y_field="score"
         )
 
-        assert spec["data"][0]["type"] == "line"
+        assert spec["data"][0]["type"] == "scatter"
+        assert spec["data"][0]["mode"] == "lines"
 
     def test_scatter_chart_uses_marker_mode(self, chart_builder_module):
         data = [{"name": "Ada", "score": 95}, {"name": "Lin", "score": 88}]

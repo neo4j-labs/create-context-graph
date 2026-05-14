@@ -165,13 +165,26 @@ def build_plotly_spec(
             "yaxis": {"title": x_field},
         }
     else:
-        trace = {
-            "type": chart_type,
-            "x": x_values,
-            "y": y_values,
-        }
-        if chart_type == "scatter":
-            trace["mode"] = "markers"
+        if chart_type == "line":
+            trace = {
+                "type": "scatter",
+                "mode": "lines",
+                "x": x_values,
+                "y": y_values,
+            }
+        elif chart_type == "scatter":
+            trace = {
+                "type": "scatter",
+                "mode": "markers",
+                "x": x_values,
+                "y": y_values,
+            }
+        else:
+            trace = {
+                "type": chart_type,
+                "x": x_values,
+                "y": y_values,
+            }
         layout = {
             "title": title,
             "xaxis": {"title": x_field},

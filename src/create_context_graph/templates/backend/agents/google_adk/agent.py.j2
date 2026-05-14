@@ -177,7 +177,8 @@ def sample_data(label: str, limit: int = 5) -> str:
         return json.dumps({"error": f"Unknown label: {label}"})
 
     bounded_limit = max(1, min(limit, 10))
-    query = f"MATCH (n:`{label}`) RETURN n LIMIT $limit"
+    safe_label = label.replace("`", "``")
+    query = f"MATCH (n:`{safe_label}`) RETURN n LIMIT $limit"
     try:
         result = _run_sync(
             execute_cypher(
