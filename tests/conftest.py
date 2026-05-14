@@ -28,6 +28,9 @@ def pytest_addoption(parser):
     parser.addoption("--slow", action="store_true", default=False, help="Run slow tests")
     parser.addoption("--integration", action="store_true", default=False,
                      help="Run integration tests (requires Neo4j)")
+    parser.addoption("--functional", action="store_true", default=False,
+                     help="Run functional tests that exercise full pipelines "
+                          "against realistic on-disk fixtures (slower than unit tests)")
 
 
 def pytest_collection_modifyitems(config, items):
@@ -42,6 +45,12 @@ def pytest_collection_modifyitems(config, items):
         for item in items:
             if "integration" in item.keywords:
                 item.add_marker(skip_int)
+
+    if not config.getoption("--functional"):
+        skip_func = pytest.mark.skip(reason="Use --functional to run")
+        for item in items:
+            if "functional" in item.keywords:
+                item.add_marker(skip_func)
 
 
 @pytest.fixture

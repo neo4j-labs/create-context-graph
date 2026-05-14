@@ -49,6 +49,15 @@ connectors = [
     "google-api-python-client>=2.100",
     "google-auth-oauthlib>=1.0",
     "simple-salesforce>=1.12",
+    # local-file connector — document parsers (all MIT / BSD / Apache-2).
+    "markdown-it-py>=4.0",
+    "mdit-py-plugins>=0.4",
+    "pdf-oxide>=0.3",
+    "pypdf>=6.11",
+    "pdfplumber>=0.11",
+    "beautifulsoup4>=4.14",
+    "lxml>=5.0",
+    "python-docx>=1.2",
 ]
 dev = [
     "pytest>=8.0",
@@ -75,4 +84,5 @@ asyncio_mode = "auto"
 markers = [
     "slow: marks tests as slow (run with --slow)",
     "integration: marks tests requiring Neo4j (run with --integration)",
+    "functional: marks functional tests that ingest realistic on-disk fixtures (run with --functional)",
 ]

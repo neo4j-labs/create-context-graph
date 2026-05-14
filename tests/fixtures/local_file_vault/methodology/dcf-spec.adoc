@@ -1,0 +1,157 @@
+= DCF Valuation Specification
+Sarah Chen <sarah.chen@acme.example>
+2026-05-04: revision 1.2
+:doctype: article
+:toc:
+:icons: font
+
+This document is the formal technical specification for the discounted cash flow methodology used by the ACME Corporate Strategy & FP&A team. It accompanies the working notes in link:dcf-framework.md[the DCF framework markdown note]; this version is the team-wide reference.
+
+== Scope
+
+The methodology covers single-company valuation of publicly traded mid-cap industrial manufacturers. It does not cover:
+
+* Pre-revenue or pre-profitability companies (need separate venture methodology)
+* Financial institutions (different cash flow architecture)
+* Real estate or infrastructure (need separate cap rate methodology)
+
+For competitor analysis the methodology has been applied to link:../companies/acme-corp.md[ACME] and link:../companies/betawidgets-inc.md[BetaWidgets] as canonical examples.
+
+== Inputs
+
+=== Required inputs per model
+
+Every valuation must specify:
+
+. Forecast horizon: integer years, default 10
+. Discount rate: percentage, default WACC per company
+. Terminal growth rate: percentage, default 2.0%
+. Tax rate: effective rate, default 23%
+. Capital structure: debt/equity target weights
+
+=== Optional inputs
+
+. Mid-cycle exit multiple (EBITDA basis) — only if running exit-multiple cross-check
+. Currency override (defaults to USD)
+. Segment-level inputs — only if sum-of-parts valuation
+
+== Calculation procedure
+
+[NOTE]
+====
+The procedure below is normative. Deviations must be documented in the company's individual model with rationale.
+====
+
+=== Step 1 — Build explicit forecast
+
+For each year in the forecast horizon, project:
+
+[source]
+----
+Revenue
+- COGS
+= Gross Profit
+- SG&A
+- R&D
+- D&A
+= EBIT
+- Cash taxes (EBIT * tax_rate)
++ D&A
+- Maintenance capex
+- Change in working capital
+= Free Cash Flow to Firm (FCFF)
+----
+
+The forecast is bottoms-up by segment where possible. For ACME this means separate revenue and margin projections for Widget Distribution and Precision Components.
+
+=== Step 2 — Terminal value
+
+Two methods, primary plus cross-check.
+
+==== Perpetuity growth method (primary)
+
+[source]
+----
+TV = FCFF_(year_n+1) / (WACC - g)
+----
+
+Where `g` is the terminal growth rate (typically 2.0%) and `WACC` is the discount rate used in the explicit forecast.
+
+==== Exit multiple method (cross-check)
+
+[source]
+----
+TV = year_n_EBITDA * mid_cycle_exit_multiple
+----
+
+The exit multiple MUST be mid-cycle, not current trading multiple. Past mistakes have come from using current multiples that subsequently mean-reverted (see link:../companies/acme-corp.md[ACME historical mistake reference]).
+
+If the two terminal value methods diverge by more than 20%, the explicit forecast must be reviewed before proceeding.
+
+=== Step 3 — Discount to present value
+
+[source]
+----
+PV = sum_(year=1)^n FCFF_year / (1 + WACC)^year + TV / (1 + WACC)^n
+----
+
+=== Step 4 — Bridge to equity value
+
+[source]
+----
+Equity Value = Enterprise Value - Net Debt - Other adjustments (pension, minority interest)
+Fair value per share = Equity Value / Diluted shares outstanding
+----
+
+== Sensitivity analysis
+
+[IMPORTANT]
+====
+Every published fair value MUST be accompanied by a sensitivity matrix on (WACC, terminal growth). Single point estimates are misleading and not permitted in team deliverables.
+====
+
+Standard sensitivity ranges:
+
+* WACC: -100bps, base, +100bps (three values)
+* Terminal growth: -50bps, base, +50bps (three values)
+
+This produces a 3x3 = 9-cell fair value matrix. The team's bull/base/bear case framing derives from this matrix:
+
+* Bear case = (WACC +100bps, terminal growth -50bps) cell
+* Base case = (WACC base, terminal growth base) cell
+* Bull case = (WACC -100bps, terminal growth +50bps) cell
+
+== Sum-of-parts valuation
+
+Applicable when a company has segments with materially different growth and risk profiles. For ACME this is the case (Widget Distribution + Precision Components, see link:../companies/acme-corp.md[ACME company note]).
+
+Procedure:
+
+. Build separate explicit forecasts for each segment
+. Apply segment-appropriate exit multiples (NOT a single company multiple)
+. Sum segment enterprise values to get total enterprise value
+. Bridge to equity value as in step 4 above
+
+== Approval workflow
+
+. Author drafts model and methodology note
+. Peer reviewer (typically link:../people/dana-liu.md[Dana Liu] for industrials) reviews assumptions
+. Team director (link:../people/yuki-tanaka.md[Yuki Tanaka]) approves before external publication
+. Material methodology changes require quarterly review signoff
+
+== References
+
+* link:dcf-framework.md[Working DCF framework note (markdown version)]
+* link:../decisions/2026-q2-thesis-call.md[Q2 2026 thesis call] — current open application of the methodology
+* link:../external/sector-report-q1-2026.html[Q1 2026 sector report] — third-party reference for comparable multiples
+
+== Change history
+
+[cols="1,1,1,3", options="header"]
+|===
+|Version |Date |Author |Changes
+
+|1.0 |2026-01-30 |Sarah Chen |Initial version
+|1.1 |2026-02-18 |Dana Liu |Added WACC cushion guidance
+|1.2 |2026-05-04 |Sarah Chen |Added sum-of-parts section
+|===
