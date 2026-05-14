@@ -14,13 +14,27 @@
 
 """Reddit connector — imports posts, comments, and authors from public subreddits.
 
-Uses the Reddit public JSON API (no API key or OAuth required).
-Rate limit: ~10 requests/min unauthenticated. A 6-second delay between
-requests is applied automatically.
+Works in two modes:
+
+Unauthenticated (default):
+  Uses the Reddit public JSON API — no credentials required.
+  Rate limit: ~10 requests/min. A 6-second delay is applied automatically.
+
+Authenticated (Reddit script app):
+  Supply client_id, client_secret, reddit_username, and reddit_password via
+  the credential prompts. Uses OAuth2 password grant to obtain a bearer token.
+  Rate limit increases to ~60 requests/min. Delay drops to 1 second.
+
+  To create a script app: https://www.reddit.com/prefs/apps
+  Select "script", set redirect URI to http://localhost:8080.
 
 Designed as a general-purpose product discovery and community intelligence
 connector. Configure target subreddits and search keywords to track any
 product, technology, or topic across Reddit communities.
+
+LLM enrichment follows the same provider pattern as the rest of create-context-graph:
+Anthropic is used if ANTHROPIC_API_KEY / anthropic_api_key is available,
+OpenAI is the fallback if openai_api_key is available.
 
 Subreddits and keywords are configured in config.py via
 ``REDDIT_DEFAULT_SUBREDDITS`` and ``REDDIT_DEFAULT_KEYWORDS``, or can be
@@ -49,12 +63,20 @@ from create_context_graph.config import REDDIT_DEFAULT_KEYWORDS, REDDIT_DEFAULT_
 logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.reddit.com"
+OAUTH_URL = "https://oauth.reddit.com"
+TOKEN_URL = "https://www.reddit.com/api/v1/access_token"
 RESULTS_PER_PAGE = 100
-REQUEST_DELAY = 6.0   # seconds between search requests (public API limit ~10 req/min)
-COMMENT_DELAY = 3.0   # seconds between comment fetches (lighter endpoint)
+
+# Rate limits: unauthenticated ~10 req/min (6s delay), authenticated ~60 req/min (1s delay)
+REQUEST_DELAY_UNAUTHED = 6.0
+REQUEST_DELAY_AUTHED = 1.0
+COMMENT_DELAY_UNAUTHED = 3.0
+COMMENT_DELAY_AUTHED = 0.5
+
+USER_AGENT = "python:neo4j-context-graph:v1.0 (research pipeline; neo4j-labs)"
 
 HEADERS = {
-    "User-Agent": "python:neo4j-context-graph:v1.0 (research pipeline; neo4j-labs)",
+    "User-Agent": USER_AGENT,
     "Accept": "application/json",
 }
 
@@ -76,19 +98,56 @@ Rules:
 - Return empty lists if nothing relevant found, never null"""
 
 
-def _enrich_post(title: str, body: str, api_key: str) -> dict:
-    """Call Claude Haiku to extract pain points, use cases, topics, and technologies from a post."""
+def _get_llm_client(anthropic_api_key: str | None, openai_api_key: str | None):
+    """Return (client, provider) following the same pattern as generator.py."""
+    if anthropic_api_key:
+        try:
+            import anthropic
+            return anthropic.Anthropic(api_key=anthropic_api_key), "anthropic"
+        except ImportError:
+            pass
+    if openai_api_key:
+        try:
+            import openai
+            return openai.OpenAI(api_key=openai_api_key), "openai"
+        except ImportError:
+            pass
+    return None, None
+
+
+def _enrich_post(
+    title: str,
+    body: str,
+    anthropic_api_key: str | None,
+    openai_api_key: str | None,
+) -> dict:
+    """Extract structured product insights using the configured LLM provider.
+
+    Follows the same Anthropic-first, OpenAI-fallback pattern as generator.py.
+    """
+    client, provider = _get_llm_client(anthropic_api_key, openai_api_key)
+    if client is None:
+        return {}
     try:
-        import anthropic
-        client = anthropic.Anthropic(api_key=api_key)
         text = f"Title: {title}\n\n{body[:2000]}"
-        response = client.messages.create(
-            model="claude-haiku-4-5-20251001",
-            max_tokens=512,
-            system=_ENRICHMENT_SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": text}],
-        )
-        raw = response.content[0].text.strip()
+        if provider == "anthropic":
+            response = client.messages.create(
+                model="claude-haiku-4-5-20251001",
+                max_tokens=512,
+                system=_ENRICHMENT_SYSTEM_PROMPT,
+                messages=[{"role": "user", "content": text}],
+            )
+            raw = response.content[0].text.strip()
+        else:
+            response = client.chat.completions.create(
+                model="gpt-4o-mini",
+                max_tokens=512,
+                messages=[
+                    {"role": "system", "content": _ENRICHMENT_SYSTEM_PROMPT},
+                    {"role": "user", "content": text},
+                ],
+            )
+            raw = response.choices[0].message.content.strip()
         # Strip markdown code fences if present
         if raw.startswith("```"):
             raw = raw.split("```")[1]
@@ -100,14 +159,52 @@ def _enrich_post(title: str, body: str, api_key: str) -> dict:
         return {}
 
 
-def _get_json(url: str, params: dict | None = None, retries: int = 3) -> dict | None:
+def _fetch_oauth_token(client_id: str, client_secret: str, username: str, password: str) -> str | None:
+    """Obtain a Reddit OAuth2 bearer token via password grant (script apps only)."""
+    import base64
+    credentials = base64.b64encode(f"{client_id}:{client_secret}".encode()).decode()
+    data = urllib.parse.urlencode({
+        "grant_type": "password",
+        "username": username,
+        "password": password,
+    }).encode()
+    req = urllib.request.Request(
+        TOKEN_URL,
+        data=data,
+        headers={
+            "Authorization": f"Basic {credentials}",
+            "User-Agent": USER_AGENT,
+            "Content-Type": "application/x-www-form-urlencoded",
+        },
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            result = json.loads(resp.read())
+            token = result.get("access_token")
+            if token:
+                logger.info("Reddit OAuth token obtained — authenticated mode active.")
+            else:
+                logger.warning("Reddit OAuth response missing access_token: %s", result)
+            return token
+    except Exception as exc:
+        logger.warning("Failed to obtain Reddit OAuth token: %s", exc)
+        return None
+
+
+def _get_json(
+    url: str,
+    params: dict | None = None,
+    retries: int = 3,
+    extra_headers: dict | None = None,
+) -> dict | None:
     """Fetch a Reddit JSON endpoint, respecting rate limits."""
     if params:
         query = "&".join(f"{k}={urllib.parse.quote(str(v))}" for k, v in params.items())
         url = f"{url}?{query}"
 
+    headers = {**HEADERS, **(extra_headers or {})}
     for attempt in range(1, retries + 1):
-        req = urllib.request.Request(url, headers=HEADERS)
+        req = urllib.request.Request(url, headers=headers)
         try:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 return json.loads(resp.read())
@@ -145,8 +242,9 @@ class RedditConnector(BaseConnector):
 
     service_name = "Reddit"
     service_description = (
-        "Import posts and comments from Reddit subreddits for product discovery and community intelligence — "
-        "no API key required. Configure target subreddits and search keywords in config.py."
+        "Import posts and comments from Reddit subreddits for product discovery and community intelligence. "
+        "Works unauthenticated (public API) or with a Reddit script app (higher rate limits). "
+        "Configure target subreddits and search keywords in config.py."
     )
     requires_oauth = False
 
@@ -156,8 +254,13 @@ class RedditConnector(BaseConnector):
         self._max_pages: int = 1
         self._fetch_comments: bool = True
         self._enrich_posts: bool = True
-        self._anthropic_api_key: str | None = None
         self._max_post_age_days: int = 1095  # ~3 years
+        # Auth state (set by authenticate())
+        self._auth_headers: dict[str, str] = {}
+        self._request_delay: float = REQUEST_DELAY_UNAUTHED
+        self._comment_delay: float = COMMENT_DELAY_UNAUTHED
+        self._anthropic_api_key: str | None = None
+        self._openai_api_key: str | None = None
 
     # ------------------------------------------------------------------
     # BaseConnector interface
@@ -171,7 +274,7 @@ class RedditConnector(BaseConnector):
                 "secret": False,
                 "optional": True,
                 "description": (
-                    f"Defaults: {', '.join(REDDIT_DEFAULT_SUBREDDITS[:4])}, …  "
+                    f"Defaults: {', '.join(REDDIT_DEFAULT_SUBREDDITS[:4])}  "
                     "Override by listing subreddits without the r/ prefix."
                 ),
             },
@@ -181,13 +284,13 @@ class RedditConnector(BaseConnector):
                 "secret": False,
                 "optional": True,
                 "description": (
-                    f"Defaults: {', '.join(REDDIT_DEFAULT_KEYWORDS[:4])}, …  "
+                    f"Defaults: {', '.join(REDDIT_DEFAULT_KEYWORDS)}  "
                     "Posts matching any keyword in any target subreddit are imported."
                 ),
             },
             {
                 "name": "max_pages",
-                "prompt": "Max pages per keyword/subreddit combination (default: 1, max 100 posts/page):",
+                "prompt": "Max pages per keyword/subreddit combination (default: 1, ~100 posts/page):",
                 "secret": False,
                 "optional": True,
                 "description": "1 page ≈ 100 posts. Increase for deeper historical data.",
@@ -197,23 +300,59 @@ class RedditConnector(BaseConnector):
                 "prompt": "Fetch post comments? (yes/no, default: yes):",
                 "secret": False,
                 "optional": True,
-                "description": "Fetching comments makes the import slower (~3s extra per post).",
+                "description": "Fetching comments makes the import slower (extra delay per post).",
             },
             {
                 "name": "enrich_posts",
                 "prompt": "Enrich posts with LLM extraction of pain points, use cases, and topics? (yes/no, default: yes):",
                 "secret": False,
                 "optional": True,
-                "description": "Uses ANTHROPIC_API_KEY and claude-haiku to extract PainPoint, UseCase, Topic, and Technology entities from each post.",
+                "description": (
+                    "Uses the configured LLM provider (Anthropic or OpenAI) to extract "
+                    "PainPoint, UseCase, Topic, and Technology entities from each post."
+                ),
+            },
+            # Optional Reddit OAuth credentials (script app)
+            {
+                "name": "client_id",
+                "prompt": "Reddit app client_id (optional — leave blank for unauthenticated access):",
+                "secret": False,
+                "optional": True,
+                "description": (
+                    "Create a script app at https://www.reddit.com/prefs/apps. "
+                    "Authenticated requests allow ~60 req/min vs 10 req/min unauthenticated."
+                ),
+            },
+            {
+                "name": "client_secret",
+                "prompt": "Reddit app client_secret (optional):",
+                "secret": True,
+                "optional": True,
+                "description": "Secret shown under your Reddit script app.",
+            },
+            {
+                "name": "reddit_username",
+                "prompt": "Reddit username (optional — required with client_id):",
+                "secret": False,
+                "optional": True,
+                "description": "Your Reddit account username (without u/).",
+            },
+            {
+                "name": "reddit_password",
+                "prompt": "Reddit password (optional — required with client_id):",
+                "secret": True,
+                "optional": True,
+                "description": "Your Reddit account password.",
             },
         ]
 
     def authenticate(self, credentials: dict[str, str]) -> None:
-        """Store scrape configuration. No authentication token is needed."""
+        """Store scrape configuration and optionally obtain a Reddit OAuth token."""
         raw_subs = (credentials.get("subreddits") or "").strip()
         raw_kws = (credentials.get("keywords") or "").strip()
         raw_pages = (credentials.get("max_pages") or "").strip()
         raw_comments = (credentials.get("fetch_comments") or "yes").strip().lower()
+        raw_enrich = (credentials.get("enrich_posts") or "yes").strip().lower()
 
         self._subreddits = (
             [s.strip() for s in raw_subs.split(",") if s.strip()]
@@ -225,12 +364,39 @@ class RedditConnector(BaseConnector):
         )
         self._max_pages = max(1, int(raw_pages)) if raw_pages.isdigit() else 1
         self._fetch_comments = raw_comments not in ("no", "false", "0", "n")
-        raw_enrich = (credentials.get("enrich_posts") or "yes").strip().lower()
         self._enrich_posts = raw_enrich not in ("no", "false", "0", "n")
-        self._anthropic_api_key: str | None = (
+
+        # LLM keys — injected by cli.py or read from environment
+        self._anthropic_api_key = (
             credentials.get("anthropic_api_key")
             or os.environ.get("ANTHROPIC_API_KEY")
         )
+        self._openai_api_key = (
+            credentials.get("openai_api_key")
+            or os.environ.get("OPENAI_API_KEY")
+        )
+
+        # Reddit OAuth — optional, enables higher rate limits
+        client_id = (credentials.get("client_id") or "").strip()
+        client_secret = (credentials.get("client_secret") or "").strip()
+        reddit_username = (credentials.get("reddit_username") or "").strip()
+        reddit_password = (credentials.get("reddit_password") or "").strip()
+
+        if client_id and client_secret and reddit_username and reddit_password:
+            token = _fetch_oauth_token(client_id, client_secret, reddit_username, reddit_password)
+            if token:
+                self._auth_headers = {"Authorization": f"bearer {token}"}
+                self._request_delay = REQUEST_DELAY_AUTHED
+                self._comment_delay = COMMENT_DELAY_AUTHED
+            else:
+                logger.warning("Reddit auth failed — falling back to unauthenticated access.")
+                self._auth_headers = {}
+                self._request_delay = REQUEST_DELAY_UNAUTHED
+                self._comment_delay = COMMENT_DELAY_UNAUTHED
+        else:
+            self._auth_headers = {}
+            self._request_delay = REQUEST_DELAY_UNAUTHED
+            self._comment_delay = COMMENT_DELAY_UNAUTHED
 
         logger.info(
             "Reddit connector configured: %d subreddits, %d keywords, "
@@ -244,21 +410,27 @@ class RedditConnector(BaseConnector):
     def fetch(self, **kwargs: Any) -> NormalizedData:
         """Scrape configured subreddits and return normalised data.
 
-        Entity labels used (matches the graph-data-community domain):
-          Person      — Reddit authors
-          Subreddit   — communities
+        Entity labels produced:
+          Person      — Reddit authors (aligned with _base.yaml Person type)
+          Subreddit   — communities (ORGANIZATION pole_type)
           Post        — Reddit posts
           Comment     — post comments
-          Technology  — tech/product entities detected in post text
-          Topic       — subject tags extracted from flair / title keywords
+          Technology  — products/tools detected in post text
+          Topic       — subject tags from flair and LLM extraction
           PainPoint   — problems/frustrations extracted via LLM enrichment
           UseCase     — applications/patterns extracted via LLM enrichment
         """
-        anthropic_api_key = self._anthropic_api_key if self._enrich_posts else None
-        if self._enrich_posts and anthropic_api_key:
-            logger.info("LLM enrichment enabled — PainPoints, UseCases, Technologies, and Topics will be extracted.")
-        elif self._enrich_posts and not anthropic_api_key:
-            logger.warning("enrich_posts=yes but no Anthropic API key found — skipping LLM enrichment.")
+        # Determine base URL — OAuth uses a different host
+        base = OAUTH_URL if self._auth_headers else BASE_URL
+        authed = bool(self._auth_headers)
+
+        # LLM enrichment setup — Anthropic first, OpenAI fallback (mirrors generator.py)
+        do_enrich = self._enrich_posts and (self._anthropic_api_key or self._openai_api_key)
+        if self._enrich_posts and do_enrich:
+            provider = "Anthropic" if self._anthropic_api_key else "OpenAI"
+            logger.info("LLM enrichment enabled via %s — PainPoints, UseCases, Technologies, Topics.", provider)
+        elif self._enrich_posts and not do_enrich:
+            logger.warning("enrich_posts=yes but no LLM API key found — skipping enrichment.")
         else:
             logger.info("LLM enrichment disabled.")
 
@@ -312,7 +484,7 @@ class RedditConnector(BaseConnector):
                 seen_techs.add(name)
                 entities["Technology"].append({
                     "name": name,
-                    "description": "Technology/product mentioned in community posts",
+                    "description": f"Technology/product mentioned in community posts",
                 })
 
         def _ensure_topic(name: str) -> None:
@@ -320,7 +492,7 @@ class RedditConnector(BaseConnector):
                 seen_topics.add(name)
                 entities["Topic"].append({
                     "name": name,
-                    "description": "Discussion topic found in r/ communities",
+                    "description": f"Discussion topic found in r/ communities",
                 })
 
         # Pre-populate Product/Technology nodes directly from the keyword list.
@@ -347,15 +519,15 @@ class RedditConnector(BaseConnector):
                     "t": "all",
                     "raw_json": 1,
                 }
-                url = f"{BASE_URL}/r/{sub_key}/search.json"
+                url = f"{base}/r/{sub_key}/search.json"
                 after: str | None = None
                 page = 0
 
                 while page < self._max_pages:
                     if after:
                         params["after"] = after
-                    time.sleep(REQUEST_DELAY)
-                    data = _get_json(url, params=params)
+                    time.sleep(self._request_delay)
+                    data = _get_json(url, params=params, extra_headers=self._auth_headers)
                     if not data or not isinstance(data, dict):
                         break
 
@@ -489,8 +661,8 @@ class RedditConnector(BaseConnector):
                             })
 
                         # LLM enrichment — PainPoints, UseCases, Topics, Technologies
-                        if anthropic_api_key:
-                            enriched = _enrich_post(title, body, anthropic_api_key)
+                        if do_enrich:
+                            enriched = _enrich_post(title, body, self._anthropic_api_key, self._openai_api_key)
                             post_name = f"{pid}: {title[:80]}"
 
                             for pp in enriched.get("pain_points", []):
@@ -502,7 +674,7 @@ class RedditConnector(BaseConnector):
                                             "name": pp,
                                             "description": pp,
                                             "frequency": 1,
-                                    })
+                                        })
                                     relationships.append({
                                         "type": "HAS_PAIN_POINT",
                                         "source_name": post_name,
@@ -521,13 +693,13 @@ class RedditConnector(BaseConnector):
                                             "description": uc,
                                             "frequency": 1,
                                         })
-                                        relationships.append({
+                                    relationships.append({
                                         "type": "DEMONSTRATES",
                                         "source_name": post_name,
                                         "source_label": "Post",
                                         "target_name": uc,
                                         "target_label": "UseCase",
-                                        })
+                                    })
 
                             for topic in enriched.get("topics", []):
                                 topic = topic.strip()
@@ -627,7 +799,7 @@ class RedditConnector(BaseConnector):
                     page += 1
 
             if sub_idx < len(self._subreddits):
-                time.sleep(REQUEST_DELAY)
+                time.sleep(self._request_delay)
 
         total_entities = sum(len(v) for v in entities.values())
         logger.info(
@@ -646,9 +818,10 @@ class RedditConnector(BaseConnector):
 
     def _fetch_post_comments(self, post_id: str, subreddit: str, max_comments: int = 50) -> list[dict]:
         """Fetch top-level comments for a single post."""
-        url = f"{BASE_URL}/r/{subreddit}/comments/{post_id}.json?raw_json=1"
-        time.sleep(COMMENT_DELAY)
-        data = _get_json(url)
+        base = OAUTH_URL if self._auth_headers else BASE_URL
+        url = f"{base}/r/{subreddit}/comments/{post_id}.json?raw_json=1"
+        time.sleep(self._comment_delay)
+        data = _get_json(url, extra_headers=self._auth_headers)
         if not data or not isinstance(data, list) or len(data) < 2:
             return []
 
