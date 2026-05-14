@@ -410,7 +410,7 @@ class RedditConnector(BaseConnector):
     def fetch(self, **kwargs: Any) -> NormalizedData:
         """Scrape configured subreddits and return normalised data.
 
-        Entity labels produced:
+        Entity labels produced (matches the product-discovery domain):
           Person      — Reddit authors (aligned with _base.yaml Person type)
           Subreddit   — communities (ORGANIZATION pole_type)
           Post        — Reddit posts

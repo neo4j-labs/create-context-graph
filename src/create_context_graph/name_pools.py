@@ -961,6 +961,10 @@ DOMAIN_INDUSTRY_POOL: dict[str, list[str]] = {
         "Options Trading", "Derivatives Analysis", "Market Microstructure",
         "Volatility Research", "Dealer Positioning", "Gamma Exposure Analytics",
     ],
+    "product-discovery": [
+        "Developer Tools", "SaaS", "Consumer Apps",
+        "Open Source", "Product Analytics", "Community Intelligence",
+    ],
 }
 
 _CURRENCY_POOL = ["USD", "EUR", "GBP", "JPY", "CAD", "AUD", "CHF", "CNY", "INR", "BRL"]

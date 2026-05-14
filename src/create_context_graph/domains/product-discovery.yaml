@@ -89,7 +89,7 @@ entity_types:
   - label: Subreddit
     pole_type: ORGANIZATION
     subtype: ONLINE_COMMUNITY
-    color: "#f97316"
+    color: "#fb923c"
     icon: users
     properties:
       - name: name
@@ -569,7 +569,7 @@ visualization:
   node_colors:
     Post: "#ff4500"
     Comment: "#ff6534"
-    Subreddit: "#f97316"
+    Subreddit: "#fb923c"
     Person: "#22c55e"
     Technology: "#0ea5e9"
     Topic: "#8b5cf6"
