@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.11.2 — Matrix + perf test fix (2026-05-19)
+
+### Bug Fixes
+
+- **Full matrix + performance test suites broken on CI.** `test_matrix.py` (184 combos) and `test_performance.py` (23 domains) defined their own local `runner = CliRunner()` fixtures that bypassed the auto-`--self-hosted` shim added to `test_cli.py` in v0.11.0. With NAMS as the new default, every matrix/perf invocation hit the "NAMS API key required for non-interactive mode" guard and failed. 207 of 1,398 slow-suite tests failed on the v0.11.1 tag.
+- **Fix:** moved `_AutoSelfHostedRunner` and the `runner` / `nams_runner` fixtures to `tests/conftest.py` so every test file inherits the auto-self-hosted behavior. Removed the now-duplicate fixtures from `test_cli.py`, `test_matrix.py`, and `test_performance.py`.
+- **Verified:** full slow suite passes — 1,391 tests + 9 skipped, no failures.
+
 ## v0.11.1 — Wizard framework-prompt fix (2026-05-19)
 
 ### Bug Fixes

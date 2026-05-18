@@ -17,47 +17,12 @@
 import json
 
 import pytest
-from click.testing import CliRunner
 
 from create_context_graph.cli import main
 
 
-class _AutoSelfHostedRunner(CliRunner):
-    """CliRunner that auto-injects ``--self-hosted`` when no backend was chosen.
-
-    Existing CLI tests were written for the bolt-Neo4j default. The v0.11
-    default flipped to NAMS (which requires an API key). To avoid rewriting
-    every test, this runner adds ``--self-hosted`` to invocations that didn't
-    explicitly opt into either backend.
-    """
-
-    _BACKEND_MARKERS = (
-        "--self-hosted",
-        "--nams-api-key",
-        "--neo4j-uri",
-        "--neo4j-aura-env",
-        "--neo4j-local",
-    )
-
-    def invoke(self, cli, args=None, *a, **kw):  # type: ignore[override]
-        if isinstance(args, list):
-            joined = " ".join(args)
-            if not any(marker in joined for marker in self._BACKEND_MARKERS):
-                # Skip backend injection for utility commands like --list-domains.
-                if "--list-domains" not in args and "--version" not in args:
-                    args = list(args) + ["--self-hosted"]
-        return super().invoke(cli, args, *a, **kw)
-
-
-@pytest.fixture
-def runner():
-    return _AutoSelfHostedRunner()
-
-
-@pytest.fixture
-def nams_runner():
-    """Bare CliRunner without the auto-self-hosted shim — for NAMS-path tests."""
-    return CliRunner()
+# The ``runner`` and ``nams_runner`` fixtures live in tests/conftest.py so they
+# can be shared with test_matrix.py, test_performance.py, and others.
 
 
 class TestListDomains:

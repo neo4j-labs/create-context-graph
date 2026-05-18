@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "create-context-graph"
-version = "0.11.1"
+version = "0.11.2"
 description = "Interactive CLI scaffolding tool for domain-specific context graph applications"
 readme = "README.md"
 license = "Apache-2.0"
