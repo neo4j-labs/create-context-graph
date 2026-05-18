@@ -215,6 +215,66 @@ class TestSelfHostedPath:
         assert cfg.neo4j_password == "secret123"
 
 
+class TestQuestionaryConstruction:
+    """Regression tests that exercise the real questionary.select construction.
+
+    These guard against bugs where a ``default=`` argument doesn't match any
+    choice's ``Choice.title`` (or value, depending on questionary version) — a
+    failure mode the heavily-mocked wizard tests above can't catch because they
+    replace ``questionary.select`` entirely.
+    """
+
+    def test_framework_prompt_constructs_cleanly(self, monkeypatch):
+        """Building ``questionary.select`` for the framework picker must not
+        raise on default-value validation."""
+        import questionary
+
+        from create_context_graph.wizard import _prompt_framework
+
+        # Capture the call but let the real questionary build the object.
+        # If a default value is wrong, the .select() constructor raises here
+        # before .ask() is ever called.
+        called_with = {}
+        real_select = questionary.select
+
+        def capturing_select(*args, **kwargs):
+            called_with["args"] = args
+            called_with["kwargs"] = kwargs
+            obj = real_select(*args, **kwargs)
+            obj.ask = MagicMock(return_value="strands")
+            return obj
+
+        monkeypatch.setattr(
+            "create_context_graph.wizard.questionary.select", capturing_select
+        )
+
+        result = _prompt_framework()
+        assert result == "strands"
+        # The first choice should be the default framework so the row is highlighted
+        # on entry without needing a fragile ``default=`` lookup.
+        choices = called_with["kwargs"]["choices"]
+        assert choices[0].value == "strands"
+
+    def test_session_strategy_prompt_constructs_cleanly(self, monkeypatch):
+        import questionary
+
+        from create_context_graph.wizard import _prompt_session_strategy
+
+        real_select = questionary.select
+
+        def capturing_select(*args, **kwargs):
+            obj = real_select(*args, **kwargs)
+            obj.ask = MagicMock(return_value="per_conversation")
+            return obj
+
+        monkeypatch.setattr(
+            "create_context_graph.wizard.questionary.select", capturing_select
+        )
+
+        # If session-strategy ever gets a broken default=, this raises.
+        assert _prompt_session_strategy() == "per_conversation"
+
+
 class TestEdgeCases:
     def test_aborts_when_user_cancels_proceed(self, monkeypatch):
         script = _Scripted(

@@ -209,17 +209,21 @@ def _run_custom_domain_flow() -> tuple[str, str, str]:
 
 
 def _prompt_framework() -> str:
-    choices = [
-        questionary.Choice(FRAMEWORK_DISPLAY_NAMES[fw], value=fw)
-        for fw in SUPPORTED_FRAMEWORKS
+    # Build choices with DEFAULT_FRAMEWORK first so its row is highlighted on entry.
+    # ``questionary.select`` highlights the first choice by default; passing a
+    # ``default=`` argument requires it to match a choice's ``Choice.title`` (a
+    # FormattedText / str) — not the internal ``value``. We rely on row order
+    # rather than ``default=`` to avoid that fragile coupling.
+    ordered = [DEFAULT_FRAMEWORK] + [
+        fw for fw in SUPPORTED_FRAMEWORKS if fw != DEFAULT_FRAMEWORK
     ]
-    # Reorder so DEFAULT_FRAMEWORK is at the top.
-    choices.sort(key=lambda c: 0 if c.value == DEFAULT_FRAMEWORK else 1)
+    choices = [
+        questionary.Choice(FRAMEWORK_DISPLAY_NAMES[fw], value=fw) for fw in ordered
+    ]
     return _ask_or_abort(
         questionary.select(
             "Agent framework?",
             choices=choices,
-            default=FRAMEWORK_DISPLAY_NAMES[DEFAULT_FRAMEWORK],
         ).ask(),
         "framework",
     )
