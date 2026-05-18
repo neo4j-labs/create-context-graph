@@ -1,5 +1,11 @@
 # Changelog
 
+## v0.11.1 — Wizard framework-prompt fix (2026-05-19)
+
+### Bug Fixes
+
+- **Interactive wizard crashed at the framework prompt** with `ValueError: Invalid 'default' value passed. The value ('Strands') does not exist in the set of choices.` — `questionary.select(default=...)` validates the default against `Choice.title`, not `Choice.value`. The wizard was passing the display label (`"Strands"`) but choices used the framework key (`"strands"`) as their value. Fixed by removing the `default=` argument entirely and reordering the choices list so `DEFAULT_FRAMEWORK` is first (questionary highlights the first row on entry). Regression test `TestQuestionaryConstruction` added to `tests/test_wizard.py` — exercises the real `questionary.select` constructor (only `.ask` is stubbed) so any bad `default=` argument fails at construction time. Total test count: 1,177 → 1,179.
+
 ## v0.11.0 — NAMS by Default + LiteLLM Provider Injection (2026-05-19)
 
 ### Breaking Changes
