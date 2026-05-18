@@ -1,6 +1,6 @@
 {
   "name": "create-context-graph",
-  "version": "0.9.5",
+  "version": "0.10.0",
   "description": "Interactive CLI scaffolding tool for domain-specific context graph applications with Neo4j",
   "bin": {
     "create-context-graph": "./bin/create-context-graph"

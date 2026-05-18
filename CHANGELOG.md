@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.10.0 — Local-File Document Connector (2026-05-18)
+
+### New Connector
+- **local-file connector** — Deterministic ingestion of local Markdown, PDF, HTML, AsciiDoc, and Word documents into `:Document` → `:Section` hierarchies, with `LINKS_TO` edges between sections and documents. No LLMs, no embeddings, no randomness. URI-keyed nodes integrate with the existing MERGE-on-`(name, domain)` pipeline without changes to `ingest.py`. Section URIs use GitHub/Pandoc slug rules (NFKD-normalize, ASCII-lower, `[a-z0-9_]` runs collapse to `-`); duplicate-heading collisions disambiguate per-parent (`-1`, `-2`, …); skipped heading levels (e.g. H1 → H3) preserve the original level on the child node rather than synthesizing intermediate H2s. Parser strategy per format: markdown-it-py with GFM extensions (Markdown); three-tier fallback pypdf outline → `/StructTreeRoot` → pdfplumber font-size heuristic (PDF); BeautifulSoup + lxml (HTML); pure-Python regex with block-delimiter state tracking (AsciiDoc); python-docx (Word). Adds 8 optional dependencies to the `connectors` extra: `markdown-it-py`, `mdit-py-plugins`, `pdf-oxide`, `pypdf`, `pdfplumber`, `beautifulsoup4`, `lxml`, `python-docx`. Implementation in `connectors/local_file_connector.py` and `connectors/_local_file/` subpackage (parser, mapper, slug, link-resolver). 1,721-line `test_local_file_connector.py` plus `test_local_file_vault.py` functional test (`make test-functional`) round-trips a 14-file fixture vault.
+
+### Bug Fixes
+- **`reset_database()` connection lifecycle** — Generated `context_graph_client.py` previously assumed a driver was already open. It now opens its own driver when `_driver` is `None` and closes it via `try/finally`, preserving any pre-existing connection. `TestResetDatabase` regression coverage added in `tests/test_generated_project.py`.
+
+### Tests
+- 1,102 passing fast tests (1,321 collected including slow/integration/functional).
+
 ## v0.9.5 — Options Intelligence Domain & GitHub Connector Enhancements (2026-04-29)
 
 ### New Domain
