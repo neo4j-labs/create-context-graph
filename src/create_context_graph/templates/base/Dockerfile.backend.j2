@@ -11,7 +11,9 @@ COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
 # Copy dependency files first for better layer caching
 COPY pyproject.toml ./
 RUN uv sync --no-dev --no-install-project
+{% if not is_nams %}
 RUN uv run python -m spacy download en_core_web_sm
+{% endif %}
 
 # Copy application code
 COPY . .

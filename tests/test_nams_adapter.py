@@ -354,6 +354,39 @@ class TestBoltRenderedTemplates:
         # Must be guarded by an import check so it doesn't crash when extras are missing
         assert 'python -c "import spacy"' in install_block
 
+    def test_dockerfile_skips_spacy_download_on_nams(self, tmp_path):
+        """NAMS Dockerfiles must not include a spacy model download.
+
+        Regression: v0.11.2 fixed the Makefile but missed Dockerfile.backend.
+        """
+        cfg = ProjectConfig(
+            project_name="NAMS Docker Test",
+            domain="financial-services",
+            framework="strands",
+            nams_api_key="test-key-123",
+        )
+        out = tmp_path / "nams-docker"
+        out.mkdir()
+        ProjectRenderer(cfg, load_domain(cfg.domain)).render(out)
+        dockerfile = (out / "Dockerfile.backend").read_text()
+        assert "spacy download" not in dockerfile, (
+            "NAMS Dockerfiles must not run spacy download — spacy isn't installed"
+        )
+
+    def test_dockerfile_includes_spacy_download_on_bolt(self, tmp_path):
+        """Bolt Dockerfiles still pre-fetch the spacy model for entity extraction."""
+        cfg = ProjectConfig(
+            project_name="Bolt Docker Test",
+            domain="financial-services",
+            framework="pydanticai",
+            memory_backend="bolt",
+        )
+        out = tmp_path / "bolt-docker"
+        out.mkdir()
+        ProjectRenderer(cfg, load_domain(cfg.domain)).render(out)
+        dockerfile = (out / "Dockerfile.backend").read_text()
+        assert "spacy download en_core_web_sm" in dockerfile
+
     def test_env_has_neo4j_lines_on_bolt(self, tmp_path):
         cfg = ProjectConfig(
             project_name="Bolt Test",
