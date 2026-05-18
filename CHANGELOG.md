@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.11.4 — Generated `[dev]` extras + pre-release smoke-render target (2026-05-19)
+
+### Bug Fixes
+
+- **`make test` in generated projects crashed** with `No module named pytest`. The generated `pyproject.toml` didn't declare pytest or httpx anywhere, so `uv sync` never installed them — the generated `tests/test_routes.py` scaffold couldn't run.
+- **Fix:** added `[project.optional-dependencies] dev = ["pytest>=8.0", "httpx>=0.27"]` to `pyproject.toml.j2`, and changed the generated Makefile's `install-backend` target from `uv sync` → `uv sync --extra dev`. Generated projects can now run `make test` out of the box.
+
+### New Tooling
+
+- **Root `make smoke-render` target** — full scaffold → install → import-check → run-generated-tests sweep for both backends, in `<1 min`, no Neo4j / NAMS / LLM keys required. Catches the class of breakage the mocked unit suite can't see:
+  - dep-resolution failures (`uv sync` conflicts)
+  - install-time crashes (e.g. spacy download on NAMS — fixed in 0.11.3)
+  - import-time failures in generated `app.main` (e.g. questionary default validation — fixed in 0.11.1)
+  - generated test-scaffold regressions (e.g. missing pytest — fixed here)
+- Sub-targets `make smoke-render-nams` and `make smoke-render-bolt` for per-backend runs. `make smoke-render-clean` removes the scratch directory (`/tmp/ccg-smoke-render` by default).
+- Both targets verified passing locally:
+  - NAMS: render → install (no spacy) → import-check → 2 generated tests pass
+  - Bolt: render → install (with guarded spacy download) → import-check → 2 generated tests pass
+
+### Process Note
+
+The string of patch releases (0.11.1 → 0.11.4) all surfaced from running the actual product end-to-end after release. Each fix was a class of issue the mocked unit suite couldn't catch by design. `make smoke-render` is the durable answer — run it before tagging.
+
 ## v0.11.3 — Generated Makefile spacy-download fix (2026-05-19)
 
 ### Bug Fixes
