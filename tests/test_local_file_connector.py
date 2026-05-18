@@ -1441,7 +1441,7 @@ class TestFileMetadataFromStat:
         assert doc.file_size > 0
 
     def test_created_at_is_datetime(self, tmp_path):
-        from datetime import datetime, timezone
+        from datetime import datetime
         f = tmp_path / "guide.md"
         f.write_text("# Title\n")
         doc = parse_file(f)
@@ -1449,7 +1449,7 @@ class TestFileMetadataFromStat:
         assert doc.created_at.tzinfo is not None
 
     def test_modified_at_is_datetime(self, tmp_path):
-        from datetime import datetime, timezone
+        from datetime import datetime
         f = tmp_path / "guide.md"
         f.write_text("# Title\n")
         doc = parse_file(f)
@@ -1632,7 +1632,6 @@ class TestDocumentMapperMetadata:
         )
 
     def test_created_at_and_modified_at_stored(self):
-        from datetime import datetime, timezone
         from create_context_graph.connectors._local_file.mapper import DocumentMapper
         mapper = DocumentMapper()
         doc = self._make_doc()
