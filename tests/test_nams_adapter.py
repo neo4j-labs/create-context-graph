@@ -198,8 +198,11 @@ class TestNamsRenderedTemplates:
         # All five categories are reachable
         for category in ("auth", "rate_limit", "network", "config", "unknown"):
             assert f'"{category}"' in mem, f"missing {category} branch"
-        # User-facing guidance for the most common failure mode
-        assert "memory.neo4jlabs.com" in mem
+        # User-facing guidance for the most common failure mode.
+        # Assert the full URL (scheme included) rather than the bare host —
+        # avoids CodeQL py/incomplete-url-substring-sanitization (test-only,
+        # but matches the safe pattern at line 153).
+        assert "https://memory.neo4jlabs.com" in mem
 
     def test_health_endpoint_reports_nams_error_detail(self, tmp_path):
         out, _ = self._render(tmp_path)
@@ -309,8 +312,10 @@ class TestNamsRenderedTemplates:
         out.mkdir()
         ProjectRenderer(cfg, load_domain(cfg.domain)).render(out)
         readme = (out / "README.md").read_text()
-        # No NAMS dashboard, no limitations table, no nams_error diagnostics
-        assert "memory.neo4jlabs.com" not in readme
+        # No NAMS dashboard, no limitations table, no nams_error diagnostics.
+        # Full-URL form mirrors the safe pattern used elsewhere in this file
+        # (CodeQL py/incomplete-url-substring-sanitization).
+        assert "https://memory.neo4jlabs.com" not in readme
         assert "Memory backend: NAMS" not in readme
         assert "nams_error" not in readme
 
