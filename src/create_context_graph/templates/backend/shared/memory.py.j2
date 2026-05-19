@@ -72,7 +72,7 @@ def _classify_memory_error(exc: BaseException) -> tuple[str, str]:
     if isinstance(exc, (ConnectionError, TimeoutError)):
         return "network", type(exc).__name__
     # OSError covers socket.gaierror and friends without importing socket.
-    if isinstance(exc, OSError) and not isinstance(exc, RuntimeError):
+    if isinstance(exc, OSError):
         return "network", type(exc).__name__
 
     # Fall back to scanning the message and exception class name.

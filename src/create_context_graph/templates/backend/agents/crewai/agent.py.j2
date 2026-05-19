@@ -241,6 +241,7 @@ async def handle_message_stream(message: str, session_id: str | None = None) -> 
         response_text = "The request timed out after 60 seconds. Please try a simpler question or try again."
     except Exception as e:
         logger.error("CrewAI streaming error: %s", e, exc_info=True)
+        response_text = "".join(full_text_parts).strip()
         if not response_text:
             response_text = f"An error occurred: {e}"
     finally:
