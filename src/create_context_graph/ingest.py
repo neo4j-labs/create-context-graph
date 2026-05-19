@@ -250,8 +250,8 @@ async def run_nams_ingest(
     for label, items in entities.items():
         pole_type = _get_pole_type(label, ontology)
         body_field = body_fields.get(label)
-        for item in items:
-            name = item.get("name") or f"{label}-{counts['entities']}"
+        for entity_index, item in enumerate(items):
+            name = item.get("name") or f"{label}-{entity_index}"
             base = _serialize_entity_to_description(item, label, pole_type)
             description = _description_with_edges(base, relationships, name)
             if description is not base:
