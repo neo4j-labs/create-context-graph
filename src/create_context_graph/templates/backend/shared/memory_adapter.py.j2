@@ -227,8 +227,8 @@ def _document_record_from_entity(entity: Any) -> dict[str, Any] | None:
     # Strip the ccg-edges YAML block and the trailing _pole_type: marker
     # before returning a clean preview.
     content = description
-    if "```ccg-edges" in content:
-        content = content.split("```ccg-edges", 1)[0].rstrip()
+    if CCG_EDGES_OPEN in content:
+        content = content.split(CCG_EDGES_OPEN, 1)[0].rstrip()
     if "_pole_type:" in content:
         content = content.rsplit("_pole_type:", 1)[0].rstrip()
     if not content.strip():
