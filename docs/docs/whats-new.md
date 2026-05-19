@@ -7,7 +7,38 @@ title: "What's New"
 
 Recent additions and changes to create-context-graph and its documentation.
 
-## v0.11.3 (Current) — Streaming for CrewAI/Strands + NAMS hardening
+## v0.12.0 (Current) — NAMS-native connector ingest + `ccg-edges` relationship encoding
+
+This release closes the loop on running SaaS connectors against the NAMS-default scaffold. Previously, `make import` in a NAMS project went through the bolt-Cypher fallback and effectively didn't work; now both the CLI demo-fixture seeder and the generated `import_data.py` share a NAMS-native write shape, pinned by a contract test.
+
+### New Features
+
+- **`ccg-edges` encoding for relationships on NAMS.** NAMS REST has no `add_relationship` endpoint yet, so outbound edges from each entity are encoded into the source entity's `description` as a fenced ```ccg-edges``` YAML block. The frontend parses these out and renders edges in the graph view; the agent reads them as part of the description. When NAMS adds `add_relationship`, a one-shot migration replays the blocks as native edges — `_build_ccg_edges_block()` is the seam.
+- **Dual-tracked documents on NAMS.** Documents now land as both `long_term.add_entity(type=OBJECT)` (queryable source of truth — matches the bolt `:Document` shape) and `short_term.add_message(role="document")` (extraction fuel). The `/documents` route reads from long-term entities; preview content strips the `ccg-edges` and `_pole_type:` markers.
+- **Per-connector `BODY_FIELDS` mapping.** Each connector declares which entity-type → property carries the prose body; that body is also fed through `add_message` so the NAMS extractor sees comment bodies, issue descriptions, section text, etc. Pure-metadata entities opt out by omission.
+- **Idempotent connector imports.** Generated `import_data.py` tracks per-connector watermarks in `.context-graph/watermarks.json` so re-runs only fetch deltas. Failures go to `.context-graph/deadletter.jsonl` and the watermark only advances on a clean run. New `make import-dry-run` and `make import-retry` targets. `make import` is now both fetch + ingest in one idempotent step on either backend.
+- **`run_nams_ingest()` extracted as a reusable async function** in `ingest.py`. Both the CLI Rich-progress path and the generated `import_data.py` drive the same call sequence, pinned by `tests/test_nams_ingest_parity.py`.
+
+### Breaking Changes
+
+- **`make import-and-seed` removed** — `make import` now fetches AND ingests in one step on both backends.
+- **`/documents?template_id=...` returns HTTP 501 on NAMS** — template filtering relied on `MENTIONS` edges that NAMS doesn't have. Un-filtered `GET /documents` works on both backends.
+
+### Bug Fixes
+
+- `ingest_data()` legacy bolt signature `(neo4j_uri, neo4j_username, neo4j_password)` restored — v0.11.0 had broken library callers by switching to `ProjectConfig`-only.
+- Cypher identifier injection guards on the bolt fallback (`_require_safe_cypher_identifier`) — relationship types and labels are validated against `[A-Za-z_][A-Za-z0-9_]*` before string-interpolation.
+- Labeled `MATCH` on bolt relationship ingest — previously falling back to label-less `MATCH (a {name: $name})` which could silently mis-merge across labels.
+- Deadletter retry on partial-failure imports — failed records are kept for inspection rather than dropped, and `make import-retry` replays them.
+
+### New Documentation
+
+- [Memory Backends](/docs/explanation/memory-backends) — replaced the "B-partial port" framing with the actual hybrid write shape (`ccg-edges`, dual-tracked documents, `BODY_FIELDS`).
+- [Use NAMS](/docs/how-to/use-nams) — "Seeding a relationship-rich graph" rewritten to reflect that NAMS scaffolds now encode relationships into descriptions rather than dropping them.
+
+---
+
+## v0.11.3 — Streaming for CrewAI/Strands + NAMS hardening
 
 This release brings the last two agent frameworks onto full text streaming (CrewAI and Strands now stream both text and tool events via SSE — previously they streamed tool events only), adds a classified error path for NAMS failures so the frontend can surface useful diagnostics, and ships memory-backend auto-detection so the CLI does the right thing when your `.env` credentials and `MEMORY_BACKEND` don't line up.
 

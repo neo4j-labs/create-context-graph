@@ -147,14 +147,15 @@ uvx create-context-graph my-app \
 
 ### NAMS write-path caveats (v0.4)
 
-The NAMS REST API has a narrower write surface than bolt Cypher. The CLI does best-effort ingest with these gaps:
+The NAMS REST API has a narrower write surface than bolt Cypher. The CLI and the generated `import_data.py` work around it with a hybrid write shape:
 
-- **No relationships between domain entities** — `add_relationship` not yet exposed. Graph view shows nodes but no edges.
+- **Relationships encoded as `ccg-edges` YAML blocks** inside each source entity's `description`. The frontend graph view parses them out and renders edges; a future migration replays them as native edges when NAMS adds `add_relationship`.
 - **Entity properties collapse into `description`** as a markdown block (NAMS REST accepts only `name`/`type`/`description`).
+- **Documents are dual-tracked** — `long_term.add_entity(type=OBJECT)` (queryable, matches bolt `:Document`) AND `short_term.add_message(role="document")` (extraction fuel).
 - **No preferences or facts** via REST. `auto_preferences` forced off on NAMS.
-- **GDS endpoints** return 501 on NAMS.
+- **GDS endpoints** and arbitrary Cypher writes return 501 on NAMS.
 
-For the full relationship-rich demo experience, use `--self-hosted --demo`.
+For native graph edges + GDS + arbitrary Cypher, use `--self-hosted --demo`.
 
 ## Supported Domains
 
@@ -472,8 +473,8 @@ Both packages are published automatically when you push a version tag:
 # 1. Update version in pyproject.toml and npm-wrapper/package.json
 # 2. Commit the version bump (and any CHANGELOG.md update)
 # 3. Tag and push
-git tag v0.11.0
-git push origin v0.11.0
+git tag v0.12.0
+git push origin v0.12.0
 ```
 
 This triggers a GitHub Actions workflow, `release.yml` with jobs:

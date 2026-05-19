@@ -1,5 +1,42 @@
 # Changelog
 
+## v0.12.0 — NAMS-native connector ingest + `ccg-edges` relationship encoding (2026-05-19)
+
+The big shift in v0.12.0 is that connector ingest (`make import` in a scaffolded project) now writes through NAMS REST on NAMS scaffolds — previously the generated `import_data.py` only spoke bolt Cypher, so the SaaS connectors didn't actually work on the default backend. The two ingest paths (CLI demo-fixture seeding and connector-driven imports) now share a single write shape pinned by a contract test.
+
+### New Features
+
+- **`ccg-edges` relationship encoding for NAMS.** NAMS REST has no `add_relationship` endpoint yet, so each entity's outbound edges are now encoded into the source entity's `description` as a fenced ```ccg-edges``` YAML block (deterministically sorted by `type` then `target`). The frontend graph view recognizes this marker and renders edges from it; the agent reads them out naturally as part of the description. A one-shot migration replays them as native edges once NAMS gains `add_relationship` — the seam is `_build_ccg_edges_block()` in both `src/create_context_graph/ingest.py` and `src/create_context_graph/templates/backend/connectors/import_data.py.j2`.
+- **Dual-tracked documents on NAMS.** Documents now land as both `long_term.add_entity(name=title, type=OBJECT, description=...)` AND `short_term.add_message(role="document", content=...)`. The long-term entity is the queryable source of truth (matches the bolt `:Document` shape and powers `/documents`); the short-term message is extraction fuel for the NAMS server-side extractor. The document browser now reads from long-term entities and strips the `ccg-edges` / `_pole_type:` markers for a clean preview.
+- **Per-connector `BODY_FIELDS` mapping.** Each connector declares `BODY_FIELDS: dict[str, str]` mapping `entity_label → property_name` for the prose body. The ingestor pipes that body through `short_term.add_message` so the NAMS extractor can mine it for secondary entities. Wired up for `Comment.body` (Linear), `Message.content` (Claude AI / ChatGPT / Claude Code), `DecisionThread.content` / `Reply.content` (Google Workspace), and `Document.description` / `Section.description` (local-file). Pure-metadata entities (Person, Project, Label) opt out by omission.
+- **Idempotent connector imports.** Generated `import_data.py` now tracks per-connector watermarks in `.context-graph/watermarks.json` so re-runs only fetch deltas. Failed records (one at a time) are appended to `.context-graph/deadletter.jsonl` and the watermark only advances on a clean run. NAMS `add_entity` is trusted to merge by `name` for entity-level idempotency.
+- **`--dry-run` and `--retry` modes for `import_data.py`.** `--dry-run` fetches connectors and writes `data/fixtures.json` without touching the memory backend (useful for sanity-checking a large pull before paying the write cost). `--retry` drains `.context-graph/deadletter.jsonl` back through the writer.
+- **New Make targets.** `make import-dry-run` (fetch-only, writes fixtures.json), `make import-retry` (drain deadletter). The legacy `make import-and-seed` target collapsed into `make import` — it now both fetches and ingests in one step on either backend.
+- **`run_nams_ingest()` extracted as a reusable async function** in `ingest.py`. Takes an already-open `MemoryClient` plus the fixture dict, ontology, optional `body_fields`, and optional `on_event` callback; returns counts and a list of failure records. Used by both the CLI's Rich-progress path and the scaffolded `import_data.py`. Pinned to the same call sequence as the generated importer via the new `tests/test_nams_ingest_parity.py` contract test (~526 LOC, 14 assertions).
+
+### Breaking Changes
+
+- **`make import-and-seed` removed from generated Makefiles.** Replaced by the now-idempotent `make import`, which both fetches from connectors and ingests on either backend. Existing scaffolds with the old target keep working until regenerated; the generated `import_data.py` is the source of truth.
+- **`/documents?template_id=...` returns HTTP 501 on NAMS.** Template-based filtering relied on the `MENTIONS` graph edges that NAMS doesn't yet have. The bolt path is unchanged; un-filtered `GET /documents` works on both backends.
+
+### Bug Fixes
+
+- **`ingest_data()` legacy bolt signature restored.** v0.11.0 had changed the signature to take a `ProjectConfig` exclusively, breaking library callers that were on the older `(neo4j_uri, neo4j_username, neo4j_password)` triple. `ingest_data()` now accepts either: a `ProjectConfig` instance OR the legacy three positional bolt args; `_coerce_ingest_config()` synthesizes a bolt `ProjectConfig` from the legacy triple. CLI usage is unaffected.
+- **Cypher identifier injection guards on bolt fallback.** `_ingest_with_driver` and `_ingest_with_memory_client` now validate relationship types, source labels, and target labels against `[A-Za-z_][A-Za-z0-9_]*` before string-interpolating them into a Cypher template. Unsafe identifiers log a warning and skip the record instead of executing. Closes the CodeQL `py/code-injection`-shaped finding flagged on the bolt ingest path. (NAMS path was never affected — it never builds Cypher.)
+- **Labeled MATCH on bolt relationship ingest.** The bolt connector path was falling back to a label-less `MATCH (a {name: $name})` for relationship endpoints, which would match across labels and silently mis-merge. Now uses `MATCH (a:SourceLabel ...)` / `MATCH (b:TargetLabel ...)` when the connector supplies both labels, with the existing sanitization guard.
+- **Deadletter retry on partial-failure imports.** Records that failed during a connector run (rate limit, transient 5xx) are appended to `.context-graph/deadletter.jsonl` with their original payload; `make import-retry` (or `python scripts/import_data.py --retry`) replays them through the same write path. Records whose failure category isn't retryable (e.g. a permanently unsupported entity shape) are logged but kept in the deadletter for inspection rather than dropped silently.
+
+### Documentation
+
+- **`docs/docs/explanation/memory-backends.md`** — replaced the "best-effort B-partial port" framing with the actual hybrid write shape: `ccg-edges` encoding, dual-tracked documents, `BODY_FIELDS` extractor channel. Added a note about the `test_nams_ingest_parity.py` contract test that pins the two ingest paths together.
+- **`docs/docs/how-to/use-nams.md`** — rewrote the "Seeding a relationship-rich graph" section to reflect that NAMS scaffolds now do encode relationships (just inside descriptions) rather than dropping them, with a `ccg-edges` example block. Kept the `--self-hosted --demo` recommendation for native-edge workflows (`expand_node`, GDS, arbitrary Cypher).
+- **`src/create_context_graph/ingest.py`** — module docstring rewritten end-to-end documenting the new NAMS write shape, the `BODY_FIELDS` extension point, and why the two ingestors are duplicated by design (rendered template vs. runtime CLI consumer).
+
+### Internal / CI
+
+- **New `tests/test_nams_ingest_parity.py` contract test** — drives `run_nams_ingest` and the rendered `import_data.py` against a shared fixture and asserts identical call sequences against a mock `MemoryClient`. Pins entity → ccg-edges → body → document → trace ordering, fenced-block format, body-field routing, and decision-trace shape.
+- **Expanded NAMS test coverage.** ~1,500 new test lines across `test_ingest_nams.py`, `test_memory_adapter.py`, `test_nams_ingest_parity.py`, `test_routes_integration.py`, and `test_doc_snippets.py` — covering `ccg-edges` round-trips, dual-tracked document reads, `BODY_FIELDS` per connector, deadletter retry behavior, watermark persistence, the 501 guard on template-filtered `/documents`, and the bolt Cypher identifier sanitizers.
+
 ## v0.11.3 — Streaming for CrewAI/Strands + NAMS hardening (2026-05-19)
 
 Rolls up streaming chat for the last two non-streaming frameworks, a much better NAMS failure-mode UX (classified errors surfaced in `/health`, memory-backend auto-detection from `.env`), lighter NAMS dependencies, custom-domain robustness fixes, and silent-failure cleanup across all 8 agent templates.
