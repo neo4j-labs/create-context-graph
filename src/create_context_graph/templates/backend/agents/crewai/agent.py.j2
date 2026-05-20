@@ -20,7 +20,10 @@ from app.memory import store_message, get_context, resolve_session_id
 logger = logging.getLogger(__name__)
 
 {% if from_database %}
-from app.constants import ENTITY_LABELS
+try:
+    from app.constants import ENTITY_LABELS
+except ImportError:
+    ENTITY_LABELS = [{% for et in entity_types %}"{{ et.label }}"{% if not loop.last %}, {% endif %}{% endfor %}]
 {% endif %}
 
 {% raw %}

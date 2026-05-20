@@ -1,0 +1,23 @@
+"""Constants for Discovered Database Context Graph."""
+
+# ---------------------------------------------------------------------------
+# Vector index configuration
+# ---------------------------------------------------------------------------
+DEFAULT_VECTOR_INDEX = "entity_embeddings"
+DEFAULT_VECTOR_LABEL = "Entity"
+DEFAULT_VECTOR_PROPERTY = "embedding"
+DEFAULT_EMBEDDING_DIMENSIONS = 1536
+
+# ---------------------------------------------------------------------------
+# Graph Data Science projection names
+# ---------------------------------------------------------------------------
+COMMUNITY_GRAPH = "community_graph"
+PAGERANK_GRAPH = "pagerank_graph"
+SIMILARITY_GRAPH = "similarity_graph"
+FASTRP_EMBEDDING_DIMENSIONS = 128
+
+# ---------------------------------------------------------------------------
+# Query defaults
+# ---------------------------------------------------------------------------
+DEFAULT_SEARCH_LIMIT = 20
+DEFAULT_QUERY_TIMEOUT = 30.0

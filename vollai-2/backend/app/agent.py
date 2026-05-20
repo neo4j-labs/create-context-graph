@@ -1,4 +1,4 @@
-"""{{ domain.name }} AI Agent — PydanticAI implementation."""
+"""Discovered Database AI Agent — PydanticAI implementation."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from dataclasses import dataclass
 
 from app.config import settings
 
-{% raw %}
+
 # Ensure ANTHROPIC_API_KEY env var is set before PydanticAI creates the provider.
 # pydantic-settings may load an empty value from the shell env, overriding .env.
 if not os.environ.get("ANTHROPIC_API_KEY"):
@@ -20,7 +20,6 @@ if not os.environ.get("ANTHROPIC_API_KEY"):
         _key = dotenv_values("../.env").get("ANTHROPIC_API_KEY", "")
         if _key:
             os.environ["ANTHROPIC_API_KEY"] = _key
-{% endraw %}
 
 from pydantic_ai import Agent, RunContext
 
@@ -29,15 +28,26 @@ from app.context_graph_client import execute_cypher, get_collector, get_schema a
 from app.cypher_guard import CypherGuardError, enforce_row_limit, validate_read_only
 from app.memory import store_message, get_context, resolve_session_id
 
-{% if from_database %}
 try:
     from app.constants import ENTITY_LABELS
 except ImportError:
-    ENTITY_LABELS = [{% for et in entity_types %}"{{ et.label }}"{% if not loop.last %}, {% endif %}{% endfor %}]
-{% endif %}
+    ENTITY_LABELS = ["Appearance", "Attack", "Block", "Chat", "ChatSession", "Dig", "Event", "Freeball", "GameInterruption", "League", "Match", "Player", "Rally", "Reception", "RotationState", "Serve", "Set", "SetAction", "Staff", "Stats", "Substitution", "Tactic", "Team", "XAFactor"]
 
 
-SYSTEM_PROMPT = """{{ system_prompt }}
+SYSTEM_PROMPT = """You are an AI graph assistant for a Neo4j database discovered at
+scaffold time.
+
+The discovered node labels are: Appearance, Attack, Block, Chat, ChatSession, Dig, Event, Freeball, GameInterruption, League, Match, Player, Rally, Reception, RotationState, Serve, Set, SetAction, Staff, Stats, Substitution, Tactic, Team, XAFactor.
+The discovered relationship types are: AWAY_ROTATION, AWAY_TEAM, BEFORE_RALLY, COACHED_BY, CONTAINS, FACES, FOR_TEAM, HAS_APPEARANCE, HAS_CAREER_STATS, HAS_MESSAGE, HAS_SEASON_STATS, HAS_STATS, HOME_ROTATION, HOME_TEAM, IN_LEAGUE, IN_MATCH, IN_SET, NEXT, NEXT_ACTION, NEXT_SET, ON_COURT, PERFORMS, ROTATED_OUT, SETS_FOR, SUBBED_IN, SUBBED_OUT, WON_BY.
+
+Use the available tools to answer questions from the graph:
+- run_cypher for safe read-only Cypher queries
+- get_schema to inspect labels, relationships, and properties
+- create_chart to turn query results into visualizations
+
+Ground every answer in the discovered schema and explain when the database does
+not contain enough information to answer confidently.
+
 
 IMPORTANT: You MUST use the available tools to query the knowledge graph before answering any question about the data. Never guess or make up information — always use tools to look up actual data from the graph. If a user asks a question, identify which tool(s) can help answer it and call them.
 
@@ -50,7 +60,7 @@ When writing Cypher queries with run_cypher:
 - If a query fails, try a simpler approach rather than repeating the same pattern"""
 
 
-{% raw %}
+
 @dataclass
 class AgentDeps:
     """Dependencies injected into the agent."""
@@ -63,28 +73,13 @@ agent = Agent(
     deps_type=AgentDeps,
     retries=2,
 )
-{% endraw %}
 
 # ---------------------------------------------------------------------------
-# Agent tools — domain-specific for {{ domain.name }}
+# Agent tools — domain-specific for Discovered Database
 # ---------------------------------------------------------------------------
 
-{% for tool in agent_tools %}
-@agent.tool
-async def {{ tool.name }}(ctx: RunContext[AgentDeps]{% for param in tool.parameters %}, {{ param.name }}: {{ 'str' if param.type == 'string' else 'int' if param.type == 'integer' else 'float' if param.type == 'float' else 'str' }}{% if param.default is not none %} = {{ param.default if param.type != 'string' else '"' + param.default + '"' }}{% endif %}{% endfor %}) -> str:
-    """{{ tool.description }}"""
-    cypher = """{{ tool.cypher | indent(4) }}"""
-    params = {
-{% for param in tool.parameters %}
-        "{{ param.name }}": {{ param.name }},
-{% endfor %}
-    }
-    result = await execute_cypher(cypher, params, tool_name="{{ tool.name }}")
-    return json.dumps(result, default=str)
 
-{% endfor %}
 
-{% raw %}
 @agent.tool
 async def run_cypher(ctx: RunContext[AgentDeps], query: str, parameters: str = "{}") -> str:
     """Execute a read-only Cypher query against the knowledge graph."""
@@ -98,8 +93,7 @@ async def run_cypher(ctx: RunContext[AgentDeps], query: str, parameters: str = "
         params = json.loads(parameters) if parameters else {}
     except json.JSONDecodeError:
         return json.dumps({"error": "Invalid JSON parameters"})
-    if not settings.from_database:
-        params.setdefault("domain", settings.domain_id)
+    params.setdefault("domain", settings.domain_id)
     try:
         result = await execute_cypher(query, params, tool_name="run_cypher")
         payload = {"results": result}
@@ -151,9 +145,7 @@ async def get_graph_schema(ctx: RunContext[AgentDeps]) -> str:
     result = await fetch_schema()
     return json.dumps(result, default=str)
 
-{% endraw %}
-{% if from_database %}
-{% raw %}
+
 
 @agent.tool
 async def get_schema(ctx: RunContext[AgentDeps]) -> str:
@@ -182,8 +174,7 @@ async def sample_data(ctx: RunContext[AgentDeps], label: str, limit: int = 5) ->
         return json.dumps({"error": f"Unknown label: {label}"})
 
     bounded_limit = max(1, min(limit, 10))
-    safe_label = label.replace("`", "``")
-    query = f"MATCH (n:`{safe_label}`) RETURN n LIMIT $limit"
+    query = f"MATCH (n:`{label}`) RETURN n LIMIT $limit"
     try:
         result = await execute_cypher(
             query,
@@ -194,9 +185,7 @@ async def sample_data(ctx: RunContext[AgentDeps], label: str, limit: int = 5) ->
     except Exception as e:
         return json.dumps({"error": f"Sample query failed: {e}"})
 
-{% endraw %}
-{% endif %}
-{% raw %}
+
 
 
 # ---------------------------------------------------------------------------
@@ -300,4 +289,3 @@ async def handle_message_stream(message: str, session_id: str | None = None) -> 
         "session_id": session_id,
         "graph_data": None,
     }
-{% endraw %}

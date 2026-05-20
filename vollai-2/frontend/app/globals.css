@@ -1,0 +1,65 @@
+@layer reset, base, tokens, recipes, utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+/* Markdown content styling for chat messages */
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3 {
+  font-weight: 600;
+  margin-top: 0.5em;
+  margin-bottom: 0.25em;
+}
+.markdown-content h1 { font-size: 1.25em; }
+.markdown-content h2 { font-size: 1.1em; }
+.markdown-content h3 { font-size: 1em; }
+.markdown-content p { margin-bottom: 0.5em; }
+.markdown-content ul,
+.markdown-content ol {
+  padding-left: 1.5em;
+  margin-bottom: 0.5em;
+}
+.markdown-content li { margin-bottom: 0.15em; }
+.markdown-content code {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.1em 0.3em;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+.markdown-content pre {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 0.75em;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin-bottom: 0.5em;
+}
+.markdown-content pre code {
+  background: none;
+  padding: 0;
+}
+.markdown-content table {
+  border-collapse: collapse;
+  margin-bottom: 0.5em;
+  font-size: 0.9em;
+}
+.markdown-content th,
+.markdown-content td {
+  border: 1px solid #ddd;
+  padding: 0.3em 0.6em;
+}
+.markdown-content th { background: rgba(0, 0, 0, 0.04); }
+.markdown-content blockquote {
+  border-left: 3px solid #ddd;
+  padding-left: 0.75em;
+  color: #666;
+  margin-bottom: 0.5em;
+}

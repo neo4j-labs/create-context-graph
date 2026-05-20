@@ -278,7 +278,7 @@ tools such as run_cypher, get_schema, and create_chart where useful.
 """
     client = anthropic.Anthropic(api_key=api_key)
     response = client.messages.create(
-        model="claude-sonnet-4-20250514",
+        model="claude-sonnet-4-6",
         max_tokens=1200,
         messages=[{"role": "user", "content": prompt}],
     )

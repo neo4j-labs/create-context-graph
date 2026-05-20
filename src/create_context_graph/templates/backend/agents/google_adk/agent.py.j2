@@ -21,7 +21,10 @@ from app.cypher_guard import CypherGuardError, enforce_row_limit, validate_read_
 from app.memory import store_message, get_context, resolve_session_id
 
 {% if from_database %}
-from app.constants import ENTITY_LABELS
+try:
+    from app.constants import ENTITY_LABELS
+except ImportError:
+    ENTITY_LABELS = [{% for et in entity_types %}"{{ et.label }}"{% if not loop.last %}, {% endif %}{% endfor %}]
 {% endif %}
 
 
