@@ -257,7 +257,7 @@ class ProjectRenderer:
             "relationships": [r.model_dump() for r in self.ontology.relationships],
             "demo_scenarios": self._build_demo_scenarios(),
             "agent_tools": self._build_agent_tools(),
-            "framework": self.config.resolved_framework,
+            "framework": self.config.framework,
             "framework_display_name": self.config.framework_display_name,
             "framework_deps": self.config.framework_deps,
             "neo4j_uri": self.config.neo4j_uri,
@@ -433,7 +433,7 @@ class ProjectRenderer:
         # undefined variables, missing context — must propagate so they don't
         # silently degrade into a 36-line stub the way the v0.11.0 langgraph
         # regression did.
-        fw_key = self.config.resolved_framework.replace("-", "_")
+        fw_key = self.config.framework.replace("-", "_")
         agent_template = f"backend/agents/{fw_key}/agent.py.j2"
         try:
             self._render_template(agent_template, backend_dir / "app" / "agent.py", ctx)

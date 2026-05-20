@@ -41,11 +41,6 @@ SUPPORTED_FRAMEWORKS = [
     "anthropic-tools",
 ]
 
-# Deprecated aliases — map old keys to current ones
-FRAMEWORK_ALIASES = {
-    "maf": "anthropic-tools",
-}
-
 FRAMEWORK_DISPLAY_NAMES = {
     "pydanticai": "PydanticAI",
     "claude-agent-sdk": "Claude Agent SDK",
@@ -156,14 +151,9 @@ class ProjectConfig(BaseModel):
         return slug.strip("-")
 
     @property
-    def resolved_framework(self) -> str:
-        """Resolve deprecated framework aliases to current keys."""
-        return FRAMEWORK_ALIASES.get(self.framework, self.framework)
-
-    @property
     def framework_display_name(self) -> str:
-        return FRAMEWORK_DISPLAY_NAMES.get(self.resolved_framework, self.framework)
+        return FRAMEWORK_DISPLAY_NAMES.get(self.framework, self.framework)
 
     @property
     def framework_deps(self) -> list[str]:
-        return FRAMEWORK_DEPENDENCIES.get(self.resolved_framework, [])
+        return FRAMEWORK_DEPENDENCIES.get(self.framework, [])

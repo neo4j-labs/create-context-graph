@@ -84,6 +84,146 @@ class TestGeneratedPythonFiles:
         assert (out / "backend" / "app" / "__init__.py").exists()
 
 
+@pytest.fixture
+def generated_project_with_connectors(tmp_path):
+    """Scaffold a self-hosted bolt project with a connector enabled so the
+    ``backend/scripts/import_data.py`` template gets emitted (it is gated
+    behind ``saas_connectors`` in the renderer)."""
+    config = ProjectConfig(
+        project_name="Import Data Bolt App",
+        domain="healthcare",
+        framework="strands",
+        memory_backend="bolt",
+        neo4j_uri="neo4j://localhost:7687",
+        neo4j_username="neo4j",
+        neo4j_password="testpass123",
+        saas_connectors=["linear"],
+    )
+    ontology = load_domain(config.domain)
+    out = tmp_path / "import-bolt-project"
+    renderer = ProjectRenderer(config, ontology)
+    renderer.render(out)
+    return out, config
+
+
+@pytest.fixture
+def generated_project_with_connectors_nams(tmp_path):
+    """NAMS counterpart: same connector, NAMS backend. Both branches of
+    ``import_data.py`` are rendered into the same file regardless of backend
+    — the runtime ``settings.memory_backend`` selects which one runs — so
+    these fixtures exercise the same template through different ProjectConfig
+    paths to catch backend-specific Jinja2 issues."""
+    config = ProjectConfig(
+        project_name="Import Data Nams App",
+        domain="healthcare",
+        framework="strands",
+        memory_backend="nams",
+        memory_api_key="sk-test-nams",
+        saas_connectors=["linear"],
+    )
+    ontology = load_domain(config.domain)
+    out = tmp_path / "import-nams-project"
+    renderer = ProjectRenderer(config, ontology)
+    renderer.render(out)
+    return out, config
+
+
+class TestGeneratedImportDataAsyncShape:
+    """Pins the bolt ingest path's async shape so the v0.12.0 sync/async
+    mismatch (``def _ingest_via_bolt`` calling ``with driver.session()`` on
+    an ``AsyncDriver``) cannot regress silently. v0.12.0 shipped this bug
+    because the file was never syntax-checked AND no test exercised the
+    bolt branch."""
+
+    IMPORT_DATA_REL = "backend/scripts/import_data.py"
+
+    def _parse(self, out):
+        import ast
+        path = out / self.IMPORT_DATA_REL
+        assert path.exists(), f"{self.IMPORT_DATA_REL} missing — connector scaffold should emit it"
+        source = path.read_text()
+        # First: it must compile. v0.12.0 failed this when run, but the file
+        # itself was syntactically valid — so we also AST-walk below.
+        try:
+            tree = ast.parse(source)
+        except SyntaxError as e:
+            pytest.fail(f"{self.IMPORT_DATA_REL} syntax error: {e}")
+        return tree, source
+
+    def test_import_data_py_compiles_bolt(self, generated_project_with_connectors):
+        out, _ = generated_project_with_connectors
+        path = out / self.IMPORT_DATA_REL
+        compile(path.read_text(), str(path), "exec")
+
+    def test_import_data_py_compiles_nams(self, generated_project_with_connectors_nams):
+        out, _ = generated_project_with_connectors_nams
+        path = out / self.IMPORT_DATA_REL
+        compile(path.read_text(), str(path), "exec")
+
+    def test_ingest_via_bolt_is_async(self, generated_project_with_connectors):
+        """``_ingest_via_bolt`` must be ``async def`` because ``get_driver()``
+        returns an ``AsyncDriver``. v0.12.0 had this as plain ``def``."""
+        import ast
+        tree, _ = self._parse(generated_project_with_connectors[0])
+        fn = next(
+            (n for n in ast.walk(tree)
+             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+             and n.name == "_ingest_via_bolt"),
+            None,
+        )
+        assert fn is not None, "_ingest_via_bolt not found"
+        assert isinstance(fn, ast.AsyncFunctionDef), (
+            f"_ingest_via_bolt must be async def (got {type(fn).__name__}); "
+            "AsyncDriver.session() requires async with + await session.run(...)."
+        )
+
+    def test_all_session_run_calls_are_awaited(self, generated_project_with_connectors):
+        """Every ``session.run(...)`` inside ``_ingest_via_bolt`` must be
+        awaited. A bare ``session.run(...)`` on an async session returns a
+        coroutine that the rest of the function will try to iterate
+        synchronously and crash on. AST-walk catches sneaky cases the
+        ``async def`` check above would miss."""
+        import ast
+        tree, _ = self._parse(generated_project_with_connectors[0])
+        fn = next(
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.AsyncFunctionDef) and n.name == "_ingest_via_bolt"
+        )
+        offenders: list[int] = []
+        for node in ast.walk(fn):
+            if isinstance(node, ast.Call):
+                # session.run(...)
+                if (isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "run"
+                        and isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == "session"):
+                    parent_lines = [
+                        a.lineno for a in ast.walk(fn)
+                        if isinstance(a, ast.Await) and isinstance(a.value, ast.Call)
+                        and a.value is node
+                    ]
+                    if not parent_lines:
+                        offenders.append(node.lineno)
+        assert not offenders, (
+            f"Un-awaited session.run(...) calls inside _ingest_via_bolt at "
+            f"lines {offenders}. AsyncDriver requires every session.run to be awaited."
+        )
+
+    def test_both_call_sites_use_asyncio_run(self, generated_project_with_connectors):
+        """``main()`` and ``_retry_deadletter()`` both invoke ``_ingest_via_bolt``;
+        both must wrap with ``asyncio.run(...)``. v0.12.0 had ``main()`` call
+        the function directly, which would have raised ``TypeError: object
+        coroutine can't be used in 'await' expression`` after the async fix
+        if the call site wasn't also updated."""
+        _, source = self._parse(generated_project_with_connectors[0])
+        # Two call sites; both must be wrapped.
+        count = source.count("asyncio.run(_ingest_via_bolt(")
+        assert count == 2, (
+            f"Expected 2 ``asyncio.run(_ingest_via_bolt(...))`` call sites "
+            f"(main + _retry_deadletter), got {count}."
+        )
+
+
 class TestGeneratedFrontendFiles:
     """Frontend files must exist and be valid."""
 

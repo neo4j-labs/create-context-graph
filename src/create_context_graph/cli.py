@@ -26,7 +26,6 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from create_context_graph.config import (
     DEFAULT_FRAMEWORK,
-    FRAMEWORK_ALIASES,
     NAMS_SIGNUP_URL,
     SUPPORTED_FRAMEWORKS,
     ProjectConfig,
@@ -136,7 +135,7 @@ def _run_import_preview(
 )
 @click.option(
     "--framework",
-    type=click.Choice(SUPPORTED_FRAMEWORKS + list(FRAMEWORK_ALIASES.keys()), case_sensitive=False),
+    type=click.Choice(SUPPORTED_FRAMEWORKS, case_sensitive=False),
     help="Agent framework to use",
 )
 @click.option("--demo-data", is_flag=True, help="Generate synthetic demo data")
@@ -340,17 +339,6 @@ def main(
         display_ontology_summary(custom_ontology, console)
         domain = custom_ontology.domain.id
 
-    # Resolve deprecated framework aliases
-    if framework and framework in FRAMEWORK_ALIASES:
-        resolved = FRAMEWORK_ALIASES[framework]
-        click.secho(
-            f"Warning: --framework {framework} is deprecated and will be "
-            f"removed in a future release. Use --framework {resolved} instead.",
-            fg="yellow",
-            err=True,
-        )
-        framework = resolved
-
     # Handle Neo4j Aura .env import
     if neo4j_aura_env:
         from create_context_graph.wizard import _parse_aura_env
@@ -499,13 +487,13 @@ def main(
             }
             config.saas_credentials[import_type] = creds
         # Warn if google-adk is selected without a Google API key
-        if config.resolved_framework == "google-adk" and not google_api_key:
+        if config.framework == "google-adk" and not google_api_key:
             console.print(
                 "[yellow]Warning:[/yellow] google-adk framework requires a Google/Gemini API key. "
                 "Set GOOGLE_API_KEY in your .env or pass --google-api-key."
             )
         # Warn if openai-agents is selected without an OpenAI API key
-        if config.resolved_framework == "openai-agents" and not openai_api_key:
+        if config.framework == "openai-agents" and not openai_api_key:
             console.print(
                 "[yellow]Warning:[/yellow] openai-agents framework requires an OpenAI API key. "
                 "Set OPENAI_API_KEY in your .env or pass --openai-api-key."

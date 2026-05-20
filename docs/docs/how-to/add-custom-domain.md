@@ -5,7 +5,7 @@ title: Add a Custom Domain
 
 # Add a Custom Domain
 
-Beyond the 22 built-in domains, you can define your own domain ontology. There are three ways to do this: let the LLM generate one from a description, pass a description via CLI flags, or write the YAML by hand.
+Beyond the 27 built-in domains, you can define your own domain ontology. There are three ways to do this: let the LLM generate one from a description, pass a description via CLI flags, or write the YAML by hand.
 
 ## Option 1: Interactive Wizard
 
@@ -116,3 +116,51 @@ Generated domains are also copied into the scaffolded project at `data/ontology.
 - **Mention key relationships.** "Students enroll in courses taught by professors" helps the LLM define the correct graph edges.
 - **Include domain actions.** "Track shipments, manage inventory, handle returns" gives the LLM material for generating agent tools.
 - **Keep it to 1-3 sentences.** The LLM works best with focused descriptions rather than long paragraphs.
+
+## How LLM generation works
+
+When you pass `--custom-domain "..."` (or pick the custom option in the wizard), `custom_domain.py` runs a 3-step pipeline:
+
+1. **Build a few-shot prompt.** The LLM is shown `_base.yaml` plus two reference domain YAMLs (currently `healthcare` and `software-engineering`) so it can pattern-match the schema rather than infer it from prose alone.
+2. **Generate and validate.** The model returns a complete YAML block, which is parsed and validated against the `DomainOntology` Pydantic model. Validation catches missing required fields, invalid `pole_type` values, unquoted boolean enums, color collisions with `_base`, malformed Cypher in `agent_tools`, and other structural issues.
+3. **Retry on failure.** Up to **3 attempts** — the validation error message is fed back to the LLM so it can self-correct. After 3 failures the CLI aborts and prints the last error rather than scaffolding from a broken ontology.
+
+You can inspect the generated YAML at the wizard's review step before scaffolding starts. The wizard saves accepted custom domains to `~/.create-context-graph/custom-domains/{id}.yaml` so they can be reused without re-paying for LLM generation.
+
+## Worked examples
+
+The following descriptions were generated end-to-end with `--custom-domain "..." --anthropic-api-key $ANTHROPIC_API_KEY`. Each produced a complete YAML on the first try.
+
+### Insurance claims processing
+
+Description used:
+
+> Insurance claims processing system tracking policies, claimants, adjusters, claims, payments, and fraud investigations. Adjusters investigate claims filed by claimants under their policies; suspicious claims escalate to fraud investigations.
+
+Headline entities the LLM produced: `Policy`, `Claim`, `Claimant`, `Adjuster`, `Payment`, `FraudInvestigation`, `PolicyHolder`. Sample relationships: `FILED_BY (Claim → Claimant)`, `INVESTIGATED_BY (Claim → Adjuster)`, `COVERS (Policy → Person)`, `TRIGGERED (Claim → FraudInvestigation)`. Sample agent tools: `search_claim`, `policy_coverage`, `adjuster_workload`, `fraud_indicators`, `payment_history`.
+
+### Podcast production network
+
+Description used:
+
+> Podcast production network with shows, episodes, hosts, guests, sponsors, and editing workflow. Each episode goes through script → record → edit → publish stages with a producer overseeing the pipeline.
+
+Headline entities: `Show`, `Episode`, `Host`, `Guest`, `Sponsor`, `EditingTask`, `Producer`. Sample relationships: `HOSTS (Host → Show)`, `APPEARED_ON (Guest → Episode)`, `SPONSORS (Sponsor → Show)`, `IN_STAGE (Episode → EditingTask)`. Sample agent tools: `search_show`, `episode_pipeline`, `guest_history`, `sponsor_roster`, `pending_edits`.
+
+Both ontologies validated on the first attempt and scaffolded cleanly across all 9 agent frameworks.
+
+## Promoting a custom domain to a permanent contribution
+
+If your generated domain becomes load-bearing for a project (or you want to share it back upstream), the path from `~/.create-context-graph/custom-domains/foo.yaml` to a permanent built-in domain is straightforward:
+
+1. **Move the YAML** to `src/create_context_graph/domains/{domain-id}.yaml` in a fork of the repo. Re-check it against the [ontology schema](/docs/reference/ontology-yaml-schema) — the LLM is good but not perfect; tighten property enums, add missing `unique: true` constraints, and make sure each `agent_tools[].cypher` query has a sensible `LIMIT`.
+2. **Generate a fixture** for tests and demos:
+   ```bash
+   python scripts/regenerate_fixtures.py --domain {domain-id} --anthropic-api-key sk-...
+   # or for a deterministic, no-LLM static fixture:
+   python -c "from pathlib import Path; from create_context_graph.ontology import load_domain; from create_context_graph.generator import generate_fixture_data; \
+     generate_fixture_data(load_domain('{domain-id}'), Path('src/create_context_graph/fixtures/{domain-id}.json'), api_key=None)"
+   ```
+3. **Verify** with `pytest tests/test_ontology.py tests/test_fixtures.py -k {domain-id}`. The existing `TestLoadAllDomains` test will auto-pick up your new YAML.
+4. **Add to the scaffold matrix.** Append one `(domain-id, framework)` tuple to `TestMultipleDomainScaffolds` in `tests/test_cli.py` so CI proves the domain renders cleanly with at least one framework.
+5. **Open a PR.** Domains submitted this way have landed in the project repo via this exact path — see `legal`, `education`, `cybersecurity`, and `government` (v0.13.0).

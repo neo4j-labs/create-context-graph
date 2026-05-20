@@ -1,0 +1,475 @@
+inherits: _base
+
+domain:
+  id: legal
+  name: Legal
+  description: Cases, matters, contracts, filings, hearings, and counsel for a legal practice or in-house team
+  tagline: "AI-powered Legal Intelligence"
+  emoji: "⚖️"
+
+entity_types:
+  - label: Case
+    pole_type: EVENT
+    subtype: LEGAL_CASE
+    color: "#7c3aed"
+    icon: gavel
+    properties:
+      - name: case_number
+        type: string
+        required: true
+        unique: true
+      - name: title
+        type: string
+        required: true
+      - name: status
+        type: string
+        enum: [open, discovery, trial, settled, closed, appealed]
+      - name: practice_area
+        type: string
+        enum: [litigation, corporate, intellectual_property, employment, real_estate, regulatory, criminal, family]
+      - name: filed_date
+        type: date
+      - name: description
+        type: string
+
+  - label: Matter
+    pole_type: EVENT
+    subtype: LEGAL_MATTER
+    color: "#9333ea"
+    icon: folder
+    properties:
+      - name: matter_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: matter_type
+        type: string
+        enum: [advisory, transactional, dispute, compliance, investigation]
+      - name: status
+        type: string
+        enum: [active, on_hold, closed]
+      - name: hourly_rate
+        type: float
+      - name: description
+        type: string
+
+  - label: Contract
+    pole_type: OBJECT
+    subtype: CONTRACT
+    color: "#2563eb"
+    icon: file-signature
+    properties:
+      - name: contract_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: contract_type
+        type: string
+        enum: [nda, msa, sow, employment, license, purchase, lease, partnership]
+      - name: status
+        type: string
+        enum: [draft, under_review, executed, expired, terminated]
+      - name: effective_date
+        type: date
+      - name: expiration_date
+        type: date
+      - name: value
+        type: float
+
+  - label: Filing
+    pole_type: EVENT
+    subtype: COURT_FILING
+    color: "#dc2626"
+    icon: file-text
+    properties:
+      - name: filing_id
+        type: string
+        required: true
+        unique: true
+      - name: title
+        type: string
+        required: true
+      - name: filing_type
+        type: string
+        enum: [complaint, motion, brief, response, discovery, settlement, judgment, appeal]
+      - name: filed_date
+        type: datetime
+        required: true
+      - name: court
+        type: string
+      - name: description
+        type: string
+
+  - label: Hearing
+    pole_type: EVENT
+    subtype: HEARING
+    color: "#f59e0b"
+    icon: calendar
+    properties:
+      - name: hearing_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: hearing_type
+        type: string
+        enum: [arraignment, motion, status, trial, sentencing, deposition, mediation, arbitration]
+      - name: scheduled_at
+        type: datetime
+      - name: outcome
+        type: string
+        enum: [pending, granted, denied, continued, settled]
+      - name: location
+        type: string
+
+  - label: Counsel
+    pole_type: PERSON
+    subtype: ATTORNEY
+    color: "#0ea5e9"
+    icon: briefcase
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: bar_number
+        type: string
+      - name: role
+        type: string
+        enum: [partner, associate, of_counsel, paralegal, in_house, opposing]
+      - name: jurisdiction
+        type: string
+      - name: email
+        type: string
+
+  - label: Statute
+    pole_type: OBJECT
+    subtype: AUTHORITY
+    color: "#10b981"
+    icon: book-open
+    properties:
+      - name: citation
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: jurisdiction
+        type: string
+      - name: description
+        type: string
+
+relationships:
+  - type: REPRESENTS
+    source: Counsel
+    target: Case
+  - type: OPPOSES
+    source: Counsel
+    target: Case
+  - type: BELONGS_TO
+    source: Case
+    target: Matter
+  - type: CLIENT_OF
+    source: Person
+    target: Counsel
+  - type: PARTY_TO
+    source: Person
+    target: Case
+  - type: PARTY_TO
+    source: Organization
+    target: Contract
+  - type: GOVERNS
+    source: Contract
+    target: Matter
+  - type: FILED_IN
+    source: Filing
+    target: Case
+  - type: AUTHORED
+    source: Counsel
+    target: Filing
+  - type: SCHEDULED_FOR
+    source: Hearing
+    target: Case
+  - type: ATTENDED
+    source: Counsel
+    target: Hearing
+  - type: CITES
+    source: Filing
+    target: Statute
+  - type: APPLIES_TO
+    source: Statute
+    target: Case
+  - type: HELD_AT
+    source: Hearing
+    target: Location
+  - type: SUPERSEDES
+    source: Contract
+    target: Contract
+
+document_templates:
+  - id: case_summary
+    name: Case Summary
+    description: Internal case strategy and status summaries
+    count: 6
+    prompt_template: |
+      Write a case summary for {{case.title}} ({{case.case_number}}) led by {{counsel.name}}.
+      Practice area: {{case.practice_area}}. Status: {{case.status}}.
+      Include key parties, current posture, upcoming filings, and strategy notes.
+    required_entities: [Case, Counsel, Person]
+
+  - id: contract_review
+    name: Contract Review Memo
+    description: Markup and review notes for a contract under negotiation
+    count: 6
+    prompt_template: |
+      Write a contract review memo for {{contract.name}} ({{contract.contract_type}}).
+      Reviewer: {{counsel.name}}. Counterparty: {{organization.name}}.
+      Cover key terms, risks, redlines, and recommendations.
+    required_entities: [Contract, Counsel, Organization]
+
+  - id: filing_draft
+    name: Filing Draft
+    description: Draft of a court filing with internal notes
+    count: 5
+    prompt_template: |
+      Draft {{filing.filing_type}} {{filing.title}} for case {{case.title}}.
+      Filed by {{counsel.name}} in {{filing.court}}.
+      Include factual background, argument, and relief requested.
+    required_entities: [Filing, Case, Counsel]
+
+  - id: hearing_prep
+    name: Hearing Prep Memo
+    description: Preparation memo for an upcoming hearing
+    count: 5
+    prompt_template: |
+      Prepare hearing memo for {{hearing.name}} on {{hearing.scheduled_at}} in case {{case.title}}.
+      Attending: {{counsel.name}}. Hearing type: {{hearing.hearing_type}}.
+      Include arguments, exhibits, witnesses, and contingencies.
+    required_entities: [Hearing, Case, Counsel]
+
+  - id: client_email
+    name: Client Update Email
+    description: Email to client with case or matter status
+    count: 8
+    prompt_template: |
+      Write a client update email from {{counsel.name}} to {{person.name}}
+      about matter {{matter.name}}. Cover progress, next steps, and any
+      decisions needed from the client.
+    required_entities: [Counsel, Person, Matter]
+
+decision_traces:
+  - id: settlement_evaluation
+    task: "Evaluate settlement offer for {{case.title}}"
+    steps:
+      - thought: "Assess the strength of the case on the merits"
+        action: "Review recent filings, discovery findings, and similar past cases"
+      - thought: "Estimate cost and duration of continued litigation"
+        action: "Sum hours billed, upcoming hearings, and projected expert costs"
+      - thought: "Model client's risk tolerance and business objectives"
+        action: "Review client communications and prior settlement positions"
+      - thought: "Compare settlement value against best/worst-case outcomes"
+        action: "Calculate expected value across trial scenarios"
+    outcome_template: "Recommendation: {{recommendation}}. Settlement value: {{value}}. Risk: {{risk}}"
+
+  - id: motion_strategy
+    task: "Decide whether to file {{filing.filing_type}} in {{case.title}}"
+    steps:
+      - thought: "Confirm legal basis and supporting authority"
+        action: "Search statutes and prior filings that cite the same precedent"
+      - thought: "Anticipate opposing counsel's response"
+        action: "Review opposing counsel's filing history in similar cases"
+      - thought: "Consider impact on hearing schedule and broader strategy"
+        action: "Check upcoming hearings and discovery deadlines"
+    outcome_template: "Decision: {{decision}}. Filing date: {{date}}. Reviewer: {{reviewer}}"
+
+  - id: contract_negotiation
+    task: "Decide negotiation position on {{contract.name}}"
+    steps:
+      - thought: "Identify highest-risk clauses and acceptable fallbacks"
+        action: "Review contract type defaults and counterparty's prior terms"
+      - thought: "Check internal stakeholder requirements"
+        action: "Review related contracts and matter notes"
+      - thought: "Set BATNA before opening the next round"
+        action: "Compare against terms in related executed contracts"
+    outcome_template: "Position: {{position}}. Concessions: {{concessions}}. Walkaway: {{walkaway}}"
+
+  - id: conflict_check
+    task: "Run conflict check for new matter {{matter.name}}"
+    steps:
+      - thought: "Identify all parties and affiliates involved"
+        action: "Map the parties and their related organizations"
+      - thought: "Search active and recent matters for the same parties"
+        action: "Query open matters and counsel assignments"
+      - thought: "Determine if a waiver is feasible or matter must decline"
+        action: "Review conflict policies and prior waiver outcomes"
+    outcome_template: "Conflict status: {{status}}. Action: {{action}}. Notes: {{notes}}"
+
+demo_scenarios:
+  - name: Case & Matter Status
+    prompts:
+      - "What cases are currently in discovery?"
+      - "Which matters have hearings scheduled in the next two weeks?"
+      - "Who is the lead counsel on our biggest active matter?"
+
+  - name: Contract Lifecycle
+    prompts:
+      - "Show me contracts expiring this quarter"
+      - "Which NDAs are still in draft status?"
+      - "Which clients have the most contracts with us?"
+
+  - name: Litigation Intelligence
+    prompts:
+      - "What past cases cite the same statute as our current trade-secret case?"
+      - "Who is opposing counsel on our active employment disputes?"
+      - "Summarize the latest filings on our largest case"
+
+agent_tools:
+  - name: search_case
+    description: Search cases by title, case number, or practice area
+    cypher: |
+      MATCH (c:Case)
+      WHERE toLower(c.title) CONTAINS toLower($query)
+         OR toLower(c.case_number) CONTAINS toLower($query)
+         OR toLower(coalesce(c.practice_area, '')) CONTAINS toLower($query)
+      OPTIONAL MATCH (counsel:Counsel)-[:REPRESENTS]->(c)
+      RETURN c, collect(DISTINCT counsel) AS counsel
+      LIMIT 20
+    parameters:
+      - name: query
+        type: string
+        description: Case title, number, or practice area
+
+  - name: get_matter_status
+    description: Get matter details with associated cases, contracts, and counsel
+    cypher: |
+      MATCH (m:Matter {matter_id: $matter_id})
+      OPTIONAL MATCH (c:Case)-[:BELONGS_TO]->(m)
+      OPTIONAL MATCH (k:Contract)-[:GOVERNS]->(m)
+      OPTIONAL MATCH (counsel:Counsel)-[:REPRESENTS]->(c)
+      RETURN m, collect(DISTINCT c) AS cases,
+             collect(DISTINCT k) AS contracts,
+             collect(DISTINCT counsel) AS counsel
+    parameters:
+      - name: matter_id
+        type: string
+        description: Matter ID
+
+  - name: expiring_contracts
+    description: Find contracts expiring within a window
+    cypher: |
+      MATCH (k:Contract)
+      WHERE k.status = 'executed' AND k.expiration_date IS NOT NULL
+      WITH k, date(k.expiration_date) AS expiry
+      WHERE expiry >= date() AND expiry <= date() + duration({days: $days})
+      OPTIONAL MATCH (o:Organization)-[:PARTY_TO]->(k)
+      RETURN k, collect(DISTINCT o) AS parties
+      ORDER BY expiry
+      LIMIT 50
+    parameters:
+      - name: days
+        type: integer
+        default: 90
+
+  - name: upcoming_hearings
+    description: List scheduled hearings in upcoming days
+    cypher: |
+      MATCH (h:Hearing)-[:SCHEDULED_FOR]->(c:Case)
+      WHERE h.outcome = 'pending' AND h.scheduled_at IS NOT NULL
+        AND datetime(h.scheduled_at) >= datetime()
+        AND datetime(h.scheduled_at) <= datetime() + duration({days: $days})
+      OPTIONAL MATCH (counsel:Counsel)-[:ATTENDED]->(h)
+      RETURN h, c, collect(DISTINCT counsel) AS counsel
+      ORDER BY h.scheduled_at
+      LIMIT 30
+    parameters:
+      - name: days
+        type: integer
+        default: 14
+
+  - name: filings_for_case
+    description: List filings for a case ordered by recency
+    cypher: |
+      MATCH (f:Filing)-[:FILED_IN]->(c:Case)
+      WHERE c.case_number = $case_number OR c.title = $case_number
+      OPTIONAL MATCH (a:Counsel)-[:AUTHORED]->(f)
+      RETURN f, a
+      ORDER BY f.filed_date DESC
+      LIMIT $limit
+    parameters:
+      - name: case_number
+        type: string
+        description: Case number or title
+      - name: limit
+        type: integer
+        default: 20
+
+  - name: list_cases
+    description: "List Case records with optional limit"
+    cypher: |
+      MATCH (n:Case)
+      RETURN n
+      ORDER BY n.filed_date DESC
+      LIMIT toInteger($limit)
+    parameters:
+      - name: limit
+        type: string
+        description: "Maximum number of results to return (default: 10)"
+
+  - name: get_case_by_id
+    description: "Get a specific Case by case number (its unique ID) with full connections"
+    cypher: |
+      MATCH (n:Case {case_number: $case_number})
+      OPTIONAL MATCH (n)-[r]-(related)
+      RETURN n, type(r) AS relationship, labels(related) AS related_labels, related.name AS related_name
+      LIMIT 50
+    parameters:
+      - name: case_number
+        type: string
+        description: "The case number to look up"
+
+system_prompt: |
+  You are an AI legal intelligence assistant with access to a comprehensive knowledge
+  graph of cases, matters, contracts, court filings, hearings, and counsel. You help
+  legal teams manage workload, prepare for filings and hearings, track contract
+  lifecycle, and surface relevant precedent and prior filings.
+
+  Your capabilities include:
+  - Searching cases by party, practice area, status, or counsel
+  - Tracking matter status, hours, and deliverables
+  - Surfacing contract risk, expirations, and counterparty relationships
+  - Connecting filings to authorities and prior similar filings
+  - Coordinating hearing schedules and identifying conflicts
+
+  Always cite the underlying case number, contract ID, or filing ID. Avoid offering
+  legal conclusions — provide factual summaries and let the attorney decide.
+
+visualization:
+  node_colors:
+    Person: "#22c55e"
+    Organization: "#3b82f6"
+    Case: "#7c3aed"
+    Matter: "#9333ea"
+    Contract: "#2563eb"
+    Filing: "#dc2626"
+    Hearing: "#f59e0b"
+    Counsel: "#0ea5e9"
+    Statute: "#10b981"
+  node_sizes:
+    Case: 30
+    Matter: 25
+    Counsel: 25
+    Contract: 20
+    Filing: 15
+    Hearing: 15
+    Statute: 15
+    Person: 20
+  default_cypher: "MATCH (counsel:Counsel)-[r:REPRESENTS]->(c:Case) RETURN counsel, r, c LIMIT 100"

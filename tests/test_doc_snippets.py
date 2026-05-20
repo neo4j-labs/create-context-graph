@@ -352,3 +352,56 @@ class TestNamsRelationshipEncoding:
         # produce graph-identical output to the CLI ingest.
         assert "ccg-edges" in template
         assert "_build_ccg_edges_block" in template
+
+    def test_explanation_page_exists_and_round_trips(self):
+        """The new explanation/ccg-edges.md must exist and its example block
+        must match the format actually produced by ``_build_ccg_edges_block``.
+        Catches the page drifting out of sync with the encoder."""
+        page = DOCS_DIR / "explanation" / "ccg-edges.md"
+        assert page.exists(), "docs/docs/explanation/ccg-edges.md missing"
+        text = page.read_text()
+        assert "```ccg-edges" in text
+        assert "type:" in text and "target:" in text and "target_label:" in text
+
+        # Drive the encoder with the exact relationships shown in the doc's
+        # example and verify the output matches what the page claims.
+        from create_context_graph.ingest import _build_ccg_edges_block
+        relationships = [
+            {
+                "source_name": "Alice Park",
+                "type": "AUTHORED",
+                "target_name": "Q3 Strategy Memo",
+                "target_label": "Document",
+            },
+            {
+                "source_name": "Alice Park",
+                "type": "MENTIONS",
+                "target_name": "Market Opportunity",
+                "target_label": "Concept",
+            },
+        ]
+        block = _build_ccg_edges_block(relationships, "Alice Park")
+        # Sorted deterministically by (type, target) — AUTHORED < MENTIONS.
+        assert block.startswith("```ccg-edges")
+        assert block.endswith("```")
+        assert "- type: AUTHORED" in block
+        assert "  target: Q3 Strategy Memo" in block
+        assert "  target_label: Document" in block
+        assert "- type: MENTIONS" in block
+        assert "  target: Market Opportunity" in block
+        # AUTHORED entry must appear before MENTIONS in the deterministic sort.
+        assert block.index("AUTHORED") < block.index("MENTIONS")
+
+    def test_readme_template_links_to_ccg_edges_doc(self):
+        readme = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "create_context_graph"
+            / "templates"
+            / "base"
+            / "README.md.j2"
+        ).read_text()
+        # Scaffolded README must point at the explanation page so users who
+        # see the encoding in their graph can read the design rationale.
+        assert "ccg-edges" in readme
+        assert "explanation/ccg-edges" in readme

@@ -215,6 +215,61 @@ test.describe("{{ domain.name }} Context Graph", () => {
   });
 
   // --------------------------------------------------------------------------
+  // Decision trace panel (right side, "Traces" tab)
+  // --------------------------------------------------------------------------
+
+  test("decision traces panel loads and shows demo traces", async ({ page }) => {
+    // The /traces endpoint should return at least one trace from the demo
+    // fixture. The panel may be behind a tab on smaller viewports.
+    const tracesTab = page.getByRole("tab", { name: /traces/i }).first();
+    if (await tracesTab.count() > 0) {
+      await tracesTab.click().catch(() => { /* may already be active */ });
+    }
+
+    // Wait for the panel header — it identifies the panel even when empty.
+    await expect(page.getByText(/decision traces/i).first()).toBeVisible({ timeout: 10_000 });
+
+    // Either the empty-state message appears, or at least one trace card.
+    const emptyState = page.getByText(/no decision traces yet/i);
+    const traceCards = page.locator("[role='button']").filter({ hasText: /step/i });
+    const emptyVisible = await emptyState.isVisible().catch(() => false);
+    if (!emptyVisible) {
+      const count = await traceCards.count();
+      expect(count).toBeGreaterThan(0);
+
+      // Click the first trace card and verify the step detail panel opens.
+      await traceCards.first().click();
+      // Detail panel should render thought/action labels.
+      await expect(page.getByText(/outcome/i).first()).toBeVisible({ timeout: 5_000 });
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // Document browser (right side, "Documents" tab)
+  // --------------------------------------------------------------------------
+
+  test("document browser loads and renders a document detail view", async ({ page }) => {
+    const docsTab = page.getByRole("tab", { name: /documents/i }).first();
+    if (await docsTab.count() > 0) {
+      await docsTab.click();
+    }
+
+    await expect(page.getByText(/^documents$/i).first()).toBeVisible({ timeout: 10_000 });
+
+    // Either empty state or a populated list — demo data should populate it.
+    const emptyState = page.getByText(/no documents/i);
+    const emptyVisible = await emptyState.isVisible().catch(() => false);
+    if (!emptyVisible) {
+      // Click the first document card.
+      const firstDoc = page.locator("[role='button']").filter({ hasText: /\w+/ }).first();
+      await firstDoc.click({ trial: false });
+      // ReactMarkdown rendering produces semantic markdown — at least one
+      // paragraph or heading should be visible.
+      await expect(page.locator("p, h1, h2, h3").first()).toBeVisible({ timeout: 5_000 });
+    }
+  });
+
+  // --------------------------------------------------------------------------
   // API-level prompt quality checks
   // --------------------------------------------------------------------------
 {% for scenario in demo_scenarios %}

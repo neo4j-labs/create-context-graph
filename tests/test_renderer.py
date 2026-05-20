@@ -866,31 +866,28 @@ class TestFrameworkAgentNotStubFallback:
         doesn't exist. Uses a monkey-patched fw_key to simulate an unmapped
         framework (the kind of state a half-added new framework would be in).
         """
-        from unittest.mock import patch
-
         from create_context_graph.config import ProjectConfig
 
+        # ProjectConfig allows arbitrary framework strings (the Click choice
+        # in cli.py is what gates user input); use that to land on a key with
+        # no template directory.
         config = ProjectConfig(
             project_name="MissingTemplate",
             domain="financial-services",
-            framework="pydanticai",  # any valid key — we'll patch resolution
+            framework="no-such-framework",
         )
         out = tmp_path / "missing-template"
         renderer = ProjectRenderer(config, load_domain(config.domain))
 
-        # Patch resolved_framework to a key with no template directory.
-        with patch.object(
-            type(config), "resolved_framework", "no-such-framework", create=True
-        ):
-            import warnings
+        import warnings
 
-            with warnings.catch_warnings(record=True) as caught:
-                warnings.simplefilter("always")
-                renderer.render(out)
-                stub_warnings = [
-                    w for w in caught if "placeholder stub" in str(w.message)
-                ]
-                assert stub_warnings, "Missing template must warn loudly"
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            renderer.render(out)
+            stub_warnings = [
+                w for w in caught if "placeholder stub" in str(w.message)
+            ]
+            assert stub_warnings, "Missing template must warn loudly"
 
         source = (out / "backend" / "app" / "agent.py").read_text()
         assert self.STUB_FINGERPRINT in source

@@ -148,6 +148,11 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
   const textBufferRef = useRef("");
   const flushTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  // Refs mirror streamingEntities/Preferences so the "done" handler reads
+  // the accumulated values synchronously — the useState equivalents may be
+  // one render behind when "done" fires immediately after extraction events.
+  const streamingEntitiesRef = useRef<ExtractedEntity[]>([]);
+  const streamingPreferencesRef = useRef<DetectedPreference[]>([]);
 
   // Hydrate from sessionStorage after mount to avoid SSR mismatch
   useEffect(() => {
@@ -156,13 +161,18 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
     setHydrated(true);
   }, []);
 
-  // Handle external input from graph "Ask about this" button
+  // Handle external input from graph "Ask about this" button.
+  // `loading` is read inside but intentionally tracked here so a click that
+  // arrives mid-stream re-fires once the previous response completes.
+  // `sendMessage`/`onExternalInputConsumed` change identity every render and
+  // are omitted to avoid an effect storm.
   useEffect(() => {
     if (externalInput && !loading) {
       sendMessage(externalInput);
       onExternalInputConsumed?.();
     }
-  }, [externalInput]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalInput, loading]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -209,6 +219,8 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
     setStreamingToolCalls([]);
     setStreamingEntities([]);
     setStreamingPreferences([]);
+    streamingEntitiesRef.current = [];
+    streamingPreferencesRef.current = [];
     setLoading(false);
     try {
       sessionStorage.removeItem(STORAGE_KEY);
@@ -228,6 +240,8 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
     setStreamingToolCalls([]);
     setStreamingEntities([]);
     setStreamingPreferences([]);
+    streamingEntitiesRef.current = [];
+    streamingPreferencesRef.current = [];
     textBufferRef.current = "";
 
     const controller = new AbortController();
@@ -329,22 +343,34 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
 
                 case "entities_extracted":
                   if (data.entities?.length) {
-                    setStreamingEntities((prev) => [...prev, ...data.entities]);
+                    streamingEntitiesRef.current = [
+                      ...streamingEntitiesRef.current,
+                      ...data.entities,
+                    ];
+                    setStreamingEntities([...streamingEntitiesRef.current]);
                   }
                   break;
 
                 case "preferences_detected":
                   if (data.preferences?.length) {
-                    setStreamingPreferences((prev) => [...prev, ...data.preferences]);
+                    streamingPreferencesRef.current = [
+                      ...streamingPreferencesRef.current,
+                      ...data.preferences,
+                    ];
+                    setStreamingPreferences([...streamingPreferencesRef.current]);
                   }
                   break;
 
-                case "done":
+                case "done": {
                   // Flush any remaining buffered text
                   if (flushTimerRef.current) {
                     clearTimeout(flushTimerRef.current);
                     flushTimerRef.current = null;
                   }
+                  // Read accumulated entities/preferences from refs (state may
+                  // be one render behind for events that fired this tick).
+                  const finalEntities = streamingEntitiesRef.current;
+                  const finalPreferences = streamingPreferencesRef.current;
                   setMessages((prev) => [
                     ...prev,
                     {
@@ -352,26 +378,19 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
                       role: "assistant",
                       content: data.response || fullText,
                       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+                      entities: finalEntities.length > 0 ? [...finalEntities] : undefined,
+                      preferences: finalPreferences.length > 0 ? [...finalPreferences] : undefined,
                     },
                   ]);
-                  // Attach entities/preferences from the streaming state
-                  setMessages((prev) => {
-                    const last = prev[prev.length - 1];
-                    if (!last || last.role !== "assistant") return prev;
-                    const updated = [...prev];
-                    updated[updated.length - 1] = {
-                      ...last,
-                      entities: streamingEntities.length > 0 ? [...streamingEntities] : undefined,
-                      preferences: streamingPreferences.length > 0 ? [...streamingPreferences] : undefined,
-                    };
-                    return updated;
-                  });
                   setStreamingContent("");
                   setStreamingToolCalls([]);
                   setStreamingEntities([]);
                   setStreamingPreferences([]);
+                  streamingEntitiesRef.current = [];
+                  streamingPreferencesRef.current = [];
                   textBufferRef.current = "";
                   break;
+                }
 
                 case "error":
                   throw new Error(data.detail || "Streaming error");
@@ -409,6 +428,8 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
       setStreamingToolCalls([]);
       setStreamingEntities([]);
       setStreamingPreferences([]);
+      streamingEntitiesRef.current = [];
+      streamingPreferencesRef.current = [];
       textBufferRef.current = "";
     } finally {
       clearTimeout(timeout);
@@ -451,9 +472,9 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
               <Text>Try these</Text>
             </HStack>
             <Flex gap={2} flexWrap="wrap" justify="center" maxW="500px">
-              {allPrompts.map((prompt, i) => (
+              {allPrompts.map((prompt) => (
                 <Button
-                  key={i}
+                  key={prompt}
                   size="xs"
                   variant="outline"
                   rounded="full"
@@ -532,7 +553,7 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
                     {msg.entities && msg.entities.length > 0 && (
                       <HStack gap={1} mt={2} flexWrap="wrap">
                         {msg.entities.map((e, i) => (
-                          <Badge key={i} size="xs" colorPalette="teal" variant="subtle">
+                          <Badge key={`${e.type}-${e.name}-${i}`} size="xs" colorPalette="teal" variant="subtle">
                             {e.type}{e.subtype ? `/${e.subtype}` : ""}: {e.name}
                           </Badge>
                         ))}
@@ -542,7 +563,7 @@ export function ChatInterface({ onGraphUpdate, externalInput, onExternalInputCon
                     {msg.preferences && msg.preferences.length > 0 && (
                       <HStack gap={1} mt={1} flexWrap="wrap">
                         {msg.preferences.map((p, i) => (
-                          <Badge key={i} size="xs" colorPalette="orange" variant="subtle">
+                          <Badge key={`${p.category}-${p.preference}-${i}`} size="xs" colorPalette="orange" variant="subtle">
                             {p.category}: {p.preference}
                           </Badge>
                         ))}

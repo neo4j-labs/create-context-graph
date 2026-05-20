@@ -129,7 +129,7 @@ export function DecisionTracePanel() {
           </Text>
           <VStack gap={3} align="stretch">
             {selectedTrace.steps.map((step, i) => (
-              <Box key={i} pl={3} borderLeft="2px solid" borderColor="blue.200">
+              <Box key={`step-${i}-${(step.action || "").slice(0, 32)}`} pl={3} borderLeft="2px solid" borderColor="blue.200">
                 <HStack>
                   <Brain size={12} />
                   <Text fontSize="xs" color="gray.600">

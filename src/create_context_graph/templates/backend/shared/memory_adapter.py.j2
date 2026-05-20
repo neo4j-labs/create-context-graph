@@ -251,8 +251,12 @@ async def list_documents_nams(
     if client is None:
         return []
     try:
+        # Push the OBJECT filter to the server so the (skip + limit + 50)
+        # buffer isn't eaten by unrelated PERSON/ORGANIZATION/LOCATION/EVENT
+        # entities — that used to cause documents to be silently dropped on
+        # busy NAMS instances.
         entities = await client.long_term.search_entities(
-            query=_DOCUMENT_QUERY_HINT, limit=skip + limit + 50,
+            query=_DOCUMENT_QUERY_HINT, entity_type="OBJECT", limit=skip + limit + 50,
         )
     except Exception as e:
         logger.info("list_documents_nams: search_entities failed: %s", e)
@@ -267,16 +271,16 @@ async def list_documents_nams(
         rec = _document_record_from_entity(ent)
         if rec is None:
             continue
-        # Coarse filter: skip records that are clearly POLE+O typed people /
-        # organizations / locations / events, leaving only OBJECTs which is
-        # what documents land as.
+        # Belt-and-suspenders client-side filter — server already restricted
+        # to OBJECT, but legacy data may use the older DOCUMENT label.
         if ent_type and ent_type.upper() not in {"OBJECT", "DOCUMENT"}:
             continue
+        # NAMS doesn't preserve template_id metadata yet; routes.py rejects
+        # template_id filters on NAMS with HTTP 501, so the field stays empty
+        # and we no longer attempt a filter that could never match.
         rec["template_id"] = ""
         rec["template_name"] = ""
         rec["mentioned_entities"] = []
-        if template_id and rec["template_id"] != template_id:
-            continue
         docs.append(rec)
 
     docs.sort(key=lambda d: d.get("title", ""))

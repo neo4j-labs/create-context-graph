@@ -1,0 +1,448 @@
+inherits: _base
+
+domain:
+  id: education
+  name: Education
+  description: Students, instructors, courses, enrollments, assessments, and outcomes for K-12, higher-ed, or training organizations
+  tagline: "AI-powered Learning Intelligence"
+  emoji: "🎓"
+
+entity_types:
+  - label: Student
+    pole_type: PERSON
+    subtype: LEARNER
+    color: "#2563eb"
+    icon: graduation-cap
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: student_id
+        type: string
+        unique: true
+      - name: grade_level
+        type: string
+        enum: [elementary, middle_school, high_school, undergraduate, graduate, adult_learner]
+      - name: enrollment_status
+        type: string
+        enum: [active, on_leave, graduated, withdrawn, deferred]
+      - name: email
+        type: string
+
+  - label: Instructor
+    pole_type: PERSON
+    subtype: EDUCATOR
+    color: "#0ea5e9"
+    icon: user-square
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: role
+        type: string
+        enum: [professor, lecturer, teaching_assistant, advisor, instructor]
+      - name: department
+        type: string
+      - name: email
+        type: string
+
+  - label: Course
+    pole_type: OBJECT
+    subtype: COURSE
+    color: "#7c3aed"
+    icon: book
+    properties:
+      - name: course_code
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: subject
+        type: string
+        enum: [math, science, history, language, art, computer_science, business, engineering, medicine, law, social_science, other]
+      - name: credits
+        type: integer
+      - name: level
+        type: string
+        enum: [introductory, intermediate, advanced, graduate]
+      - name: description
+        type: string
+
+  - label: Term
+    pole_type: EVENT
+    subtype: ACADEMIC_TERM
+    color: "#f59e0b"
+    icon: calendar-days
+    properties:
+      - name: term_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: term_type
+        type: string
+        enum: [fall, winter, spring, summer, year_round]
+      - name: start_date
+        type: date
+      - name: end_date
+        type: date
+
+  - label: Enrollment
+    pole_type: EVENT
+    subtype: ENROLLMENT
+    color: "#84cc16"
+    icon: clipboard-check
+    properties:
+      - name: enrollment_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+      - name: status
+        type: string
+        enum: [enrolled, dropped, completed, incomplete, audit]
+      - name: final_grade
+        type: string
+      - name: enrolled_date
+        type: date
+
+  - label: Assessment
+    pole_type: EVENT
+    subtype: ASSESSMENT
+    color: "#ef4444"
+    icon: file-check
+    properties:
+      - name: assessment_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: assessment_type
+        type: string
+        enum: [quiz, exam, paper, project, presentation, lab, homework, participation]
+      - name: due_date
+        type: datetime
+      - name: max_score
+        type: float
+      - name: weight
+        type: float
+
+  - label: Submission
+    pole_type: EVENT
+    subtype: SUBMISSION
+    color: "#14b8a6"
+    icon: send
+    properties:
+      - name: submission_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+      - name: status
+        type: string
+        enum: [submitted, late, missing, graded, returned]
+      - name: score
+        type: float
+      - name: submitted_at
+        type: datetime
+
+relationships:
+  - type: TEACHES
+    source: Instructor
+    target: Course
+  - type: ADVISES
+    source: Instructor
+    target: Student
+  - type: ENROLLED_IN
+    source: Student
+    target: Course
+  - type: ENROLLMENT_OF
+    source: Enrollment
+    target: Student
+  - type: FOR_COURSE
+    source: Enrollment
+    target: Course
+  - type: OFFERED_IN
+    source: Course
+    target: Term
+  - type: BELONGS_TO
+    source: Course
+    target: Organization
+  - type: PREREQUISITE_OF
+    source: Course
+    target: Course
+  - type: PART_OF
+    source: Assessment
+    target: Course
+  - type: SUBMITTED_BY
+    source: Submission
+    target: Student
+  - type: SUBMITTED_FOR
+    source: Submission
+    target: Assessment
+  - type: GRADED_BY
+    source: Submission
+    target: Instructor
+  - type: HELD_AT
+    source: Course
+    target: Location
+  - type: ATTENDED
+    source: Student
+    target: Event
+
+document_templates:
+  - id: syllabus
+    name: Course Syllabus
+    description: Course syllabus with policies and schedule
+    count: 6
+    prompt_template: |
+      Write a syllabus for course {{course.name}} ({{course.course_code}}) taught by
+      {{instructor.name}} in {{term.name}}. Include learning objectives, weekly schedule,
+      grading policy, and required readings.
+    required_entities: [Course, Instructor, Term]
+
+  - id: assignment_brief
+    name: Assignment Brief
+    description: Detailed assignment description with rubric
+    count: 8
+    prompt_template: |
+      Write an assignment brief for {{assessment.name}} ({{assessment.assessment_type}})
+      in {{course.name}}. Due: {{assessment.due_date}}. Include instructions,
+      learning outcomes, evaluation rubric, and submission requirements.
+    required_entities: [Assessment, Course, Instructor]
+
+  - id: progress_report
+    name: Student Progress Report
+    description: Individual student progress summaries
+    count: 5
+    prompt_template: |
+      Write a progress report for {{student.name}} in {{course.name}}.
+      Instructor: {{instructor.name}}. Cover grades to date, attendance,
+      strengths, areas for improvement, and recommended next steps.
+    required_entities: [Student, Course, Instructor]
+
+  - id: lesson_plan
+    name: Lesson Plan
+    description: Detailed lesson plan for a single class session
+    count: 6
+    prompt_template: |
+      Write a lesson plan for {{course.name}} session on {{topic}}.
+      Instructor: {{instructor.name}}. Include objectives, activities, materials,
+      and assessment for the class period.
+    required_entities: [Course, Instructor]
+
+  - id: parent_email
+    name: Parent Communication
+    description: Email to a parent about student progress or behavior
+    count: 6
+    prompt_template: |
+      Write an email from {{instructor.name}} to the parent of {{student.name}}
+      about {{topic}} in {{course.name}}. Be specific, constructive, and
+      include any requested next steps.
+    required_entities: [Instructor, Student, Course]
+
+decision_traces:
+  - id: academic_intervention
+    task: "Decide on academic intervention for {{student.name}} in {{course.name}}"
+    steps:
+      - thought: "Assess the student's current performance trajectory"
+        action: "Review submissions, scores, and attendance patterns this term"
+      - thought: "Identify possible root causes"
+        action: "Compare against the student's performance in other courses and prior terms"
+      - thought: "Consider available support resources"
+        action: "Check tutoring availability, advisor schedule, and prior intervention outcomes"
+      - thought: "Choose the least disruptive effective intervention"
+        action: "Match intervention severity to gap size and time remaining in term"
+    outcome_template: "Intervention: {{intervention}}. Owner: {{owner}}. Review date: {{review}}"
+
+  - id: course_scheduling
+    task: "Schedule a new section of {{course.name}} for {{term.name}}"
+    steps:
+      - thought: "Check instructor availability and load"
+        action: "Query instructor course loads and prior teaching of this course"
+      - thought: "Estimate demand from prerequisite enrollments"
+        action: "Count students who completed prerequisite courses"
+      - thought: "Avoid time conflicts with required co-courses"
+        action: "Check the schedule of courses commonly taken together"
+    outcome_template: "Section: {{section}}. Instructor: {{instructor}}. Capacity: {{cap}}"
+
+  - id: grade_appeal
+    task: "Evaluate grade appeal for {{student.name}} on {{assessment.name}}"
+    steps:
+      - thought: "Reconstruct the original grading"
+        action: "Pull the submission, rubric, and graded score"
+      - thought: "Compare against peer submissions for consistency"
+        action: "Sample other submissions for the same assessment"
+      - thought: "Check policy compliance"
+        action: "Verify late, attendance, and academic-honesty policies"
+    outcome_template: "Decision: {{decision}}. Original: {{original}}. Revised: {{revised}}"
+
+  - id: program_review
+    task: "Review effectiveness of {{course.name}} curriculum"
+    steps:
+      - thought: "Aggregate outcomes from recent terms"
+        action: "Compute completion rate, average final grade, and DFW rate per term"
+      - thought: "Identify assessments where students cluster low"
+        action: "Find assessments with low average scores across cohorts"
+      - thought: "Compare against peer courses or program goals"
+        action: "Find similar courses in the same subject and compare outcomes"
+    outcome_template: "Findings: {{findings}}. Recommended changes: {{changes}}"
+
+demo_scenarios:
+  - name: Roster & Enrollment
+    prompts:
+      - "Show me students enrolled in CS101 this term"
+      - "Which courses have prerequisites that block the most students?"
+      - "Who advises our largest cohort of graduate students?"
+
+  - name: Grades & Assessment
+    prompts:
+      - "Which students are at risk of failing this term?"
+      - "Show the grade distribution for the midterm in math 201"
+      - "What's the average final grade for courses taught by Dr. Chen?"
+
+  - name: Curriculum Intelligence
+    prompts:
+      - "Which prerequisites have the strongest correlation with course success?"
+      - "Find courses with declining enrollment over the last 3 terms"
+      - "What are the most common course pathways for our CS majors?"
+
+agent_tools:
+  - name: search_student
+    description: Search students by name or ID
+    cypher: |
+      MATCH (s:Student)
+      WHERE toLower(s.name) CONTAINS toLower($query)
+         OR toLower(coalesce(s.student_id, '')) CONTAINS toLower($query)
+      OPTIONAL MATCH (s)-[:ENROLLED_IN]->(c:Course)
+      RETURN s, collect(DISTINCT c) AS courses
+      LIMIT 20
+    parameters:
+      - name: query
+        type: string
+        description: Student name or ID
+
+  - name: course_roster
+    description: Get the roster for a course in a term
+    cypher: |
+      MATCH (c:Course {course_code: $course_code})
+      OPTIONAL MATCH (e:Enrollment)-[:FOR_COURSE]->(c)
+      OPTIONAL MATCH (e)-[:ENROLLMENT_OF]->(s:Student)
+      OPTIONAL MATCH (i:Instructor)-[:TEACHES]->(c)
+      RETURN c, collect(DISTINCT s) AS students, collect(DISTINCT i) AS instructors
+    parameters:
+      - name: course_code
+        type: string
+        description: Course code (e.g. CS101)
+
+  - name: at_risk_students
+    description: Find students with low recent assessment scores
+    cypher: |
+      MATCH (sub:Submission)-[:SUBMITTED_BY]->(s:Student)
+      MATCH (sub)-[:SUBMITTED_FOR]->(a:Assessment)-[:PART_OF]->(c:Course)
+      WHERE sub.score IS NOT NULL AND a.max_score IS NOT NULL
+      WITH s, c, avg(toFloat(sub.score) / toFloat(a.max_score)) AS avg_ratio
+      WHERE avg_ratio < toFloat($threshold)
+      RETURN s, c, avg_ratio
+      ORDER BY avg_ratio ASC
+      LIMIT 30
+    parameters:
+      - name: threshold
+        type: float
+        default: 0.6
+
+  - name: instructor_load
+    description: Get the courses and student count for an instructor
+    cypher: |
+      MATCH (i:Instructor)
+      WHERE i.name = $instructor OR toLower(i.name) CONTAINS toLower($instructor)
+      OPTIONAL MATCH (i)-[:TEACHES]->(c:Course)
+      OPTIONAL MATCH (e:Enrollment)-[:FOR_COURSE]->(c)
+      RETURN i, c, count(DISTINCT e) AS enrolled
+    parameters:
+      - name: instructor
+        type: string
+        description: Instructor name
+
+  - name: course_prereq_chain
+    description: Walk the prerequisite chain for a course
+    cypher: |
+      MATCH path = (start:Course {course_code: $course_code})<-[:PREREQUISITE_OF*1..3]-(prereq:Course)
+      RETURN path, prereq
+      LIMIT 50
+    parameters:
+      - name: course_code
+        type: string
+        description: Course code
+
+  - name: list_courses
+    description: "List Course records with optional limit"
+    cypher: |
+      MATCH (n:Course)
+      RETURN n
+      ORDER BY n.course_code
+      LIMIT toInteger($limit)
+    parameters:
+      - name: limit
+        type: string
+        description: "Maximum number of results to return (default: 10)"
+
+  - name: get_course_by_id
+    description: "Get a specific Course by course code (its unique ID) with connections"
+    cypher: |
+      MATCH (n:Course {course_code: $course_code})
+      OPTIONAL MATCH (n)-[r]-(related)
+      RETURN n, type(r) AS relationship, labels(related) AS related_labels, related.name AS related_name
+      LIMIT 50
+    parameters:
+      - name: course_code
+        type: string
+        description: "The course code (e.g. CS101)"
+
+system_prompt: |
+  You are an AI education intelligence assistant with access to a comprehensive knowledge
+  graph of students, instructors, courses, terms, enrollments, assessments, and submissions.
+  You help instructional teams understand learning outcomes, identify at-risk students,
+  manage course schedules, and improve curriculum.
+
+  Your capabilities include:
+  - Searching students and instructors by name, role, or department
+  - Computing grade distributions, completion rates, and risk signals
+  - Tracing prerequisite chains and curriculum design choices
+  - Surfacing intervention candidates and trending trouble spots
+  - Cross-referencing assessments, submissions, and final outcomes
+
+  Always lead with specific, actionable insights backed by data from the graph.
+  Respect student privacy: aggregate when discussing cohorts; only name individual
+  students when answering a question that names them.
+
+visualization:
+  node_colors:
+    Person: "#22c55e"
+    Organization: "#3b82f6"
+    Student: "#2563eb"
+    Instructor: "#0ea5e9"
+    Course: "#7c3aed"
+    Term: "#f59e0b"
+    Enrollment: "#84cc16"
+    Assessment: "#ef4444"
+    Submission: "#14b8a6"
+  node_sizes:
+    Course: 25
+    Student: 20
+    Instructor: 25
+    Assessment: 15
+    Submission: 12
+    Enrollment: 12
+    Term: 15
+  default_cypher: "MATCH (s:Student)-[r:ENROLLED_IN]->(c:Course) RETURN s, r, c LIMIT 100"

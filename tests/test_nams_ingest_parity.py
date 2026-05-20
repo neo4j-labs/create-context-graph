@@ -181,6 +181,11 @@ def _exec_scaffold_template(client: _RecordingClient) -> dict[str, Any]:
         memory_api_key="sk-test",
         memory_nams_endpoint="https://test.example/v1",
         memory_backend="nams",
+        # Bolt-path settings — _ingest_via_bolt reads these even when the
+        # backend is NAMS, because both functions live in the same module.
+        neo4j_uri="neo4j://test:7687",
+        neo4j_username="neo4j",
+        neo4j_password="testpass",
     )
     fake_config_mod = ModuleType("app.config")
     fake_config_mod.settings = fake_settings
@@ -430,96 +435,123 @@ def test_retry_deadletter_rebuilds_retryable_payloads():
     assert captured["body_fields"] == {"Note": "body"}
 
 
-def test_bolt_ingest_rejects_unsafe_cypher_identifiers():
-    ns = _exec_scaffold_template(_RecordingClient())
+# ---------------------------------------------------------------------------
+# Bolt path async-shape tests
+#
+# These were written against the v0.12.0 sync ``_ingest_via_bolt``. v0.13.0
+# made the function async and pulled driver construction inside via
+# ``AsyncGraphDatabase.driver(...)``. The tests now patch
+# ``neo4j.AsyncGraphDatabase`` and run the coroutine through ``asyncio.run``.
+# ---------------------------------------------------------------------------
 
-    class _Session:
-        def __init__(self):
-            self.run = MagicMock()
 
-        def __enter__(self):
-            return self
+class _AsyncSessionMock:
+    def __init__(self):
+        self.calls: list[tuple[str, dict]] = []
 
-        def __exit__(self, *_):
-            return None
+    async def run(self, cypher, parameters=None, **kwargs):
+        params = parameters if parameters is not None else (kwargs or {})
+        self.calls.append((cypher, dict(params)))
+        return SimpleNamespace(consume=AsyncMock())
 
-    session = _Session()
-    driver = MagicMock()
-    driver.session.return_value = session
-    prior = sys.modules.get("app.context_graph_client")
+
+class _AsyncDriverMock:
+    def __init__(self):
+        self.session_obj = _AsyncSessionMock()
+
+    async def verify_connectivity(self):
+        return None
+
+    async def close(self):
+        return None
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_):
+        return None
+
+    def session(self):
+        outer = self
+
+        class _Ctx:
+            async def __aenter__(self_inner):
+                return outer.session_obj
+
+            async def __aexit__(self_inner, *_):
+                return None
+
+        return _Ctx()
+
+
+def _run_bolt_ingest(ns, payload, body_fields):
+    """Patch ``neo4j.AsyncGraphDatabase`` and run the async function."""
+    driver = _AsyncDriverMock()
+    prior = sys.modules.get("neo4j")
     try:
-        cgc_mod = ModuleType("app.context_graph_client")
-        cgc_mod.get_driver = MagicMock(return_value=driver)
-        sys.modules["app.context_graph_client"] = cgc_mod
+        fake = ModuleType("neo4j")
 
-        counts = ns["_ingest_via_bolt"](
-            {
-                "entities": {"Bad Label": [{"name": "Alice"}]},
-                "relationships": [{"type": "BAD-TYPE", "source_name": "Alice", "target_name": "Bob"}],
-                "documents": [],
-                "traces": [],
-            },
-            {},
-        )
+        class _Factory:
+            @staticmethod
+            def driver(*_args, **_kwargs):
+                return driver
+
+        fake.AsyncGraphDatabase = _Factory
+        sys.modules["neo4j"] = fake
+
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            ns["SIDECAR_DIR"] = Path(tmp)
+            ns["DEADLETTER_FILE"] = Path(tmp) / "deadletter.jsonl"
+            counts = asyncio.run(ns["_ingest_via_bolt"](payload, body_fields))
     finally:
         if prior is None:
-            sys.modules.pop("app.context_graph_client", None)
+            sys.modules.pop("neo4j", None)
         else:
-            sys.modules["app.context_graph_client"] = prior
+            sys.modules["neo4j"] = prior
+    return counts, driver.session_obj
 
+
+def test_bolt_ingest_rejects_unsafe_cypher_identifiers():
+    ns = _exec_scaffold_template(_RecordingClient())
+    counts, session = _run_bolt_ingest(
+        ns,
+        {
+            "entities": {"Bad Label": [{"name": "Alice"}]},
+            "relationships": [{"type": "BAD-TYPE", "source_name": "Alice", "target_name": "Bob"}],
+            "documents": [],
+            "traces": [],
+        },
+        {},
+    )
     assert counts["failures"] == 2
-    session.run.assert_not_called()
+    assert session.calls == []
 
 
 def test_bolt_ingest_uses_relationship_labels_when_present():
     ns = _exec_scaffold_template(_RecordingClient())
-
-    class _Session:
-        def __init__(self):
-            self.run = MagicMock()
-
-        def __enter__(self):
-            return self
-
-        def __exit__(self, *_):
-            return None
-
-    session = _Session()
-    driver = MagicMock()
-    driver.session.return_value = session
-    prior = sys.modules.get("app.context_graph_client")
-    try:
-        cgc_mod = ModuleType("app.context_graph_client")
-        cgc_mod.get_driver = MagicMock(return_value=driver)
-        sys.modules["app.context_graph_client"] = cgc_mod
-
-        counts = ns["_ingest_via_bolt"](
-            {
-                "entities": {},
-                "relationships": [
-                    {
-                        "type": "TREATS",
-                        "source_name": "Mercy General",
-                        "source_label": "Hospital",
-                        "target_name": "Mercy General",
-                        "target_label": "Provider",
-                    }
-                ],
-                "documents": [],
-                "traces": [],
-            },
-            {},
-        )
-    finally:
-        if prior is None:
-            sys.modules.pop("app.context_graph_client", None)
-        else:
-            sys.modules["app.context_graph_client"] = prior
-
+    counts, session = _run_bolt_ingest(
+        ns,
+        {
+            "entities": {},
+            "relationships": [
+                {
+                    "type": "TREATS",
+                    "source_name": "Mercy General",
+                    "source_label": "Hospital",
+                    "target_name": "Mercy General",
+                    "target_label": "Provider",
+                }
+            ],
+            "documents": [],
+            "traces": [],
+        },
+        {},
+    )
     assert counts["relationships"] == 1
     assert counts["failures"] == 0
-    session.run.assert_called_once()
-    cypher, params = session.run.call_args.args
+    assert len(session.calls) == 1
+    cypher, params = session.calls[0]
     assert "MATCH (a:Hospital {name: $source_name})" in cypher
     assert "MATCH (b:Provider {name: $target_name})" in cypher
     assert "MERGE (a)-[r:TREATS]->(b)" in cypher

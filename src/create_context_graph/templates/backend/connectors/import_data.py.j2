@@ -341,15 +341,29 @@ async def _ingest_via_nams(data: dict[str, Any], body_fields: dict[str, str]) ->
 # ---------------------------------------------------------------------------
 
 
-def _ingest_via_bolt(data: dict[str, Any], body_fields: dict[str, str]) -> dict[str, int]:
+async def _ingest_via_bolt(data: dict[str, Any], body_fields: dict[str, str]) -> dict[str, int]:
     """Write data into self-hosted Neo4j via Cypher MERGE. Native edges, no
-    ccg-edges encoding (the bolt graph IS the source of truth)."""
-    from app.context_graph_client import get_driver
+    ccg-edges encoding (the bolt graph IS the source of truth).
+
+    ``app.context_graph_client`` exposes an ``AsyncDriver``; this function
+    and every ``session.run`` call must be awaited. The script is invoked
+    outside the FastAPI lifespan, so we open and close the driver here.
+    """
+    from neo4j import AsyncGraphDatabase
 
     counts = {"entities": 0, "documents": 0, "relationships": 0, "traces": 0, "failures": 0}
-    driver = get_driver()
+    driver = AsyncGraphDatabase.driver(
+        settings.neo4j_uri,
+        auth=(settings.neo4j_username, settings.neo4j_password),
+    )
 
-    with driver.session() as session:
+    try:
+        await driver.verify_connectivity()
+    except Exception as exc:  # noqa: BLE001
+        await driver.close()
+        raise RuntimeError(f"Failed to connect to Neo4j at {settings.neo4j_uri}: {exc}") from exc
+
+    async with driver, driver.session() as session:
         # Entities — UNWIND batched by label
         for label, items in data.get("entities", {}).items():
             if not items:
@@ -388,7 +402,7 @@ def _ingest_via_bolt(data: dict[str, Any], body_fields: dict[str, str]) -> dict[
             for i in range(0, len(safe_items), 500):
                 batch = safe_items[i:i + 500]
                 try:
-                    session.run(cypher, batch=batch)
+                    await session.run(cypher, batch=batch)
                     counts["entities"] += len(batch)
                 except Exception as exc:  # noqa: BLE001
                     counts["failures"] += 1
@@ -428,7 +442,7 @@ def _ingest_via_bolt(data: dict[str, Any], body_fields: dict[str, str]) -> dict[
                 f"MERGE (a)-[r:{safe_rel_type}]->(b)"
             )
             try:
-                session.run(cypher, {
+                await session.run(cypher, {
                     "source_name": rel.get("source_name", ""),
                     "target_name": rel.get("target_name", ""),
                 })
@@ -443,7 +457,7 @@ def _ingest_via_bolt(data: dict[str, Any], body_fields: dict[str, str]) -> dict[
         # Documents
         for doc in data.get("documents", []):
             try:
-                session.run(
+                await session.run(
                     "MERGE (d:Document {title: $title}) "
                     "SET d.content = $content, d.template_id = $template_id, "
                     "d.template_name = $template_name",
@@ -465,7 +479,7 @@ def _ingest_via_bolt(data: dict[str, Any], body_fields: dict[str, str]) -> dict[
         # Decision traces
         for trace in data.get("traces", []):
             try:
-                session.run(
+                await session.run(
                     "MERGE (t:DecisionTrace {id: $id}) "
                     "SET t.task = $task, t.outcome = $outcome",
                     {
@@ -475,7 +489,7 @@ def _ingest_via_bolt(data: dict[str, Any], body_fields: dict[str, str]) -> dict[
                     },
                 )
                 for i, step in enumerate(trace.get("steps", [])):
-                    session.run(
+                    await session.run(
                         "MATCH (t:DecisionTrace {id: $trace_id}) "
                         "MERGE (s:TraceStep {trace_id: $trace_id, step_number: $step_number}) "
                         "SET s.thought = $thought, s.action = $action, s.observation = $observation "
@@ -653,7 +667,7 @@ def main() -> int:
     if settings.memory_backend == "nams":
         counts = asyncio.run(_ingest_via_nams(aggregated, body_fields))
     else:
-        counts = _ingest_via_bolt(aggregated, body_fields)
+        counts = asyncio.run(_ingest_via_bolt(aggregated, body_fields))
 
     print(f"  Ingest counts: {counts}")
     if counts.get("failures"):
@@ -725,7 +739,7 @@ def _retry_deadletter() -> int:
     if settings.memory_backend == "nams":
         counts = asyncio.run(_ingest_via_nams(payload, body_fields))
     else:
-        counts = _ingest_via_bolt(payload, body_fields)
+        counts = asyncio.run(_ingest_via_bolt(payload, body_fields))
 
     if counts.get("failures"):
         print(f"Retry left {counts['failures']} record(s) unresolved (new deadletter written).", file=sys.stderr)

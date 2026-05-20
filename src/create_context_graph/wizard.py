@@ -577,7 +577,7 @@ def _show_summary(config: ProjectConfig) -> None:
     table.add_row("NAMS key" if config.is_nams else "—", "***" if config.nams_api_key else "(not set)")
     table.add_row("Anthropic key", "***" if config.anthropic_api_key else "(not set — set in .env later)")
     table.add_row("OpenAI key", "***" if config.openai_api_key else "(not set)")
-    if config.google_api_key or config.resolved_framework == "google-adk":
+    if config.google_api_key or config.framework == "google-adk":
         table.add_row("Google key", "***" if config.google_api_key else "(not set)")
 
     console.print()

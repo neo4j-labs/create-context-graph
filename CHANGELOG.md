@@ -1,5 +1,40 @@
 # Changelog
 
+## v0.13.0 — v0.12.0 feedback report fixes (unreleased)
+
+Addresses the May 2026 v0.12.0 feedback report: one runtime bug on the `--self-hosted` ingest path, one React state bug in the streaming chat, four `key={i}` re-render hazards, dead/over-fetching code in the document adapter, four restored domains, and documentation for the `ccg-edges` encoding strategy.
+
+### Bug Fixes
+
+- **`_ingest_via_bolt()` now async (scaffolded `import_data.py`).** `app.context_graph_client.get_driver()` returns an `AsyncDriver`, but the generated `_ingest_via_bolt()` was `def` and called `with driver.session() as session:` followed by sync `session.run(...)`. Every self-hosted `make import` / `make import-retry` failed at runtime with a coroutine-not-iterable error. Function is now `async def`, uses `async with driver, driver.session() as session:` to own the driver lifecycle, and `await`s every `session.run(...)`. Both call sites (`main()`, `_retry_deadletter()`) wrap with `asyncio.run(...)` to mirror the NAMS branch.
+- **`ChatInterface` "done" handler no longer reads stale streaming state.** The `setMessages` callback in the `done` SSE branch referenced `streamingEntities`/`streamingPreferences` from closure — these are `useState`-backed and could be one render behind the most recent `entities_extracted`/`preferences_detected` event. Accumulators are now `useRef`-backed (`streamingEntitiesRef`, `streamingPreferencesRef`); the `done` handler reads from `.current` and the two-step `setMessages` was collapsed into one.
+- **`list_documents_nams()` pushes the `OBJECT` filter to the server.** Previously, the over-fetch buffer (`skip + limit + 50`) could be exhausted by unrelated POLE+O entities, silently dropping valid documents on busy NAMS instances. Now passes `entity_type="OBJECT"` to `search_entities`. Dead `template_id` filter at the same site removed.
+- **`useEffect` for `externalInput` now also depends on `loading`.** An "Ask about this" click that landed mid-stream was silently dropped because the effect didn't re-fire when `loading` flipped back to false.
+
+### Breaking Changes
+
+- **`--framework maf` alias removed.** Use `--framework anthropic-tools` instead. Click now rejects `maf` with the standard "Invalid value for '--framework'" error. The `FRAMEWORK_ALIASES` dict and the `resolved_framework` property on `ProjectConfig` are gone — call sites use `config.framework` directly.
+
+### Domains
+
+- **Restored 4 domains as YAML definitions:** `legal`, `education`, `cybersecurity`, `government`. Each ships with the full schema (entity_types, relationships, document_templates, decision_traces, demo_scenarios, agent_tools, system_prompt, visualization) plus a deterministic static-fallback fixture. Domain count: 23 → 27.
+
+### Code Quality
+
+- **`key={i}` replaced with stable identifiers in 4 locations.** `ChatInterface.tsx`: suggested-prompt buttons keyed by prompt text; entity/preference badges keyed by `${type}-${name}-${i}` and `${category}-${preference}-${i}`. `DecisionTracePanel.tsx`: trace steps keyed by `step-${i}-${action.slice(0, 32)}`.
+
+### Documentation
+
+- **`ccg-edges` encoding strategy documented.** New Docusaurus page (`docs/docs/explanation/ccg-edges.md`) explains the fenced YAML block inside entity descriptions, fragility (what happens if descriptions are edited or truncated), the migration playbook once NAMS adds native `add_relationship`, and the parity test that pins the format. Scaffolded README gains a short "How NAMS stores relationships" section linking to the page.
+- **Custom domain generation walkthrough.** New Docusaurus page (`docs/docs/how-to/custom-domains.md`) covers `create-context-graph --custom-domain "..."` end-to-end, including the few-shot prompting strategy, the validate-retry loop, and how to convert a generated domain into a permanent contribution.
+
+### Testing
+
+- **Bolt ingest parity test.** New `tests/test_bolt_ingest_parity.py` mirrors `test_nams_ingest_parity.py` — renders the scaffolded template, exec's it against a mock `AsyncDriver`, and asserts the Cypher statement + parameter sequence matches a frozen golden file.
+- **AST async-shape check.** `tests/test_generated_project.py` now parses generated `import_data.py` and asserts `_ingest_via_bolt` is `AsyncFunctionDef`, every `session.run` call is inside an `Await`, and both call sites wrap with `asyncio.run`. `backend/scripts/import_data.py` was added to `PYTHON_FILES` so it gets `py_compile`-checked on every scaffold.
+- **Streaming ref-accumulation test.** `tests/test_frontend_logic.py` now AST-checks that the `done` handler in `ChatInterface.tsx.j2` reads from `streamingEntitiesRef.current`/`streamingPreferencesRef.current`, not the `useState` values.
+- **E2E coverage for new panels.** Playwright tests for `DecisionTracePanel` (tab-switch + step rendering) and `DocumentBrowser` (pagination + markdown detail view).
+
 ## v0.12.0 — NAMS-native connector ingest + `ccg-edges` relationship encoding (2026-05-19)
 
 The big shift in v0.12.0 is that connector ingest (`make import` in a scaffolded project) now writes through NAMS REST on NAMS scaffolds — previously the generated `import_data.py` only spoke bolt Cypher, so the SaaS connectors didn't actually work on the default backend. The two ingest paths (CLI demo-fixture seeding and connector-driven imports) now share a single write shape pinned by a contract test.
