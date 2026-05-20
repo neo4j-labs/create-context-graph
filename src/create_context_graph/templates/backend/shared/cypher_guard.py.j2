@@ -23,6 +23,11 @@ _WRITE_KEYWORDS = {
     "REMOVE",
     "DROP",
 }
+_WRITE_PROCEDURES = re.compile(
+    r"\bCALL\s+(apoc\.(?:refactor|create|nodes|merge)\.|gds\.\w+\.(?:write|mutate))",
+    re.IGNORECASE,
+)
+_STRING_LITERAL_RE = re.compile(r"""'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*\"""")
 _LIMIT_RE = re.compile(r"\bLIMIT\b", re.IGNORECASE)
 _NUMERIC_LIMIT_RE = re.compile(r"(\bLIMIT\s+)(\d+)\b", re.IGNORECASE)
 
@@ -33,13 +38,17 @@ class CypherGuardError(Exception):
 
 def validate_read_only(query: str) -> None:
     """Validate that a Cypher query does not contain write operations."""
-    query_upper = query.upper()
+    stripped = _STRING_LITERAL_RE.sub("''", query)
+    stripped_upper = stripped.upper()
 
     for pattern in _DDL_PATTERNS:
-        if pattern in query_upper:
+        if pattern in stripped_upper:
             raise CypherGuardError(f"Write operation is not allowed: {pattern}")
 
-    for raw_token in re.split(r"[\s()]+", query_upper):
+    if _WRITE_PROCEDURES.search(stripped):
+        raise CypherGuardError("Write-capable procedure is not allowed")
+
+    for raw_token in re.split(r"[\s()]+", stripped_upper):
         token = raw_token.strip(";,.(){}")
         if token in _WRITE_KEYWORDS:
             raise CypherGuardError(f"Write operation is not allowed: {token}")

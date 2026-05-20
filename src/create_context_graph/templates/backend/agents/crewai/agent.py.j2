@@ -20,10 +20,7 @@ from app.memory import store_message, get_context, resolve_session_id
 logger = logging.getLogger(__name__)
 
 {% if from_database %}
-try:
-    from app.constants import ENTITY_LABELS
-except ImportError:
-    ENTITY_LABELS = [{% for et in entity_types %}"{{ et.label }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+from app.constants import ENTITY_LABELS
 {% endif %}
 
 {% raw %}
@@ -101,7 +98,8 @@ def run_cypher(query: str, parameters: str = "{}") -> str:
         params = json.loads(parameters) if parameters else {}
     except json.JSONDecodeError:
         return json.dumps({"error": "Invalid JSON parameters"})
-    params.setdefault("domain", settings.domain_id)
+    if not settings.from_database:
+        params.setdefault("domain", settings.domain_id)
     try:
         result = _run_sync(execute_cypher(query, params, tool_name="run_cypher"))
         payload = {"results": result}

@@ -17,8 +17,9 @@
 from __future__ import annotations
 
 import logging
-import sys
 import os
+import re
+import sys
 from pathlib import Path
 
 import click
@@ -30,6 +31,23 @@ from create_context_graph.ontology import list_available_domains, load_domain
 from create_context_graph.renderer import ProjectRenderer
 
 console = Console()
+
+
+def _derive_domain_id(neo4j_uri: str) -> str:
+    """Derive a domain ID from the Neo4j URI, falling back to 'discovered-database'."""
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(neo4j_uri)
+        host = parsed.hostname or ""
+        path = parsed.path.strip("/") if parsed.path else ""
+        if path and path != "neo4j":
+            return re.sub(r"[^a-z0-9]+", "-", path.lower()).strip("-") or "discovered-database"
+        if host and host not in ("localhost", "127.0.0.1", "0.0.0.0"):
+            name = host.split(".")[0]
+            return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-") or "discovered-database"
+    except Exception:
+        pass
+    return "discovered-database"
 
 
 def _refine_discovered_system_prompt(
@@ -258,6 +276,16 @@ def main(
     if from_database and not neo4j_uri:
         console.print("[red]Error:[/red] --neo4j-uri is required with --from-database.")
         raise SystemExit(1)
+    if from_database and (not neo4j_username or not neo4j_password):
+        console.print(
+            "[red]Error:[/red] --neo4j-username and --neo4j-password (or NEO4J_USERNAME / "
+            "NEO4J_PASSWORD env vars) are required with --from-database."
+        )
+        raise SystemExit(1)
+    if from_database and connector:
+        console.print(
+            "[yellow]Warning:[/yellow] --connector flags are ignored when --from-database is set."
+        )
 
     # Validate --import-type / --import-file co-dependency
     if import_type and not import_file:
@@ -332,9 +360,10 @@ def main(
             f"{len(discovered_schema.get('relationship_types') or [])} relationship types, "
             f"{property_count} properties"
         )
+        discovered_domain_id = _derive_domain_id(neo4j_uri)
         discovered_ontology = build_ontology_from_discovery(
             discovered_schema,
-            "discovered-database",
+            discovered_domain_id,
         )
         _refine_discovered_system_prompt(
             discovered_ontology,

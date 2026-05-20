@@ -37,8 +37,8 @@ _NEO4J_TYPE_MAP = {
     "Date": "date",
     "DateTime": "datetime",
     "LocalDateTime": "datetime",
-    "Time": "datetime",
-    "LocalTime": "datetime",
+    "Time": "string",
+    "LocalTime": "string",
     "Duration": "string",
     "Point": "point",
 }
@@ -278,7 +278,7 @@ tools such as run_cypher, get_schema, and create_chart where useful.
 """
     client = anthropic.Anthropic(api_key=api_key)
     response = client.messages.create(
-        model="claude-sonnet-4-6",
+        model="claude-sonnet-4-20250514",
         max_tokens=1200,
         messages=[{"role": "user", "content": prompt}],
     )

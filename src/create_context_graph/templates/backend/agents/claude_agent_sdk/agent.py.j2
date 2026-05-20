@@ -14,10 +14,7 @@ from app.cypher_guard import CypherGuardError, enforce_row_limit, validate_read_
 from app.memory import store_message, get_context, resolve_session_id
 
 {% if from_database %}
-try:
-    from app.constants import ENTITY_LABELS
-except ImportError:
-    ENTITY_LABELS = [{% for et in entity_types %}"{{ et.label }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+from app.constants import ENTITY_LABELS
 {% endif %}
 
 
@@ -155,7 +152,8 @@ async def run_cypher(tool_input: dict) -> str:
         return json.dumps({"error": str(e)})
 
     params = dict(tool_input.get("parameters", {}))
-    params.setdefault("domain", settings.domain_id)
+    if not settings.from_database:
+        params.setdefault("domain", settings.domain_id)
     try:
         result = await execute_cypher(query, params, tool_name="run_cypher")
         payload = {"results": result}
@@ -263,7 +261,8 @@ async def execute_tool(tool_name: str, tool_input: dict) -> str:
 
         if tool_name in TOOL_CYPHER:
             tool_params = dict(tool_input)
-            tool_params.setdefault("domain", settings.domain_id)
+            if not settings.from_database:
+                tool_params.setdefault("domain", settings.domain_id)
             result = await execute_cypher(
                 TOOL_CYPHER[tool_name], tool_params, tool_name=tool_name
             )

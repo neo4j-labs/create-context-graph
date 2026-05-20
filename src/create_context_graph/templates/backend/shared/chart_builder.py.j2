@@ -53,10 +53,17 @@ def _auto_detect_fields(
                 break
 
     if not y_field:
+        id_suffixes = ("_id", "id", "_pk", "_key")
         for field, value in first_row.items():
             if isinstance(value, Number) and not isinstance(value, bool):
-                y_field = field
-                break
+                if not field.lower().endswith(id_suffixes):
+                    y_field = field
+                    break
+        if not y_field:
+            for field, value in first_row.items():
+                if isinstance(value, Number) and not isinstance(value, bool):
+                    y_field = field
+                    break
 
     if not x_field or not y_field:
         raise ChartBuildError("Could not determine x and y fields for chart")
