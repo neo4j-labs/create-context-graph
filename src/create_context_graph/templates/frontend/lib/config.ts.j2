@@ -16,7 +16,7 @@ export const NODE_COLORS: Record<string, string> = {{ visualization.nodeColors |
 
 export const NODE_SIZES: Record<string, number> = {{ visualization.nodeSizes | tojson }};
 
-export const DEFAULT_CYPHER = `{{ visualization.defaultCypher }}`;
+export const DEFAULT_CYPHER = {{ visualization.defaultCypher | tojson }};
 
 export const SCHEMA_NODE_SIZE = 30;
 export const SCHEMA_REL_COLOR = "#94a3b8";

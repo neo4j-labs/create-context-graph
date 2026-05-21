@@ -274,7 +274,10 @@ class ProjectRenderer:
             "memory_llm": self.config.memory_llm or "",
             "memory_embedding": self.config.memory_embedding or "",
             "system_prompt": self._build_system_prompt(),
-            "cypher_schema": generate_cypher_schema(self.ontology),
+            "from_database": self.config.from_database,
+            "cypher_schema": ""
+            if self.config.from_database
+            else generate_cypher_schema(self.ontology),
             "pydantic_models": generate_pydantic_models(self.ontology),
             "visualization": generate_visualization_config(self.ontology),
             "saas_connectors": self.config.saas_connectors,
@@ -412,6 +415,8 @@ class ProjectRenderer:
             "backend/shared/config.py.j2": "app/config.py",
             "backend/shared/context_graph_client.py.j2": "app/context_graph_client.py",
             "backend/shared/constants.py.j2": "app/constants.py",
+            "backend/shared/cypher_guard.py.j2": "app/cypher_guard.py",
+            "backend/shared/chart_builder.py.j2": "app/chart_builder.py",
             "backend/shared/gds_client.py.j2": "app/gds_client.py",
             "backend/shared/vector_client.py.j2": "app/vector_client.py",
             "backend/shared/models.py.j2": "app/models.py",
@@ -523,6 +528,7 @@ class ProjectRenderer:
             "frontend/app/page.tsx.j2": "app/page.tsx",
             "frontend/app/globals.css.j2": "app/globals.css",
             "frontend/components/ChatInterface.tsx.j2": "components/ChatInterface.tsx",
+            "frontend/components/ChartPanel.tsx.j2": "components/ChartPanel.tsx",
             "frontend/components/ContextGraphView.tsx.j2": "components/ContextGraphView.tsx",
             "frontend/components/DecisionTracePanel.tsx.j2": "components/DecisionTracePanel.tsx",
             "frontend/components/DocumentBrowser.tsx.j2": "components/DocumentBrowser.tsx",
@@ -538,7 +544,10 @@ class ProjectRenderer:
 
     def _render_cypher(self, cypher_dir: Path, ctx: dict) -> None:
         """Render Cypher schema files."""
-        self._render_template("cypher/schema.cypher.j2", cypher_dir / "schema.cypher", ctx)
+        if not self.config.from_database:
+            self._render_template(
+                "cypher/schema.cypher.j2", cypher_dir / "schema.cypher", ctx
+            )
         self._render_template(
             "cypher/gds_projections.cypher.j2",
             cypher_dir / "gds_projections.cypher",

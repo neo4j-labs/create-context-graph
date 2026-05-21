@@ -20,15 +20,37 @@ valid syntax, and expected content.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 
 import pytest
 import yaml
 
-from create_context_graph.config import ProjectConfig
+from create_context_graph.config import SUPPORTED_FRAMEWORKS, ProjectConfig
 from create_context_graph.ontology import load_domain
 from create_context_graph.renderer import ProjectRenderer
+
+
+def _scaffold_project(
+    tmp_path,
+    *,
+    domain="healthcare",
+    framework="pydanticai",
+    from_database=False,
+):
+    """Render a generated project and return the output directory."""
+    config = ProjectConfig(
+        project_name=f"{domain}-{framework}",
+        domain=domain,
+        framework=framework,
+        from_database=from_database,
+    )
+    ontology = load_domain(domain)
+    out = tmp_path / f"{domain}-{framework}-{from_database}"
+    renderer = ProjectRenderer(config, ontology)
+    renderer.render(out)
+    return out
 
 
 @pytest.fixture
@@ -83,6 +105,60 @@ class TestGeneratedPythonFiles:
     def test_init_py_exists(self, generated_project):
         out, _ = generated_project
         assert (out / "backend" / "app" / "__init__.py").exists()
+
+
+class TestGeneratedProjectValidation:
+    """Generated project validation for database-mode tools and shared modules."""
+
+    def test_from_database_agent_has_get_schema_tool(self, tmp_path):
+        out = _scaffold_project(
+            tmp_path,
+            domain="healthcare",
+            framework="pydanticai",
+            from_database=True,
+        )
+
+        agent_source = (out / "backend" / "app" / "agent.py").read_text()
+        assert "def get_schema" in agent_source
+        assert "def sample_data" in agent_source
+
+    def test_standard_agent_no_get_schema_tool(self, tmp_path):
+        out = _scaffold_project(
+            tmp_path,
+            domain="healthcare",
+            framework="pydanticai",
+            from_database=False,
+        )
+
+        agent_source = (out / "backend" / "app" / "agent.py").read_text()
+        assert "def get_schema" not in agent_source
+        assert "def sample_data" not in agent_source
+
+    @pytest.mark.parametrize("framework", SUPPORTED_FRAMEWORKS)
+    def test_all_agents_have_create_chart(self, tmp_path, framework):
+        out = _scaffold_project(tmp_path, domain="healthcare", framework=framework)
+
+        agent_source = (out / "backend" / "app" / "agent.py").read_text()
+        assert "create_chart" in agent_source
+
+    @pytest.mark.parametrize("framework", SUPPORTED_FRAMEWORKS)
+    def test_all_agents_have_cypher_guard(self, tmp_path, framework):
+        out = _scaffold_project(tmp_path, domain="healthcare", framework=framework)
+
+        agent_source = (out / "backend" / "app" / "agent.py").read_text()
+        assert "from app.cypher_guard import" in agent_source
+
+    def test_cypher_guard_valid_python(self, tmp_path):
+        out = _scaffold_project(tmp_path)
+
+        source = (out / "backend" / "app" / "cypher_guard.py").read_text()
+        ast.parse(source)
+
+    def test_chart_builder_valid_python(self, tmp_path):
+        out = _scaffold_project(tmp_path)
+
+        source = (out / "backend" / "app" / "chart_builder.py").read_text()
+        ast.parse(source)
 
 
 @pytest.fixture

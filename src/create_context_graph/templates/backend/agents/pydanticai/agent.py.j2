@@ -24,8 +24,17 @@ if not os.environ.get("ANTHROPIC_API_KEY"):
 
 from pydantic_ai import Agent, RunContext
 
-from app.context_graph_client import execute_cypher, get_schema
+from app.chart_builder import ChartBuildError, build_plotly_spec
+from app.context_graph_client import execute_cypher, get_collector, get_schema as fetch_schema
+from app.cypher_guard import CypherGuardError, enforce_row_limit, validate_read_only
 from app.memory import store_message, get_context, resolve_session_id
+
+{% if from_database %}
+try:
+    from app.constants import ENTITY_LABELS
+except ImportError:
+    ENTITY_LABELS = [{% for et in entity_types %}"{{ et.label }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+{% endif %}
 
 
 SYSTEM_PROMPT = """{{ system_prompt }}
@@ -80,22 +89,114 @@ async def {{ tool.name }}(ctx: RunContext[AgentDeps]{% for param in tool.paramet
 async def run_cypher(ctx: RunContext[AgentDeps], query: str, parameters: str = "{}") -> str:
     """Execute a read-only Cypher query against the knowledge graph."""
     try:
+        validate_read_only(query)
+        query = enforce_row_limit(query)
+    except CypherGuardError as e:
+        return json.dumps({"error": str(e)})
+
+    try:
         params = json.loads(parameters) if parameters else {}
     except json.JSONDecodeError:
-        return json.dumps([{"error": "Invalid JSON parameters"}])
-    params.setdefault("domain", settings.domain_id)
+        return json.dumps({"error": "Invalid JSON parameters"})
+    if not settings.from_database:
+        params.setdefault("domain", settings.domain_id)
     try:
         result = await execute_cypher(query, params, tool_name="run_cypher")
-        return json.dumps(result, default=str)
+        payload = {"results": result}
+        if len(result) >= 100:
+            payload["note"] = "Results were limited. Add a smaller LIMIT for a more focused response."
+        return json.dumps(payload, default=str)
     except Exception as e:
-        return json.dumps([{"error": f"Cypher query failed: {e}"}])
+        return json.dumps({"error": f"Cypher query failed: {e}"})
+
+
+@agent.tool
+async def create_chart(
+    ctx: RunContext[AgentDeps],
+    chart_type: str,
+    title: str,
+    data: str,
+    x_field: str = "",
+    y_field: str = "",
+    labels_field: str = "",
+    values_field: str = "",
+) -> str:
+    """Create a Plotly chart from query result data."""
+    try:
+        rows = json.loads(data)
+    except json.JSONDecodeError as e:
+        return json.dumps({"error": f"Invalid JSON chart data: {e}"})
+
+    try:
+        spec = build_plotly_spec(
+            chart_type,
+            title,
+            rows,
+            x_field=x_field,
+            y_field=y_field,
+            labels_field=labels_field,
+            values_field=values_field,
+        )
+    except ChartBuildError as e:
+        return json.dumps({"error": str(e)})
+
+    collector = get_collector()
+    collector.emit_chart_data(spec)
+    return json.dumps({"status": "success", "chart": spec}, default=str)
 
 
 @agent.tool
 async def get_graph_schema(ctx: RunContext[AgentDeps]) -> str:
     """Get the knowledge graph schema (node labels and relationship types)."""
-    result = await get_schema()
+    result = await fetch_schema()
     return json.dumps(result, default=str)
+
+{% endraw %}
+{% if from_database %}
+{% raw %}
+
+@agent.tool
+async def get_schema(ctx: RunContext[AgentDeps]) -> str:
+    """Get the database schema with discovered node property information."""
+    schema = await fetch_schema()
+    try:
+        properties = await execute_cypher(
+            """
+            CALL db.schema.nodeTypeProperties()
+            YIELD nodeLabels, propertyName, propertyTypes, mandatory
+            RETURN nodeLabels, propertyName, propertyTypes, mandatory
+            ORDER BY nodeLabels, propertyName
+            """,
+            collect=False,
+        )
+        schema["properties"] = properties
+    except Exception as e:
+        schema["properties_error"] = str(e)
+    return json.dumps(schema, default=str)
+
+
+@agent.tool
+async def sample_data(ctx: RunContext[AgentDeps], label: str, limit: int = 5) -> str:
+    """Return a small sample of nodes for a discovered label."""
+    if label not in ENTITY_LABELS:
+        return json.dumps({"error": f"Unknown label: {label}"})
+
+    bounded_limit = max(1, min(limit, 10))
+    safe_label = label.replace("`", "``")
+    query = f"MATCH (n:`{safe_label}`) RETURN n LIMIT $limit"
+    try:
+        result = await execute_cypher(
+            query,
+            {"limit": bounded_limit},
+            tool_name="sample_data",
+        )
+        return json.dumps({"results": result}, default=str)
+    except Exception as e:
+        return json.dumps({"error": f"Sample query failed: {e}"})
+
+{% endraw %}
+{% endif %}
+{% raw %}
 
 
 # ---------------------------------------------------------------------------

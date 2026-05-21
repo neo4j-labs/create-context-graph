@@ -119,6 +119,10 @@ class ProjectConfig(BaseModel):
     auto_preferences: bool = Field(
         default=True, description="Auto-detect user preferences from messages"
     )
+    from_database: bool = Field(
+        default=False,
+        description="Discover ontology from a connected Neo4j database",
+    )
 
     @property
     def is_nams(self) -> bool:

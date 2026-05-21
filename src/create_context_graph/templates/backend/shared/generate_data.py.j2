@@ -217,8 +217,12 @@ async def main():
     await connect_neo4j()
 {% endraw %}
 
+{% if from_database %}
+    print("\n[1/4] Schema is already in database (--from-database mode); skipping schema application.")
+{% else %}
     print("\n[1/4] Applying schema...")
     await apply_schema()
+{% endif %}
 
     print("\n[2/4] Loading entities and relationships...")
 {% raw %}
