@@ -23,6 +23,8 @@ const sidebars: SidebarsConfig = {
       label: 'How-To Guides',
       collapsed: false,
       items: [
+        'how-to/use-nams',
+        'how-to/configure-memory-providers',
         'how-to/import-saas-data',
         'how-to/add-custom-domain',
         'how-to/switch-agent-frameworks',
@@ -52,6 +54,8 @@ const sidebars: SidebarsConfig = {
       label: 'Explanation',
       collapsed: false,
       items: [
+        'explanation/memory-backends',
+        'explanation/ccg-edges',
         'explanation/how-domain-ontologies-work',
         'explanation/three-memory-types',
         'explanation/why-context-graphs',

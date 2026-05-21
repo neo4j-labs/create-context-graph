@@ -37,13 +37,28 @@ create-context-graph [PROJECT_NAME] [OPTIONS]
 | `--ingest` | `flag` | `false` | Ingest generated data into Neo4j after scaffolding. |
 | `--reset-database` | `flag` | `false` | Clear all Neo4j data before ingesting. |
 
-### Memory Configuration
+### Memory Backend
+
+The CLI chooses one of two memory backends per project:
+
+- **NAMS** (default) — hosted [Neo4j Agent Memory Service](https://memory.neo4jlabs.com). Requires `--nams-api-key` (or `MEMORY_API_KEY` env). Auto-selected when `--self-hosted` is not passed.
+- **Bolt** — self-hosted Neo4j over the bolt protocol. Selected by `--self-hosted` (or any explicit `--neo4j-*` flag).
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--self-hosted` | `flag` | `false` | Use self-hosted Neo4j (bolt) instead of NAMS. |
+| `--nams-api-key` | `string` | `$MEMORY_API_KEY` | NAMS API key. Obtain at [memory.neo4jlabs.com](https://memory.neo4jlabs.com). |
+| `--nams-endpoint` | `string` | `https://memory.neo4jlabs.com/v1` | Override the NAMS endpoint URL (e.g. for self-hosted gateway). |
+| `--memory-llm` | `string` | auto | LiteLLM-style provider string for memory entity extraction. Examples: `anthropic/claude-haiku-4-5`, `openai/gpt-4o-mini`, `bedrock/anthropic.claude-3-haiku-20240307-v1:0`. |
+| `--memory-embedding` | `string` | `sentence-transformers/all-MiniLM-L6-v2` | LiteLLM-style provider string for memory embeddings. |
+
+### Memory Behavior
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `--session-strategy` | `choice` | `per_conversation` | Session strategy: `per_conversation`, `per_day`, or `persistent`. |
 | `--auto-extract` / `--no-auto-extract` | `flag` | on | Auto-extract entities from conversation messages. |
-| `--auto-preferences` / `--no-auto-preferences` | `flag` | on | Auto-detect user preferences from messages. |
+| `--auto-preferences` / `--no-auto-preferences` | `flag` | on (bolt) / forced off (NAMS) | Auto-detect user preferences. NAMS REST does not expose preference endpoints; this is forced off on the NAMS backend. |
 
 ### SaaS Connector Configuration
 
@@ -71,6 +86,7 @@ create-context-graph [PROJECT_NAME] [OPTIONS]
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
+| `--import-preview` | `flag` | `false` | Parse `--import-file` and print a summary (conversation counts, date range, sample titles) without scaffolding or ingesting. Useful as a sanity check before a long ingest of a multi-GB export. Requires `--import-type` and `--import-file`. |
 | `--import-type` | `choice` | -- | `claude-ai` or `chatgpt`. Must pair with `--import-file`. |
 | `--import-file` | `path` | -- | Path to chat export (`.zip`, `.json`, `.jsonl`). |
 | `--import-depth` | `choice` | `fast` | `fast` (messages) or `deep` (messages + tool call traces). |
@@ -79,7 +95,9 @@ create-context-graph [PROJECT_NAME] [OPTIONS]
 | `--import-filter-title` | `string` | -- | Title pattern filter (regex). |
 | `--import-max-conversations` | `int` | `0` (all) | Max conversations to import. |
 
-### Neo4j Configuration
+### Neo4j Configuration (self-hosted only)
+
+All of the following imply `--self-hosted` if passed without `--nams-api-key`.
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -111,8 +129,8 @@ create-context-graph [PROJECT_NAME] [OPTIONS]
 
 The CLI operates in two modes:
 
-- **Interactive mode:** If `--domain` or `--framework` is missing, the 7-step interactive wizard launches. The wizard uses [Questionary](https://questionary.readthedocs.io/) prompts to collect all configuration.
-- **Non-interactive mode:** If `--domain` (or `--custom-domain`) and `--framework` are both provided, the wizard is skipped entirely. `PROJECT_NAME` is optional — if omitted, a slug is auto-generated from the domain and framework (e.g., `healthcare-pydanticai-app`). This mode is suitable for CI/CD pipelines and scripting.
+- **Interactive mode:** If `--domain` or `--framework` is missing, the 6-prompt interactive wizard launches: project name → domain (autocomplete) → framework → NAMS API key (or self-hosted Neo4j) → session strategy → data source. Advanced settings (MCP, extraction toggles, extra API keys) are gated behind a single Y/N prompt.
+- **Non-interactive mode:** If `--domain` (or `--custom-domain`) and `--framework` are both provided, the wizard is skipped entirely. `PROJECT_NAME` is optional — if omitted, a slug is auto-generated from the domain and framework (e.g., `healthcare-strands-app`). For NAMS backend, `--nams-api-key` (or `MEMORY_API_KEY`) is required. This mode is suitable for CI/CD pipelines and scripting.
 
 ## Examples
 

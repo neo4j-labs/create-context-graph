@@ -74,7 +74,7 @@ CRITICAL: Call tools DIRECTLY without any introductory text. Do NOT say "I'll se
 
 {% for tool in agent_tools %}
 @tool
-def {{ tool.name }}({% for param in tool.parameters %}{{ param.name }}: {{ 'str' if param.type == 'string' else 'int' if param.type == 'integer' else 'float' if param.type == 'float' else 'str' }}{% if param.default is not none %} = {{ param.default if param.type != 'string' else '"' + param.default + '"' }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}) -> str:
+def {{ tool.name }}({% for param in tool.parameters %}{{ param.name }}: {{ 'str' if param.type == 'string' else 'int' if param.type == 'integer' else 'float' if param.type == 'float' else 'str' }}{% if param.default is defined and param.default is not none %} = {{ param.default if param.type != 'string' else '"' + param.default + '"' }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}) -> str:
     """{{ tool.description }}"""
     cypher = """{{ tool.cypher | indent(4) }}"""
     params = {
@@ -280,5 +280,94 @@ async def handle_message(message: str, session_id: str | None = None) -> dict:
         "graph_data": None,
         "entities_extracted": (assistant_result or {}).get("entities", []),
         "preferences_detected": (assistant_result or {}).get("preferences", []),
+    }
+
+
+async def handle_message_stream(message: str, session_id: str | None = None) -> dict:
+    """Stream a chat response token-by-token via the SSE collector.
+
+    CrewAI is synchronous, so the crew runs inside ``asyncio.to_thread``. We
+    subscribe to the global ``LLMStreamChunkEvent`` (fired by litellm's
+    streaming path when ``Crew(stream=True)``) and push each chunk to the
+    collector. ``collector._push_event`` is thread-safe: it detects the worker
+    thread and routes through ``loop.call_soon_threadsafe``.
+    """
+    from app.context_graph_client import get_collector
+    from crewai.events.event_bus import crewai_event_bus
+    from crewai.events.types.llm_events import LLMStreamChunkEvent
+
+    session_id = resolve_session_id(session_id)
+    collector = get_collector()
+
+    await store_message(session_id, "user", message)
+    context = await get_context(session_id, query=message)
+    history = context.get("messages", [])
+
+    if history:
+        history_block = "\n\n".join(
+            f"[{m['role'].upper()}]\n{m['content']}" for m in history
+        )
+        task_description = (
+            f"<conversation_history>\n{history_block}\n</conversation_history>\n\n"
+            f"[USER]\n{message}"
+        )
+    else:
+        task_description = message
+
+    task = Task(
+        description=task_description,
+        expected_output="A helpful response with relevant data from the knowledge graph",
+        agent=agent,
+    )
+    crew = Crew(agents=[agent], tasks=[task], verbose=False, stream=True)
+    _capture_loop()
+
+    full_text_parts: list[str] = []
+
+    def _on_chunk(source, event):  # noqa: ARG001 — required signature
+        chunk = getattr(event, "chunk", None) or ""
+        if chunk:
+            collector.emit_text_delta(chunk)
+            full_text_parts.append(chunk)
+
+    crewai_event_bus.register_handler(LLMStreamChunkEvent, _on_chunk)
+
+    response_text = ""
+    try:
+        result = await asyncio.wait_for(
+            asyncio.to_thread(crew.kickoff),
+            timeout=60.0,
+        )
+        # Prefer the streamed concatenation; fall back to the crew's
+        # final output (str(result)) if no stream chunks were captured —
+        # for example, when the LLM provider didn't honor stream=True.
+        response_text = "".join(full_text_parts).strip() or str(result).strip()
+    except asyncio.TimeoutError:
+        logger.error("CrewAI streaming: timed out after 60 seconds")
+        response_text = "The request timed out after 60 seconds. Please try a simpler question or try again."
+    except Exception as e:
+        logger.error("CrewAI streaming error: %s", e, exc_info=True)
+        response_text = "".join(full_text_parts).strip()
+        if not response_text:
+            response_text = f"An error occurred: {e}"
+    finally:
+        try:
+            crewai_event_bus.off(LLMStreamChunkEvent, _on_chunk)
+        except Exception:
+            pass
+
+    if not response_text.strip():
+        response_text = "I searched the knowledge graph but couldn't find relevant results for your query. Could you try rephrasing your question?"
+
+    assistant_result = await store_message(session_id, "assistant", response_text)
+    if assistant_result:
+        collector.emit_entities_extracted(assistant_result.get("entities", []))
+        collector.emit_preferences_detected(assistant_result.get("preferences", []))
+    collector.emit_done(response_text, session_id)
+
+    return {
+        "response": response_text,
+        "session_id": session_id,
+        "graph_data": None,
     }
 {% endraw %}

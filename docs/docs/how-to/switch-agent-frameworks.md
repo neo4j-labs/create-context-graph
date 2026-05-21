@@ -16,12 +16,12 @@ Create Context Graph supports 8 agent frameworks. The framework choice only affe
 | **Claude Agent SDK** | `claude-agent-sdk` | Anthropic's SDK with dict-based tool definitions and a bounded agentic loop (max 15 iterations) | Full |
 | **OpenAI Agents SDK** | `openai-agents` | OpenAI's agent framework with `@function_tool` decorators and `Runner.run()` | Full |
 | **LangGraph** | `langgraph` | LangChain's graph-based agent runtime with `@tool` and `create_react_agent()` | Full |
-| **CrewAI** | `crewai` | Multi-agent framework with `Agent`, `Task`, and `Crew` abstractions (uses Anthropic LLM, thread-safe async bridging) | Tools only |
-| **Strands** | `strands` | Agent framework using Anthropic models with `@tool` decorators (thread-safe async bridging) | Tools only |
+| **CrewAI** | `crewai` | Multi-agent framework with `Agent`, `Task`, and `Crew` abstractions (uses Anthropic LLM, thread-safe async bridging) | Full |
+| **Strands** | `strands` | Agent framework using Anthropic models with `@tool` decorators (thread-safe async bridging) | Full |
 | **Google ADK** | `google-adk` | Google's Agent Development Kit with `FunctionTool` and Gemini models (requires `GOOGLE_API_KEY`) | Full |
 | **Anthropic Tools** | `anthropic-tools` | Modular agent framework with `@register_tool` registry and bounded Anthropic API agentic loop (max 15 iterations) | Full |
 
-**Streaming column:** "Full" means token-by-token text streaming + real-time tool call events. "Tools only" means tool call events stream in real-time, but the text response arrives all at once after the agent finishes. All frameworks use the same SSE (Server-Sent Events) protocol.
+**Streaming column:** "Full" means token-by-token text streaming + real-time tool call events. All frameworks use the same SSE (Server-Sent Events) protocol; CrewAI and Strands run synchronously in a worker thread but stream both text and tool events via framework-specific hooks (`LLMStreamChunkEvent` and `agent.stream_async()`).
 
 ## Choosing a Framework During Scaffolding
 
@@ -56,7 +56,7 @@ Only one file varies between frameworks: **`backend/app/agent.py`**. This file c
 - The agent initialization and model configuration
 - Tool definitions generated from your domain's `agent_tools` ontology
 - The `handle_message()` async function that the FastAPI routes call
-- (For full-streaming frameworks) The `handle_message_stream()` async function for SSE text streaming
+- The `handle_message_stream()` async function for SSE text streaming (all 8 frameworks)
 
 Each framework template uses the framework's idiomatic patterns (decorators, classes, registries) but exposes the same interface.
 

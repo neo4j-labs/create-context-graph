@@ -60,6 +60,11 @@ class LocalFileConnector(BaseConnector):
     )
     requires_oauth = False
 
+    # Document/Section description fields carry the actual prose body (plus
+    # uri: pointer lines to children). Feed both through add_message so NAMS
+    # extraction can find named entities mentioned in section text.
+    BODY_FIELDS = {"Document": "description", "Section": "description"}
+
     def __init__(self) -> None:
         self._paths: list[Path] = []
         self._pattern: str = "**/*"

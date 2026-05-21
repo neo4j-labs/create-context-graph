@@ -175,29 +175,58 @@ def evaluate_response(prompt: str, response: dict) -> tuple[bool, str]:
 # ---------------------------------------------------------------------------
 
 
-def scaffold_project(domain: str, framework: str, output_dir: Path) -> bool:
-    """Scaffold a project using create-context-graph CLI."""
-    log(f"Scaffolding {domain} + {framework} → {output_dir}")
+def scaffold_project(
+    domain: str, framework: str, output_dir: Path, *, backend: str = "bolt"
+) -> bool:
+    """Scaffold a project using create-context-graph CLI.
+
+    Args:
+        domain: domain ID.
+        framework: agent framework key.
+        output_dir: parent directory; project is written to ``output_dir/test-app``.
+        backend: ``"bolt"`` (self-hosted) or ``"nams"`` (hosted). Defaults to bolt
+            so the legacy E2E flow (with fixture seeding) keeps working.
+    """
+    log(f"Scaffolding {domain} + {framework} [{backend}] → {output_dir}")
     cmd = [
         sys.executable, "-m", "create_context_graph",
         "test-app",
         "--domain", domain,
         "--framework", framework,
-        "--demo-data",
         "--output-dir", str(output_dir / "test-app"),
-        "--neo4j-uri", os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
-        "--neo4j-username", os.environ.get("NEO4J_USERNAME", "neo4j"),
-        "--neo4j-password", os.environ.get("NEO4J_PASSWORD", "password"),
     ]
 
-    # Pass API keys if available
+    if backend == "bolt":
+        cmd.extend([
+            "--self-hosted",
+            "--demo-data",
+            "--neo4j-uri", os.environ.get("NEO4J_URI", "bolt://localhost:7687"),
+            "--neo4j-username", os.environ.get("NEO4J_USERNAME", "neo4j"),
+            "--neo4j-password", os.environ.get("NEO4J_PASSWORD", "password"),
+        ])
+    elif backend == "nams":
+        nams_key = os.environ.get("MEMORY_API_KEY", "")
+        if not nams_key:
+            log("MEMORY_API_KEY env var required for --backend nams", "FAIL")
+            return False
+        cmd.extend([
+            "--nams-api-key", nams_key,
+            "--demo-data",  # B-partial port: entities land via REST
+        ])
+        endpoint = os.environ.get("MEMORY_NAMS_ENDPOINT")
+        if endpoint:
+            cmd.extend(["--nams-endpoint", endpoint])
+    else:
+        log(f"Unknown backend: {backend}", "FAIL")
+        return False
+
+    # Pass agent API keys if available (Anthropic for most, OpenAI for openai-agents)
     api_key = os.environ.get("ANTHROPIC_API_KEY", "")
     if api_key:
         cmd.extend(["--anthropic-api-key", api_key])
     openai_key = os.environ.get("OPENAI_API_KEY", "")
     if openai_key:
         cmd.extend(["--openai-api-key", openai_key])
-
 
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
     if result.returncode != 0:
@@ -375,8 +404,9 @@ def test_domain(
     framework: str,
     quick: bool = False,
     browser: bool = False,
+    backend: str = "bolt",
 ) -> TestSummary:
-    """Full smoke test for one domain + framework combination."""
+    """Full smoke test for one domain + framework + backend combination."""
     summary = TestSummary(domain=domain, framework=framework)
     scenarios = load_demo_scenarios(domain)
 
@@ -385,7 +415,7 @@ def test_domain(
         return summary
 
     log(f"\n{'='*60}")
-    log(f"Testing: {domain} + {framework}")
+    log(f"Testing: {domain} + {framework} [{backend}]")
     log(f"  Scenarios: {len(scenarios)}, Prompts: {sum(len(s.get('prompts', [])) for s in scenarios)}")
     log(f"{'='*60}")
 
@@ -394,7 +424,7 @@ def test_domain(
 
     try:
         # Scaffold
-        if not scaffold_project(domain, framework, tmpdir):
+        if not scaffold_project(domain, framework, tmpdir, backend=backend):
             return summary
         summary.scaffold_ok = True
 
@@ -485,10 +515,21 @@ def main() -> None:
     parser.add_argument("--all-domains", action="store_true", help="Test all 23 domains")
     parser.add_argument("--quick", action="store_true", help="Only test first prompt per scenario")
     parser.add_argument("--browser", action="store_true", help="Also run Playwright browser tests")
+    parser.add_argument(
+        "--backend",
+        choices=["bolt", "nams"],
+        default="bolt",
+        help="Memory backend (default: bolt, self-hosted Neo4j). "
+             "Use 'nams' to test against the hosted Neo4j Agent Memory Service "
+             "(requires MEMORY_API_KEY env).",
+    )
     args = parser.parse_args()
 
     if not args.domain and not args.all_domains:
         parser.error("Specify --domain or --all-domains")
+
+    if args.backend == "nams" and not os.environ.get("MEMORY_API_KEY"):
+        parser.error("--backend nams requires MEMORY_API_KEY env var")
 
     # Determine domains to test
     if args.all_domains:
@@ -500,12 +541,14 @@ def main() -> None:
     else:
         domains = [args.domain]
 
-    log(f"Testing {len(domains)} domain(s) with {args.framework}")
+    log(f"Testing {len(domains)} domain(s) with {args.framework} [backend={args.backend}]")
     log(f"Mode: {'quick' if args.quick else 'full'}, Browser: {args.browser}\n")
 
     summaries = []
     for domain in domains:
-        summary = test_domain(domain, args.framework, args.quick, args.browser)
+        summary = test_domain(
+            domain, args.framework, args.quick, args.browser, backend=args.backend
+        )
         summaries.append(summary)
 
     ok = print_summary(summaries)

@@ -17,6 +17,19 @@ from app.context_graph_client import (
     get_schema_visualization, expand_node, get_collector, is_connected,
 )
 from app.gds_client import check_gds_available, run_community_detection, run_pagerank
+from app.memory_adapter import (
+    expand_node_nams,
+    get_document_nams,
+    get_entity_detail_nams,
+    list_documents_nams,
+    list_traces_nams,
+    schema_visualization_nams,
+    search_entities_nams,
+)
+
+
+def _is_nams() -> bool:
+    return settings.memory_backend == "nams"
 
 # Try to import streaming handler (only available for some agent frameworks)
 try:
@@ -28,7 +41,13 @@ router = APIRouter()
 
 
 def _require_neo4j():
-    """Raise 503 if Neo4j is not connected."""
+    """Raise 503 if the bolt backend is in use and Neo4j is not connected.
+
+    On the NAMS backend Bolt is never connected, so we no-op — NAMS calls
+    surface their own errors at the adapter level.
+    """
+    if _is_nams():
+        return
     if not is_connected():
         raise HTTPException(
             status_code=503,
@@ -177,7 +196,10 @@ async def chat_stream(request: ChatRequest):
 async def search(request: SearchRequest):
     """Search entities in the knowledge graph."""
     _require_neo4j()
-    results = await search_entities(request.query, request.label, request.limit)
+    if _is_nams():
+        results = await search_entities_nams(request.query, request.label, request.limit)
+    else:
+        results = await search_entities(request.query, request.label, request.limit)
     return {"results": results}
 
 
@@ -185,14 +207,21 @@ async def search(request: SearchRequest):
 async def graph(entity_name: str, depth: int = 2):
     """Get the subgraph around an entity."""
     _require_neo4j()
-    data = await get_entity_graph(entity_name, depth)
-    return data
+    if _is_nams():
+        # NAMS get_entity inlines first-hop rels; depth>1 not supported.
+        detail = await get_entity_detail_nams(entity_name)
+        if detail is None:
+            return {"nodes": [], "relationships": []}
+        return {"nodes": [detail["entity"]], "relationships": []}
+    return await get_entity_graph(entity_name, depth)
 
 
 @router.get("/schema")
 async def schema():
     """Get the graph database schema."""
     _require_neo4j()
+    if _is_nams():
+        return {"labels": [], "relationship_types": [], "note": "Schema introspection is not exposed by NAMS"}
     return await get_schema()
 
 
@@ -200,20 +229,59 @@ async def schema():
 async def schema_visualization():
     """Get the graph schema as nodes and relationships for visualization."""
     _require_neo4j()
+    if _is_nams():
+        return await schema_visualization_nams()
     return await get_schema_visualization()
+
+
+@router.get("/schema/models")
+async def list_entity_schemas():
+    """Return JSON Schema for each entity model generated from the domain ontology.
+
+    Useful for frontend codegen and OpenAPI clients. Discovers Pydantic models
+    by introspecting `app.models` at request time.
+    """
+    from pydantic import BaseModel
+
+    from app import models as entity_models
+
+    schemas: dict[str, dict] = {}
+    for attr_name in dir(entity_models):
+        if attr_name.startswith("_"):
+            continue
+        cls = getattr(entity_models, attr_name)
+        if isinstance(cls, type) and issubclass(cls, BaseModel) and cls is not BaseModel:
+            schemas[attr_name] = cls.model_json_schema()
+    return {"schemas": schemas}
 
 
 @router.post("/expand")
 async def expand(request: ExpandRequest):
     """Expand a node to show its immediate neighbors."""
     _require_neo4j()
+    if _is_nams():
+        return await expand_node_nams(request.element_id)
     return await expand_node(request.element_id)
 
 
 @router.post("/cypher")
 async def cypher(request: CypherRequest):
-    """Execute a Cypher query."""
+    """Execute a Cypher query.
+
+    On NAMS, only read queries are accepted (server enforces).
+    """
     _require_neo4j()
+    if _is_nams():
+        from app.memory import get_client
+        client = get_client()
+        if client is None:
+            raise HTTPException(status_code=503, detail="NAMS client not connected")
+        try:
+            params = dict(request.parameters or {})
+            results = await client.query.cypher(request.query, params)
+            return {"results": results}
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=str(e))
     try:
         params = dict(request.parameters or {})
         params.setdefault("domain", settings.domain_id)
@@ -226,6 +294,8 @@ async def cypher(request: CypherRequest):
 @router.get("/gds/status")
 async def gds_status():
     """Check if GDS is available."""
+    if _is_nams():
+        return {"gds_available": False, "note": "GDS is not exposed by NAMS"}
     _require_neo4j()
     available = await check_gds_available()
     return {"gds_available": available}
@@ -234,6 +304,8 @@ async def gds_status():
 @router.get("/gds/communities")
 async def communities():
     """Run community detection."""
+    if _is_nams():
+        raise HTTPException(status_code=501, detail="GDS is not supported on NAMS backend")
     _require_neo4j()
     results = await run_community_detection()
     return {"communities": results}
@@ -242,6 +314,8 @@ async def communities():
 @router.get("/gds/pagerank")
 async def pagerank():
     """Run PageRank centrality."""
+    if _is_nams():
+        raise HTTPException(status_code=501, detail="GDS is not supported on NAMS backend")
     _require_neo4j()
     results = await run_pagerank()
     return {"pagerank": results}
@@ -249,8 +323,16 @@ async def pagerank():
 
 @router.get("/documents")
 async def list_documents(template_id: str | None = None, skip: int = 0, limit: int = 50):
-    """List documents, optionally filtered by template type."""
+    """List documents; template filtering is only available on bolt."""
     _require_neo4j()
+    if _is_nams():
+        if template_id:
+            raise HTTPException(
+                status_code=501,
+                detail="Document template filtering is not supported on the NAMS backend.",
+            )
+        results = await list_documents_nams(skip, limit)
+        return {"documents": results}
     if template_id:
         cypher = """
         MATCH (d:Document {template_id: $template_id})
@@ -284,6 +366,11 @@ async def list_documents(template_id: str | None = None, skip: int = 0, limit: i
 async def get_document(title: str):
     """Get full document content by title."""
     _require_neo4j()
+    if _is_nams():
+        result = await get_document_nams(title)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Document not found")
+        return result
     cypher = """
     MATCH (d:Document {title: $title})
     WHERE d.domain IS NULL OR d.domain = $domain
@@ -301,6 +388,9 @@ async def get_document(title: str):
 async def list_traces():
     """List decision traces with their full reasoning steps."""
     _require_neo4j()
+    if _is_nams():
+        results = await list_traces_nams()
+        return {"traces": results}
     cypher = """
     MATCH (t:DecisionTrace)
     WHERE t.domain IS NULL OR t.domain = $domain
@@ -322,6 +412,11 @@ async def list_traces():
 async def get_entity_detail(name: str):
     """Get full entity detail with all properties and connections."""
     _require_neo4j()
+    if _is_nams():
+        result = await get_entity_detail_nams(name)
+        if result is None:
+            raise HTTPException(status_code=404, detail="Entity not found")
+        return result
     cypher = """
     MATCH (n) WHERE toLower(n.name) = toLower($name)
       AND (n.domain IS NULL OR n.domain = $domain)

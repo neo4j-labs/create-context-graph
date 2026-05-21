@@ -71,7 +71,7 @@ CRITICAL: Call tools DIRECTLY without any introductory text. Do NOT say "I'll se
 
 {% for tool in agent_tools %}
 @tool
-def {{ tool.name }}({% for param in tool.parameters %}{{ param.name }}: {{ 'str' if param.type == 'string' else 'int' if param.type == 'integer' else 'float' if param.type == 'float' else 'str' }}{% if param.default is not none %} = {{ param.default if param.type != 'string' else '"' + param.default + '"' }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}) -> str:
+def {{ tool.name }}({% for param in tool.parameters %}{{ param.name }}: {{ 'str' if param.type == 'string' else 'int' if param.type == 'integer' else 'float' if param.type == 'float' else 'str' }}{% if param.default is defined and param.default is not none %} = {{ param.default if param.type != 'string' else '"' + param.default + '"' }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}) -> str:
     """{{ tool.description }}"""
     cypher = """{{ tool.cypher | indent(4) }}"""
     params = {
@@ -300,5 +300,73 @@ async def handle_message(message: str, session_id: str | None = None) -> dict:
         "graph_data": None,
         "entities_extracted": (assistant_result or {}).get("entities", []),
         "preferences_detected": (assistant_result or {}).get("preferences", []),
+    }
+
+
+async def handle_message_stream(message: str, session_id: str | None = None) -> dict:
+    """Stream a chat response token-by-token via the SSE collector.
+
+    Strands exposes ``Agent.stream_async`` which yields events as the agent
+    runs. We emit each text chunk through ``collector.emit_text_delta``;
+    tool-call events fire automatically via ``execute_cypher`` inside each
+    @tool. Sync tools run on worker threads and reach back to the event loop
+    via ``_run_sync`` — the loop is captured here.
+    """
+    from app.context_graph_client import get_collector
+
+    session_id = resolve_session_id(session_id)
+    collector = get_collector()
+
+    await store_message(session_id, "user", message)
+    context = await get_context(session_id, query=message)
+    history = context.get("messages", [])
+
+    if history:
+        history_block = "\n\n".join(
+            f"[{m['role'].upper()}]\n{m['content']}" for m in history
+        )
+        input_message = (
+            f"<conversation_history>\n{history_block}\n</conversation_history>\n\n"
+            f"[USER]\n{message}"
+        )
+    else:
+        input_message = message
+
+    _capture_loop()
+
+    response_text = ""
+    full_text_parts: list[str] = []
+    try:
+        async for event in agent.stream_async(input_message):
+            # Strands yields dicts with `data` for text deltas and
+            # `current_tool_use` for tool activity. We only need text — tool
+            # events are pushed by execute_cypher when the @tool runs.
+            if isinstance(event, dict):
+                chunk = event.get("data")
+                if chunk:
+                    text_chunk = str(chunk)
+                    collector.emit_text_delta(text_chunk)
+                    full_text_parts.append(text_chunk)
+        response_text = "".join(full_text_parts).strip()
+    except Exception as e:
+        import logging
+        logging.getLogger(__name__).error("Strands streaming error: %s", e, exc_info=True)
+        response_text = "".join(full_text_parts).strip()
+        if not response_text:
+            response_text = f"An error occurred: {e}"
+
+    if not response_text.strip():
+        response_text = "I searched the knowledge graph but couldn't find relevant results for your query. Could you try rephrasing your question?"
+
+    assistant_result = await store_message(session_id, "assistant", response_text)
+    if assistant_result:
+        collector.emit_entities_extracted(assistant_result.get("entities", []))
+        collector.emit_preferences_detected(assistant_result.get("preferences", []))
+    collector.emit_done(response_text, session_id)
+
+    return {
+        "response": response_text,
+        "session_id": session_id,
+        "graph_data": None,
     }
 {% endraw %}

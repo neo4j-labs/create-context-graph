@@ -475,7 +475,7 @@ def generate_pydantic_models(ontology: DomainOntology) -> str:
                     py_type = f"{py_type} | None"
                     default = "None"
                 else:
-                    default = "..."
+                    default = "Field(...)"
 
                 if prop.default is not None:
                     default = f'"{prop.default}"' if prop.type in ("string", "str") else prop.default

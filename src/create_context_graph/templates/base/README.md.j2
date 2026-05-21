@@ -12,6 +12,20 @@ Built with [create-context-graph](https://github.com/neo4j-labs/create-context-g
 
 ## Quick Start
 
+{% if is_nams %}
+This project uses **Neo4j Agent Memory Service (NAMS)** — a hosted memory backend. Your `.env` file already contains your API key; the agent reads from and writes to NAMS as you chat with it.
+
+```bash
+# Install dependencies
+make install
+
+# Edit .env to set ANTHROPIC_API_KEY (required by {{ framework_display_name }})
+# Then start the application
+make start
+```
+
+> The graph starts **empty**. Talk to the agent in the chat UI and it will populate memory through use. Want a pre-populated demo with relationships and properties? Re-run the CLI with `--self-hosted --demo`.
+{% else %}
 ```bash
 # Install dependencies
 make install
@@ -35,13 +49,66 @@ make seed
 # Start the application
 make start
 ```
+{% endif %}
 
 - **Backend:** http://localhost:8000
 - **Frontend:** http://localhost:3000
-{% if neo4j_type == 'docker' or neo4j_type == 'local' %}
+{% if is_nams %}
+- **NAMS Dashboard:** https://memory.neo4jlabs.com
+{% elif neo4j_type == 'docker' or neo4j_type == 'local' %}
 - **Neo4j Browser:** http://localhost:7474
 {% elif neo4j_type == 'aura' %}
 - **Neo4j Aura Console:** https://console.neo4j.io
+{% endif %}
+
+{% if is_nams %}
+## Memory backend: NAMS
+
+Your project is wired to the hosted Neo4j Agent Memory Service. Memory state lives in the cloud and is shared across processes (web app and `make mcp-server` both read/write the same graph).
+
+**Known limitations on the NAMS API (v0.4):**
+
+| Limitation | Effect | Workaround |
+|---|---|---|
+| **Relationships** between domain entities are not exposed by NAMS REST as native edges. | The graph view does show edges, because outbound relationships are encoded into the source entity's `description` as a fenced ` ```ccg-edges ` YAML block (see [How NAMS stores relationships](https://github.com/neo4j-labs/create-context-graph/blob/main/docs/docs/explanation/ccg-edges.md)). The frontend parses these blocks to render edges. | Re-scaffold with `--self-hosted --demo` if you need native Cypher edges (e.g. for GDS algorithms or arbitrary path queries). Or wait for NAMS `add_relationship` — when it lands, a one-shot migration replays the `ccg-edges` blocks as native edges. |
+| **Entity properties** beyond `name` / `type` / `description` are dropped by the REST API. | Demo properties are flattened into the `description` field as a markdown block. | Read the description field; structured property access lands when NAMS exposes the full write API. |
+| **Preferences and facts** are not exposed by NAMS REST. | `auto_preferences` is forced off; the SSE `preferences_detected` event will be empty. | Use the self-hosted bolt backend if you need preference/fact tracking. |
+| **GDS** (Graph Data Science) endpoints `/gds/communities` and `/gds/pagerank` return `501 Not Implemented`. | Community detection and PageRank are unavailable. | Self-hosted Neo4j with the GDS plugin enabled. |
+| **Ad-hoc Cypher** via `POST /cypher` returns `503`. | The cypher console / "Run Cypher" actions are disabled. | Connect Neo4j Browser to a self-hosted instance for arbitrary Cypher. |
+| **Schema introspection** via `GET /schema` is not exposed — the response is synthesized from your ontology's entity types. | The schema visualization works but doesn't reflect server-side schema changes. | The synthesized view tracks `data/ontology.yaml`; edit there if you need to change it. |
+| **MCP server** is forced to the `core` profile (6 tools), because the extended tool set relies on preference/fact APIs that NAMS doesn't yet expose. | `make mcp-server` exposes 6 tools instead of 16. | Self-hosted bolt backend supports the full `extended` profile. |
+
+For the full relationship-rich demo experience, re-scaffold with `--self-hosted`.
+
+### Diagnosing NAMS connection failures
+
+`GET /health` reports a categorized error when NAMS init fails:
+
+```json
+{
+  "status": "degraded",
+  "memory_backend": "nams",
+  "nams": false,
+  "nams_error": "auth",
+  "nams_error_message": "NAMS authentication failed — verify MEMORY_API_KEY at https://memory.neo4jlabs.com (key may be invalid or expired).",
+  "nams_error_detail": "HTTP 403",
+  "nams_dashboard": "https://memory.neo4jlabs.com"
+}
+```
+
+Categories: `auth` (401/403), `rate_limit` (429), `network` (5xx/timeout/DNS), `config` (missing key / endpoint), `unknown`.
+
+## Switching memory provider/model
+
+The memory layer accepts [LiteLLM-style](https://docs.litellm.ai/) provider strings via env vars:
+
+```bash
+# In .env
+MEMORY_LLM=anthropic/claude-haiku-4-5
+MEMORY_EMBEDDING=sentence-transformers/all-MiniLM-L6-v2
+```
+
+Native adapters are resolved first (Anthropic, OpenAI, Bedrock, Vertex AI, SentenceTransformers). Everything else (Ollama, Groq, Together, Mistral, …) routes through LiteLLM.
 {% endif %}
 
 ## Architecture

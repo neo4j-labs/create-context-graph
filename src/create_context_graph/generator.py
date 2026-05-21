@@ -61,16 +61,35 @@ def _get_llm_client(api_key: str, provider: str = "anthropic"):
     return None, None
 
 
-def _llm_generate(client, provider: str, prompt: str, system: str = "") -> str:
-    """Generate text using the LLM client."""
+def _llm_generate(
+    client,
+    provider: str,
+    prompt: str,
+    system: str = "",
+    *,
+    max_tokens: int = 4096,
+    return_stop_reason: bool = False,
+):
+    """Generate text using the LLM client.
+
+    By default returns just the text (back-compat). Pass
+    ``return_stop_reason=True`` to receive ``(text, stop_reason)`` — useful
+    for callers that need to detect truncation (``"max_tokens"`` for
+    Anthropic, ``"length"`` for OpenAI). Pass ``max_tokens`` higher than the
+    4096 default when generating long outputs such as full ontology YAMLs.
+    """
+    text = ""
+    stop_reason: str | None = None
+
     if provider == "anthropic":
         response = client.messages.create(
             model="claude-sonnet-4-20250514",
-            max_tokens=4096,
+            max_tokens=max_tokens,
             system=system,
             messages=[{"role": "user", "content": prompt}],
         )
-        return response.content[0].text
+        text = response.content[0].text
+        stop_reason = getattr(response, "stop_reason", None)
     elif provider == "openai":
         messages = []
         if system:
@@ -79,10 +98,15 @@ def _llm_generate(client, provider: str, prompt: str, system: str = "") -> str:
         response = client.chat.completions.create(
             model="gpt-4o-mini",
             messages=messages,
-            max_tokens=4096,
+            max_tokens=max_tokens,
         )
-        return response.choices[0].message.content
-    return ""
+        choice = response.choices[0]
+        text = choice.message.content or ""
+        stop_reason = getattr(choice, "finish_reason", None)
+
+    if return_stop_reason:
+        return text, stop_reason
+    return text
 
 
 def _llm_generate_json(client, provider: str, prompt: str, system: str = "") -> Any:

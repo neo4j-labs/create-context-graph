@@ -116,6 +116,11 @@ class GoogleWorkspaceConnector(BaseConnector):
     )
     requires_oauth = True
 
+    # DecisionThread and Reply both carry the actual comment/reply body in
+    # their ``content`` field. Document descriptions are short metadata
+    # captions, not bodies — already covered by Document fixture entries.
+    BODY_FIELDS = {"DecisionThread": "content", "Reply": "content"}
+
     def __init__(self) -> None:
         self._use_gws: bool = False
         self._access_token: str = ""

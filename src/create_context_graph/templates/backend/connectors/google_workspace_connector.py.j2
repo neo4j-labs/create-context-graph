@@ -52,6 +52,8 @@ DRIVE_URL_PATTERN = re.compile(
 class GoogleWorkspaceConnector:
     """Import Drive files, comment threads, revisions, activity, calendar, and Gmail."""
 
+    BODY_FIELDS = {"DecisionThread": "content", "Reply": "content"}
+
     def __init__(self):
         self._access_token: str = ""
         self._folder_id: str = ""

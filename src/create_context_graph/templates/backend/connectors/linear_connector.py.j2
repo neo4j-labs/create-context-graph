@@ -98,6 +98,8 @@ def _describe_history_step(entry: dict) -> dict[str, str] | None:
 class LinearConnector:
     """Import issues, projects, cycles, and team data from Linear."""
 
+    BODY_FIELDS = {"Comment": "body"}
+
     def __init__(self):
         self._api_key: str = ""
         self._team_key: str = ""

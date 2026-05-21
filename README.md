@@ -12,25 +12,26 @@ Interactive CLI scaffolding tool that generates fully-functional, domain-specifi
 </p>
 
 ```bash
-# Python
-uvx create-context-graph
+# Python — NAMS-default (hosted memory)
+uvx create-context-graph my-app --domain healthcare --framework strands --nams-api-key sk-nams-...
 
-# Node.js
+# Self-hosted Neo4j with full demo fixtures
+uvx create-context-graph my-app --domain healthcare --framework pydanticai --self-hosted --demo
+
+# Node.js / interactive wizard
 npx create-context-graph
-
-# Non-interactive (PROJECT_NAME is optional — auto-generates slug from domain+framework)
-uvx create-context-graph --domain healthcare --framework pydanticai --demo-data
 ```
 
 ## What It Does
 
 Create Context Graph walks you through an interactive wizard and generates a complete project:
 
-- **FastAPI backend** with an AI agent configured for your domain, powered by [neo4j-agent-memory](https://github.com/neo4j-labs/agent-memory) v0.1.0 for multi-turn conversations with automatic entity extraction and preference detection
+- **FastAPI backend** with an AI agent configured for your domain, powered by [neo4j-agent-memory](https://github.com/neo4j-labs/agent-memory) v0.4 for multi-turn conversations with automatic entity extraction. Memory backend is configurable: hosted [NAMS](https://memory.neo4jlabs.com) (default) or self-hosted bolt Neo4j (`--self-hosted`).
+- **LiteLLM provider injection** for the memory layer — pick any LLM + embedding provider via `MEMORY_LLM` / `MEMORY_EMBEDDING` env vars (Anthropic, OpenAI, Bedrock, Vertex AI, Ollama, Groq, Together, …). Native adapters resolve first; everything else routes through LiteLLM.
 - **Next.js + Chakra UI v3 frontend** with streaming chat (Server-Sent Events), real-time tool call visualization (Timeline with live spinners), interactive graph visualization (schema view, double-click expand, drag/zoom, property panel), entity detail panel, document browser, and decision trace viewer
-- **Neo4j schema** with domain-specific constraints, indexes, and GDS projections
+- **Neo4j schema** with domain-specific constraints, indexes, and GDS projections (self-hosted mode)
 - **Rich demo data** — LLM-generated entities, relationships, professional documents (discharge summaries, trade confirmations, lab reports), and multi-step decision traces
-- **SaaS data import** — connect GitHub, Slack, Gmail, Jira, Notion, Google Calendar, or Salesforce
+- **SaaS data import** — connect GitHub, Slack, Gmail, Jira, Notion, Google Calendar, Salesforce, Linear, Google Workspace, Claude Code, Claude AI, ChatGPT, or local files
 - **Custom domains** — describe your domain in plain English and the LLM generates a complete ontology
 - **Domain-specific agent tools** with Cypher queries tailored to your industry
 - **MCP server for Claude Desktop** — optionally generates an MCP server config so Claude Desktop can query the same knowledge graph (`--with-mcp`)
@@ -58,79 +59,107 @@ Create Context Graph walks you through an interactive wizard and generates a com
 
 ## Quick Start
 
+There are two flows depending on what you want:
+
+- **NAMS (default)** — hosted memory backend. No Neo4j to install or operate. Graph starts empty; the agent populates it as you chat.
+- **Self-hosted** (`--self-hosted`) — bolt Neo4j you run yourself (Aura, Docker, neo4j-local). Full demo fixtures available via `make seed`.
+
 ### Prerequisites
 
 - Python 3.11+ (with [uv](https://docs.astral.sh/uv/) recommended)
 - Node.js 18+ (for the frontend)
-- Neo4j 5+ (Docker, Aura, or local install)
+- **NAMS path:** a NAMS API key from [memory.neo4jlabs.com](https://memory.neo4jlabs.com)
+- **Self-hosted path:** Neo4j 5+ (Docker, Aura, or local install)
+- **Either path:** `ANTHROPIC_API_KEY` for the agent (or `OPENAI_API_KEY`/`GOOGLE_API_KEY` depending on framework)
 
-### 1. Create a project
-
-```bash
-uvx create-context-graph
-```
-
-The interactive wizard will guide you through selecting a domain, framework, and Neo4j connection.
-
-Or skip the wizard with flags:
+### NAMS path (default, hosted memory)
 
 ```bash
 uvx create-context-graph my-app \
-  --domain financial-services \
+  --domain healthcare \
+  --framework strands \
+  --nams-api-key sk-nams-...
+
+cd my-app
+echo 'ANTHROPIC_API_KEY=sk-ant-...' >> .env   # Strands needs Anthropic
+make install
+make start
+```
+
+Open [http://localhost:3000](http://localhost:3000). Graph starts empty — chat with the agent and entities populate via auto-extraction.
+
+### Self-hosted path (bolt Neo4j + full demo data)
+
+```bash
+uvx create-context-graph my-app \
+  --domain healthcare \
   --framework pydanticai \
-  --demo-data
+  --self-hosted \
+  --demo
+
+cd my-app
+echo 'ANTHROPIC_API_KEY=sk-ant-...' >> .env
+make install
+make docker-up   # or: make neo4j-start  (for neo4j-local)
+make seed
+make start
+```
+
+Open [http://localhost:3000](http://localhost:3000). Pre-populated graph with ~85 entities, 180 relationships, 25 documents, and decision traces.
+
+### Other scaffold patterns
+
+```bash
+# Interactive wizard (asks 6 prompts, autocomplete domain picker)
+uvx create-context-graph
 
 # Custom domain from description
 uvx create-context-graph my-app \
   --custom-domain "veterinary clinic management" \
   --framework pydanticai \
-  --anthropic-api-key $ANTHROPIC_API_KEY \
-  --demo-data
+  --self-hosted --demo \
+  --anthropic-api-key $ANTHROPIC_API_KEY
 
-# Import from SaaS services
+# Import real data from SaaS services
 uvx create-context-graph my-app \
-  --domain personal-knowledge \
-  --framework pydanticai \
-  --connector github \
-  --connector slack
+  --domain personal-knowledge --framework pydanticai --self-hosted \
+  --connector github --connector slack
 
-# With MCP server for Claude Desktop
+# With MCP server for Claude Desktop (works on either backend)
 uvx create-context-graph my-app \
-  --domain healthcare \
-  --framework pydanticai \
-  --demo-data \
-  --with-mcp
+  --domain healthcare --framework strands \
+  --nams-api-key sk-nams-... --with-mcp
+
+# Pick a specific LiteLLM provider for memory entity extraction
+uvx create-context-graph my-app \
+  --domain healthcare --framework strands --nams-api-key sk-nams-... \
+  --memory-llm bedrock/anthropic.claude-3-haiku-20240307-v1:0 \
+  --memory-embedding sentence-transformers/all-MiniLM-L6-v2
 ```
 
-### 2. Start the app
-
-The wizard offers four Neo4j connection options:
-
-| Option | Command | Description |
-|--------|---------|-------------|
-| **Neo4j Aura** (cloud) | *(no start needed)* | Free cloud database — import your `.env` from [console.neo4j.io](https://console.neo4j.io) |
-| **neo4j-local** | `make neo4j-start` | Lightweight local Neo4j, no Docker required (needs Node.js) |
-| **Docker** | `make docker-up` | Full Neo4j via Docker Compose |
-| **Existing** | *(no start needed)* | Connect to any running Neo4j instance |
-
-```bash
-cd my-app
-make install       # Install backend + frontend dependencies
-make neo4j-start   # Start Neo4j (if using neo4j-local)
-# OR: make docker-up  # Start Neo4j (if using Docker)
-make seed          # Seed sample data into Neo4j
-make start         # Start backend (port 8000) + frontend (port 3000)
-```
-
-### 3. Explore
+### Explore the running app
 
 - **Frontend:** http://localhost:3000 — Chat with the AI agent, explore the knowledge graph
 - **Backend API:** http://localhost:8000/docs — FastAPI auto-generated docs
-- **Neo4j Browser:** http://localhost:7474 — Query the graph directly
+- **Health endpoint:** http://localhost:8000/health — reports the active memory backend
+- **NAMS dashboard:** [memory.neo4jlabs.com](https://memory.neo4jlabs.com) (NAMS path only)
+- **Neo4j Browser:** http://localhost:7474 (self-hosted Docker / neo4j-local only)
+
+### NAMS write-path caveats (v0.4)
+
+The NAMS REST API has a narrower write surface than bolt Cypher. The CLI and the generated `import_data.py` work around it with a hybrid write shape:
+
+- **Relationships encoded as `ccg-edges` YAML blocks** inside each source entity's `description`. The frontend graph view parses them out and renders edges; a future migration replays them as native edges when NAMS adds `add_relationship`.
+- **Entity properties collapse into `description`** as a markdown block (NAMS REST accepts only `name`/`type`/`description`).
+- **Documents are dual-tracked** — `long_term.add_entity(type=OBJECT)` (queryable, matches bolt `:Document`) AND `short_term.add_message(role="document")` (extraction fuel).
+- **No preferences or facts** via REST. `auto_preferences` forced off on NAMS.
+- **GDS endpoints** and arbitrary Cypher writes return 501 on NAMS.
+
+For native graph edges + GDS + arbitrary Cypher, use `--self-hosted --demo`.
 
 ## Supported Domains
 
-22 industry domains, each with a purpose-built ontology, sample data, agent tools, and demo scenarios:
+27 industry domains, each with a purpose-built ontology, sample data, agent tools, and demo scenarios:
 
 | Domain | Key Entities | Domain | Key Entities |
 |--------|-------------|--------|-------------|
@@ -145,6 +174,9 @@ make start         # Start backend (port 8000) + frontend (port 3000)
 | Personal Knowledge | Note, Contact, Project, Topic | Golf & Sports Mgmt | Course, Player, Round, Tournament |
 | Digital Twin | Asset, Sensor, Reading, Alert | Software Engineering | Repository, Issue, PR, Deployment |
 | Product Management | Feature, Epic, UserPersona, Metric | Hospitality | Hotel, Room, Reservation, Service |
+| Options Intelligence | Underlying, OptionsContract, Regime, KeyLevel | Legal | Case, Matter, Contract, Filing |
+| Education | Student, Instructor, Course, Assessment | Cybersecurity | Asset, Vulnerability, Alert, Incident |
+| Government | Agency, Program, Policy, Regulation | | |
 
 ```bash
 # List all available domains
@@ -207,7 +239,7 @@ Select your preferred agent framework at project creation time:
 
 All frameworks share the same FastAPI HTTP layer, Neo4j client, and frontend. Only the agent implementation differs. "Full streaming" means token-by-token text + real-time tool calls. "Tool streaming" means real-time tool calls with text delivered at the end.
 
-> **Note:** Conversation memory uses local sentence-transformers embeddings by default — no `OPENAI_API_KEY` required. If you set `OPENAI_API_KEY` in your `.env`, it will automatically upgrade to OpenAI embeddings.
+> **Note on memory providers:** Conversation memory uses local `sentence-transformers/all-MiniLM-L6-v2` embeddings by default — no API key required. Override with `MEMORY_EMBEDDING` (LiteLLM provider string) for OpenAI, Vertex AI, Bedrock, or others. The entity-extraction LLM defaults to `anthropic/claude-haiku-4-5` when `ANTHROPIC_API_KEY` is set, or `openai/gpt-4o-mini` if only `OPENAI_API_KEY` is set. Override with `MEMORY_LLM` for full control. See [Configure Memory Providers](docs/docs/how-to/configure-memory-providers.md).
 
 ## Generated Project Structure
 
@@ -271,7 +303,12 @@ Arguments:
 
 Options:
   --domain TEXT             Domain ID (e.g., healthcare, gaming)
-  --framework TEXT          Agent framework (pydanticai, claude-agent-sdk, openai-agents, langgraph, crewai, strands, google-adk, anthropic-tools)
+  --framework TEXT          Agent framework (strands [default], pydanticai, claude-agent-sdk, openai-agents, langgraph, crewai, google-adk, anthropic-tools)
+  --self-hosted             Use self-hosted Neo4j (bolt) instead of NAMS hosted memory
+  --nams-api-key TEXT       NAMS API key [env: MEMORY_API_KEY] — obtain at https://memory.neo4jlabs.com
+  --nams-endpoint TEXT      Override NAMS endpoint URL (default: https://memory.neo4jlabs.com/v1)
+  --memory-llm TEXT         LiteLLM provider string for memory entity extraction (e.g. anthropic/claude-haiku-4-5)
+  --memory-embedding TEXT   LiteLLM provider string for memory embeddings (e.g. sentence-transformers/all-MiniLM-L6-v2)
   --demo-data               Generate synthetic demo data
   --custom-domain TEXT      Generate custom domain from description (requires --anthropic-api-key)
   --connector TEXT          SaaS connector to enable; repeatable (github, slack, jira, notion, gmail, gcal, salesforce, linear, google-workspace, claude-code, claude-ai, chatgpt)
@@ -304,11 +341,11 @@ Options:
   --auto-extract/--no-auto-extract  Auto-extract entities from messages (default: on)
   --auto-preferences/--no-auto-preferences  Auto-detect user preferences (default: on)
   --ingest                  Ingest data into Neo4j after generation
-  --neo4j-uri TEXT          Neo4j connection URI [env: NEO4J_URI]
-  --neo4j-username TEXT     Neo4j username [env: NEO4J_USERNAME]
-  --neo4j-password TEXT     Neo4j password [env: NEO4J_PASSWORD]
-  --neo4j-aura-env PATH    Path to Neo4j Aura .env file with credentials
-  --neo4j-local             Use @johnymontana/neo4j-local for local Neo4j (no Docker)
+  --neo4j-uri TEXT          Neo4j connection URI [env: NEO4J_URI] (--self-hosted only)
+  --neo4j-username TEXT     Neo4j username [env: NEO4J_USERNAME] (--self-hosted only)
+  --neo4j-password TEXT     Neo4j password [env: NEO4J_PASSWORD] (--self-hosted only)
+  --neo4j-aura-env PATH    Path to Neo4j Aura .env file with credentials (--self-hosted only)
+  --neo4j-local             Use @johnymontana/neo4j-local for local Neo4j (--self-hosted only)
   --anthropic-api-key TEXT  Anthropic API key for LLM generation [env: ANTHROPIC_API_KEY]
   --openai-api-key TEXT    OpenAI API key for LLM generation [env: OPENAI_API_KEY]
   --google-api-key TEXT    Google/Gemini API key (required for google-adk) [env: GOOGLE_API_KEY]
@@ -352,8 +389,8 @@ uv venv && uv pip install -e ".[dev]"
 
 # Run tests (no Neo4j or API keys required)
 source .venv/bin/activate
-pytest tests/ -v               # Fast: 1,053 tests
-pytest tests/ -v --slow        # Full: 1,259 tests (includes domain x framework matrix + perf + generated project tests)
+pytest tests/ -v               # Fast: 1,177 tests
+pytest tests/ -v --slow        # Full: 1,398 tests (includes domain x framework matrix + perf + generated project tests)
 pytest tests/ --integration    # Integration tests (requires running Neo4j)
 
 # Test a specific scaffold
@@ -364,8 +401,8 @@ create-context-graph /tmp/test-app --domain software-engineering --framework pyd
 
 | Target | Description | Requirements |
 |--------|-------------|--------------|
-| `make test` | Run fast unit tests (1,053 tests) | None |
-| `make test-slow` | Full suite including matrix + perf + generated project tests (1,259 tests) | None |
+| `make test` | Run fast unit tests (1,177 tests) | None |
+| `make test-slow` | Full suite including matrix + perf + generated project tests (1,398 tests) | None |
 | `make test-matrix` | Domain × framework matrix only (176 combos) | None |
 | `make test-coverage` | Tests with HTML coverage report | None |
 | `make smoke-test` | E2E smoke tests for 3 key frameworks | Neo4j + LLM API keys |
@@ -376,18 +413,21 @@ create-context-graph /tmp/test-app --domain software-engineering --framework pyd
 
 ### E2E Smoke Tests
 
-The smoke tests scaffold a real project, install dependencies, start the backend, and send chat prompts to verify the full pipeline works end-to-end. They test the 3 frameworks that had critical bug fixes in v0.5.1:
+The smoke tests scaffold a real project, install dependencies, start the backend, and send chat prompts to verify the full pipeline works end-to-end. Pass `--backend nams` to test the hosted-memory path (requires `MEMORY_API_KEY` env); the default `bolt` exercises self-hosted Neo4j with full demo fixtures:
 
 ```bash
 # Run all 3 smoke tests (requires Neo4j + at least one LLM API key)
 make smoke-test
 
-# Or run individual framework tests directly
+# Or run individual framework tests directly (default: --backend bolt)
 python scripts/e2e_smoke_test.py --domain financial-services --framework pydanticai --quick
 python scripts/e2e_smoke_test.py --domain real-estate --framework google-adk --quick
 python scripts/e2e_smoke_test.py --domain trip-planning --framework strands --quick
 
-# Test all 23 domains with one framework
+# Test against NAMS hosted backend (requires MEMORY_API_KEY env)
+python scripts/e2e_smoke_test.py --domain healthcare --framework strands --backend nams --quick
+
+# Test all 27 domains with one framework
 python scripts/e2e_smoke_test.py --all-domains --framework pydanticai --quick
 
 # Full mode (all prompts per scenario, not just first)
@@ -395,7 +435,8 @@ python scripts/e2e_smoke_test.py --domain healthcare --framework claude-agent-sd
 ```
 
 **Required environment variables:**
-- `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` — Neo4j connection (Aura, Docker, or local)
+- `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` — Neo4j connection (Aura, Docker, or local) for `--backend bolt`
+- `MEMORY_API_KEY` — NAMS API key for `--backend nams`
 - `ANTHROPIC_API_KEY` — for Claude-based frameworks (PydanticAI, Claude Agent SDK, Anthropic Tools, Strands, CrewAI)
 - `OPENAI_API_KEY` — for OpenAI-based frameworks (OpenAI Agents, LangGraph)
 - `GOOGLE_API_KEY` — for Google ADK (Gemini)
@@ -406,9 +447,9 @@ GitHub Actions (`.github/workflows/ci.yml`) runs automatically:
 
 | Job | Trigger | Description |
 |-----|---------|-------------|
-| **test** | All pushes + PRs | Unit tests on Python 3.11 and 3.12 (1,053 tests including security, doc snippets, frontend logic) |
+| **test** | All pushes + PRs | Unit tests on Python 3.11 and 3.12 (1,177 tests including security, doc snippets, frontend logic, NAMS adapter, wizard, route integration) |
 | **lint** | All pushes + PRs | Ruff linter on `src/` and `tests/` |
-| **matrix** | Push to `main` only | Full suite + 176 domain × framework matrix + perf + generated project tests (1,259 tests) |
+| **matrix** | Push to `main` only | Full suite + 176 domain × framework matrix + perf + generated project tests (1,398 tests) |
 | **smoke-test** | Push to `main` only | Neo4j integration tests + E2E for all 8 frameworks (scaffold → install → start → chat) |
 
 The smoke-test CI job is gated behind a `SMOKE_TESTS_ENABLED` repository variable. To enable it:
@@ -433,10 +474,10 @@ Both packages are published automatically when you push a version tag:
 
 ```bash
 # 1. Update version in pyproject.toml and npm-wrapper/package.json
-# 2. Commit the version bump
+# 2. Commit the version bump (and any CHANGELOG.md update)
 # 3. Tag and push
-git tag v0.1.0
-git push origin v0.1.0
+git tag v0.13.0
+git push origin v0.13.0
 ```
 
 This triggers a GitHub Actions workflow, `release.yml` with jobs:

@@ -19,8 +19,8 @@ Start with **PydanticAI** -- it offers the best combination of type safety, full
 | **OpenAI Agents SDK** | OpenAI | Full (text + tools) | Native async | Requires `OPENAI_API_KEY`. Text-matching tools need specific search terms. |
 | **LangGraph** | Anthropic (configurable) | Full (text + tools) | Native async | Slightly higher startup (graph compilation). Rich observability hooks. |
 | **Anthropic Tools** | Anthropic | Full (text + tools) | Native async | No framework dependency. Direct API control over agentic loop. |
-| **Strands** | Anthropic | Tools only | Thread-bridged | Sync framework in worker thread. Text arrives at end, tools stream live. |
-| **CrewAI** | Anthropic | Tools only | Thread-bridged | Higher startup (multi-agent init). Text arrives at end. Needs `crewai[anthropic]`. |
+| **Strands** | Anthropic | Full (text + tools) | Thread-bridged | Sync framework in worker thread; text streams via `agent.stream_async()`. |
+| **CrewAI** | Anthropic | Full (text + tools) | Thread-bridged | Higher startup (multi-agent init); text streams via `LLMStreamChunkEvent`. Needs `crewai[anthropic]`. |
 | **Google ADK** | Google Gemini | Full (text + tools) | Native async | Requires `GOOGLE_API_KEY`. Uses `nest_asyncio` for reentrant async. |
 
 ## Choosing a Framework
@@ -51,9 +51,7 @@ Uses Google's Gemini models via the Agent Development Kit. Requires a separate G
 
 ## Streaming Behavior
 
-**Full streaming** (6 frameworks): Text tokens stream to the frontend as they're generated, and tool calls appear in real-time in the tool call timeline. The user sees the response build progressively.
-
-**Tools-only streaming** (CrewAI, Strands): Tool call events stream in real-time, but the final text response arrives all at once after the agent completes. This is because these frameworks run synchronously in a worker thread.
+**Full streaming (all 8 frameworks):** text tokens stream to the frontend as they're generated, and tool calls appear in real-time in the tool call timeline. CrewAI and Strands run synchronously in a worker thread; their text streams via framework-specific hooks (`LLMStreamChunkEvent` and `agent.stream_async()` respectively) and tool events stream via the thread-safe `CypherResultCollector`. The other six frameworks stream via native async APIs.
 
 ## Thread Safety
 

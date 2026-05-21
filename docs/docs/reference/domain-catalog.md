@@ -5,7 +5,7 @@ title: Domain Catalog
 
 # Domain Catalog
 
-create-context-graph ships with **22 built-in domains**. Each domain includes a complete ontology with entity types, relationships, agent tools, demo scenarios, and pre-generated fixture data.
+create-context-graph ships with **27 built-in domains**. Each domain includes a complete ontology with entity types, relationships, agent tools, demo scenarios, and pre-generated fixture data.
 
 ## All Domains
 
@@ -13,17 +13,22 @@ create-context-graph ships with **22 built-in domains**. Each domain includes a 
 |--------|------|-------|-------------|-------------|
 | `agent-memory` | 🧠 Agent Memory | AI agent conversation and memory management | 11 | 7 |
 | `conservation` | 🌿 Conservation | Environmental conservation programs and endangered species | 11 | 8 |
+| `cybersecurity` | 🛡️ Cybersecurity | Assets, vulnerabilities, alerts, incidents, threat actors, and controls | 12 | 7 |
 | `data-journalism` | 📰 Data Journalism | Investigative reporting, sources, and story threads | 11 | 8 |
 | `digital-twin` | 🏭 Digital Twin | IoT sensor networks and industrial simulation | 11 | 8 |
+| `education` | 🎓 Education | Students, instructors, courses, enrollments, assessments, and outcomes | 12 | 7 |
 | `financial-services` | 💰 Financial Services | Banking, accounts, transactions, and compliance | 10 | 7 |
 | `gaming` | 🎮 Gaming | Game worlds, players, quests, and item economies | 11 | 9 |
 | `genai-llm-ops` | 🤖 GenAI & LLM Ops | LLM deployment, prompts, evaluations, and model versioning | 11 | 8 |
 | `gis-cartography` | 🗺 GIS & Cartography | Geospatial features, map layers, and spatial analysis | 11 | 8 |
 | `golf-sports` | ⛳ Golf Sports | Golf courses, tournaments, player stats, and handicaps | 11 | 8 |
+| `government` | 🏛️ Government | Agencies, programs, policies, regulations, services, and budgets | 13 | 7 |
 | `healthcare` | 🏥 Healthcare | Patients, providers, diagnoses, and treatment plans | 12 | 6 |
 | `hospitality` | 🏨 Hospitality | Hotel operations, guest management, and room inventory | 11 | 8 |
+| `legal` | ⚖️ Legal | Cases, matters, contracts, filings, hearings, and counsel | 12 | 7 |
 | `manufacturing` | 🏭 Manufacturing | Production lines, quality control, and supply chain | 11 | 7 |
 | `oil-gas` | 🛢️ Oil & Gas | Wells, pipelines, production sites, and inspections | 10 | 6 |
+| `options-intelligence` | 📈 Options Intelligence | Options markets, exposure levels, regimes, and dealer positioning | 13 | 8 |
 | `personal-knowledge` | 📝 Personal Knowledge | Personal notes, contacts, projects, and learning | 10 | 8 |
 | `product-management` | 📋 Product Management | Features, roadmaps, user feedback, and sprint planning | 12 | 7 |
 | `real-estate` | 🏠 Real Estate | Properties, listings, agents, and transactions | 10 | 8 |
@@ -56,10 +61,24 @@ uvx create-context-graph --domain agent-memory --framework pydanticai --demo
 
 **Entity types:** `Person`, `Organization`, `Location`, `Event`, `Object`, `Site`, `Species`, `Program`, `Funding`, `Stakeholder`, `Monitoring`
 
-**Sample question:** "Show me all endangered species and the sites where they are protected"
+**Sample question:** "Which programs are funded by stakeholders working on endangered species recovery?"
 
 ```bash
 uvx create-context-graph --domain conservation --framework pydanticai --demo
+```
+
+---
+
+### 🛡️ Cybersecurity
+
+**ID:** `cybersecurity` | **Tagline:** AI-powered Security Intelligence
+
+**Entity types:** `Person`, `Organization`, `Location`, `Event`, `Object`, `Asset`, `Vulnerability`, `Alert`, `Incident`, `ThreatActor`, `Control`, `User`
+
+**Sample question:** "Which production assets are affected by critical CVEs used by active threat actors?"
+
+```bash
+uvx create-context-graph --domain cybersecurity --framework anthropic-tools --demo
 ```
 
 ---
@@ -88,6 +107,20 @@ uvx create-context-graph --domain data-journalism --framework pydanticai --demo
 
 ```bash
 uvx create-context-graph --domain digital-twin --framework pydanticai --demo
+```
+
+---
+
+### 🎓 Education
+
+**ID:** `education` | **Tagline:** AI-powered Learning Intelligence
+
+**Entity types:** `Person`, `Organization`, `Location`, `Event`, `Object`, `Student`, `Instructor`, `Course`, `Term`, `Enrollment`, `Assessment`, `Submission`
+
+**Sample question:** "Which students are at risk of failing this term?"
+
+```bash
+uvx create-context-graph --domain education --framework strands --demo
 ```
 
 ---
@@ -162,6 +195,20 @@ uvx create-context-graph --domain golf-sports --framework pydanticai --demo
 
 ---
 
+### 🏛️ Government
+
+**ID:** `government` | **Tagline:** AI-powered Public Sector Intelligence
+
+**Entity types:** `Person`, `Organization`, `Location`, `Event`, `Object`, `Agency`, `Program`, `Policy`, `Regulation`, `Service`, `Citizen`, `Official`, `Budget`
+
+**Sample question:** "Which programs are overspending against appropriated budget?"
+
+```bash
+uvx create-context-graph --domain government --framework claude-agent-sdk --demo
+```
+
+---
+
 ### 🏥 Healthcare
 
 **ID:** `healthcare` | **Tagline:** AI-powered Clinical Intelligence
@@ -190,6 +237,20 @@ uvx create-context-graph --domain hospitality --framework pydanticai --demo
 
 ---
 
+### ⚖️ Legal
+
+**ID:** `legal` | **Tagline:** AI-powered Legal Intelligence
+
+**Entity types:** `Person`, `Organization`, `Location`, `Event`, `Object`, `Case`, `Matter`, `Contract`, `Filing`, `Hearing`, `Counsel`, `Statute`
+
+**Sample question:** "What past cases cite the same statute as our current trade-secret case?"
+
+```bash
+uvx create-context-graph --domain legal --framework pydanticai --demo
+```
+
+---
+
 ### 🏭 Manufacturing
 
 **ID:** `manufacturing` | **Tagline:** AI-powered Manufacturing Intelligence
@@ -214,6 +275,20 @@ uvx create-context-graph --domain manufacturing --framework pydanticai --demo
 
 ```bash
 uvx create-context-graph --domain oil-gas --framework pydanticai --demo
+```
+
+---
+
+### 📈 Options Intelligence
+
+**ID:** `options-intelligence` | **Tagline:** AI-powered Options Market Intelligence
+
+**Entity types:** `Person`, `Organization`, `Location`, `Event`, `Object`, `Underlying`, `OptionsContract`, `ExposureLevel`, `Regime`, `KeyLevel`, `Trade`, `MarketEvent`, `Strategy`
+
+**Sample question:** "Which underlyings are currently in a gamma-positive regime with elevated dealer exposure?"
+
+```bash
+uvx create-context-graph --domain options-intelligence --framework pydanticai --demo
 ```
 
 ---

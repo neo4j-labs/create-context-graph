@@ -58,6 +58,8 @@ class ClaudeAIConnector(BaseConnector):
     )
     requires_oauth = False
 
+    BODY_FIELDS = {"Message": "content"}
+
     def __init__(self) -> None:
         self._file_path: str = ""
         self._depth: str = "fast"

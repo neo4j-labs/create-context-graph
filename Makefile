@@ -1,6 +1,7 @@
 # Create Context Graph — Development Makefile
 
-.PHONY: install test test-slow test-matrix test-functional smoke-test lint build publish-pypi publish-npm \
+.PHONY: install test test-slow test-matrix test-functional smoke-test smoke-render \
+        smoke-render-nams smoke-render-bolt smoke-render-clean lint build publish-pypi publish-npm \
         docs docs-build docs-serve scaffold clean help
 
 ## Setup
@@ -76,6 +77,84 @@ scaffold:  ## Scaffold a test project (healthcare/pydanticai)
 
 scaffold-clean:  ## Remove test scaffold
 	rm -rf /tmp/test-scaffold
+
+## Pre-release Smoke Render
+##
+## smoke-render walks the full scaffold → install → import path for both
+## backends without needing Neo4j, NAMS, or LLM keys. Catches the class of
+## breakage the mocked unit suite can't see:
+##   - dep-resolution failures (uv sync conflicts)
+##   - install-time crashes (e.g. spacy download on NAMS — fixed in 0.11.3)
+##   - import-time failures in generated app.main
+##   - generated test-scaffold regressions
+##
+## Run this manually before tagging a release.
+
+SMOKE_RENDER_DIR ?= /tmp/ccg-smoke-render
+
+smoke-render: smoke-render-nams smoke-render-bolt  ## Scaffold + install + import-check both backends
+
+# Placeholder API keys for smoke-render — framework SDKs (PydanticAI, etc.)
+# validate keys at module-load time when the Agent is constructed at module
+# scope, so we need *something* set to import without a real key.
+SMOKE_ENV := ANTHROPIC_API_KEY=sk-smoke-placeholder \
+             OPENAI_API_KEY=sk-smoke-placeholder \
+             GOOGLE_API_KEY=sk-smoke-placeholder
+
+smoke-render-nams:  ## NAMS-default scaffold: render, install, import-check, run generated tests
+	@echo ""
+	@echo "===================================================================="
+	@echo " smoke-render: NAMS-default scaffold"
+	@echo "===================================================================="
+	@rm -rf $(SMOKE_RENDER_DIR)/nams
+	uv run create-context-graph smoke-nams \
+		--domain healthcare --framework strands \
+		--nams-api-key sk-smoke-render-fake \
+		--output-dir $(SMOKE_RENDER_DIR)/nams
+	@echo ""
+	@echo "→ make install (NAMS, no spacy download expected)"
+	cd $(SMOKE_RENDER_DIR)/nams && $(MAKE) install-backend
+	@echo ""
+	@echo "→ Import-check generated FastAPI app"
+	cd $(SMOKE_RENDER_DIR)/nams/backend && \
+		$(SMOKE_ENV) MEMORY_API_KEY=sk-smoke MEMORY_BACKEND=nams \
+		uv run python -c "from app.main import app; print(f'NAMS app imported: {app.title}')"
+	@echo ""
+	@echo "→ Run generated backend test suite"
+	cd $(SMOKE_RENDER_DIR)/nams/backend && \
+		$(SMOKE_ENV) MEMORY_API_KEY=sk-smoke MEMORY_BACKEND=nams \
+		uv run pytest tests/ -v --tb=short
+	@echo ""
+	@echo "✅ smoke-render-nams passed"
+
+smoke-render-bolt:  ## Self-hosted scaffold: render, install, import-check, run generated tests
+	@echo ""
+	@echo "===================================================================="
+	@echo " smoke-render: self-hosted bolt scaffold"
+	@echo "===================================================================="
+	@rm -rf $(SMOKE_RENDER_DIR)/bolt
+	uv run create-context-graph smoke-bolt \
+		--domain healthcare --framework pydanticai \
+		--self-hosted --demo-data \
+		--output-dir $(SMOKE_RENDER_DIR)/bolt
+	@echo ""
+	@echo "→ make install (bolt, with spacy import-check guard)"
+	cd $(SMOKE_RENDER_DIR)/bolt && $(MAKE) install-backend
+	@echo ""
+	@echo "→ Import-check generated FastAPI app"
+	cd $(SMOKE_RENDER_DIR)/bolt/backend && \
+		$(SMOKE_ENV) MEMORY_BACKEND=bolt \
+		uv run python -c "from app.main import app; print(f'Bolt app imported: {app.title}')"
+	@echo ""
+	@echo "→ Run generated backend test suite"
+	cd $(SMOKE_RENDER_DIR)/bolt/backend && \
+		$(SMOKE_ENV) MEMORY_BACKEND=bolt \
+		uv run pytest tests/ -v --tb=short
+	@echo ""
+	@echo "✅ smoke-render-bolt passed"
+
+smoke-render-clean:  ## Remove smoke-render scratch directories
+	rm -rf $(SMOKE_RENDER_DIR)
 
 ## Data
 

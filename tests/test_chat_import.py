@@ -1042,8 +1042,95 @@ class TestChatImportCLI:
         runner = CliRunner()
         result = runner.invoke(main, [
             "test-app", "--domain", "healthcare", "--framework", "pydanticai",
+            "--self-hosted",
             "--import-type", "claude-ai", "--import-file", str(path),
             "--dry-run",
         ])
         assert result.exit_code == 0
         assert "claude-ai" in result.output.lower()
+
+
+class TestImportPreview:
+    """--import-preview parses the export file and prints a summary."""
+
+    def test_preview_claude_ai_zip(self, tmp_path):
+        from click.testing import CliRunner
+        from create_context_graph.cli import main
+
+        path = _make_claude_zip(tmp_path, [CLAUDE_CONVERSATION_1])
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "--import-type", "claude-ai",
+            "--import-file", str(path),
+            "--import-preview",
+        ])
+        assert result.exit_code == 0, result.output
+        # Summary fields the user needs to decide whether to commit.
+        assert "Conversations:" in result.output
+        assert "Messages:" in result.output
+        assert "Documents:" in result.output
+        assert "Total entities:" in result.output
+        # And the next-step prompt.
+        assert "Re-run without --import-preview" in result.output
+
+    def test_preview_chatgpt_zip(self, tmp_path):
+        from click.testing import CliRunner
+        from create_context_graph.cli import main
+
+        path = _make_chatgpt_zip(tmp_path, [CHATGPT_CONVERSATION_1])
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "--import-type", "chatgpt",
+            "--import-file", str(path),
+            "--import-preview",
+        ])
+        assert result.exit_code == 0, result.output
+        assert "Conversations:" in result.output
+
+    def test_preview_requires_type_and_file(self, tmp_path):
+        from click.testing import CliRunner
+        from create_context_graph.cli import main
+
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "--import-preview",
+        ])
+        # Preview alone (no --import-type / --import-file) is a usage error.
+        assert result.exit_code != 0
+        # The error message should point at the missing flags directly,
+        # rather than the generic "project name required" path.
+        assert "import-type" in result.output.lower() or "import-file" in result.output.lower()
+
+    def test_preview_missing_file_reports_error(self, tmp_path):
+        from click.testing import CliRunner
+        from create_context_graph.cli import main
+
+        bogus = tmp_path / "does-not-exist.zip"
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "--import-type", "claude-ai",
+            "--import-file", str(bogus),
+            "--import-preview",
+        ])
+        assert result.exit_code != 0
+        assert "not found" in result.output.lower()
+
+    def test_preview_does_not_scaffold(self, tmp_path):
+        """Preview must not create any project directory or files."""
+        from click.testing import CliRunner
+        from create_context_graph.cli import main
+
+        path = _make_claude_zip(tmp_path, [CLAUDE_CONVERSATION_1])
+        out_dir = tmp_path / "should-not-exist"
+        runner = CliRunner()
+        result = runner.invoke(main, [
+            "test-app",
+            "--domain", "healthcare",
+            "--framework", "pydanticai",
+            "--import-type", "claude-ai",
+            "--import-file", str(path),
+            "--import-preview",
+            "--output-dir", str(out_dir),
+        ])
+        assert result.exit_code == 0, result.output
+        assert not out_dir.exists(), "Preview mode must skip project scaffolding"

@@ -18,15 +18,16 @@ The **POLE+O** entity model is the foundation for all context graphs: **P**erson
 
 ## Key Features
 
-- **22 built-in domains** -- Healthcare, financial services, real estate, manufacturing, scientific research, software engineering, and more. Each ships with a complete ontology, agent tools, demo scenarios, and fixture data.
-- **8 agent frameworks** -- PydanticAI, Claude Agent SDK, OpenAI Agents SDK, LangGraph, CrewAI, Strands, Google ADK, and Anthropic Tools.
-- **Multi-turn conversations** -- Every agent uses [neo4j-agent-memory](https://github.com/neo4j-labs/agent-memory) for conversation persistence with automatic entity extraction and preference detection.
-- **Graph-native AI agents** -- Cypher-powered tools for querying entities, relationships, and decision traces. Tool calls stream in real-time with live progress indicators.
+- **NAMS by default** -- Generated projects target the hosted [Neo4j Agent Memory Service](https://memory.neo4jlabs.com) out of the box. `--self-hosted` preserves a fully-featured bolt-Neo4j path for offline / demo / regulated-data scenarios.
+- **LiteLLM provider injection** -- The memory layer (entity extraction + embeddings) accepts LiteLLM-style provider strings via `MEMORY_LLM` / `MEMORY_EMBEDDING` env vars. Native adapters resolve first (Anthropic, OpenAI, Bedrock, Vertex AI, SentenceTransformers); everything else (Ollama, Groq, Together, …) routes through LiteLLM.
+- **27 built-in domains** -- Healthcare, financial services, real estate, manufacturing, scientific research, software engineering, legal, education, cybersecurity, government, and more. Each ships with a complete ontology, agent tools, demo scenarios, and fixture data.
+- **8 agent frameworks** -- AWS Strands (default), PydanticAI, Claude Agent SDK, OpenAI Agents SDK, LangGraph, CrewAI, Google ADK, and Anthropic Tools.
+- **Multi-turn conversations** -- Every agent uses [neo4j-agent-memory](https://github.com/neo4j-labs/agent-memory) for conversation persistence with automatic entity extraction. Preference detection on the self-hosted path.
+- **Graph-native AI agents** -- Cypher-powered tools (on bolt) or NAMS REST tools (on the hosted backend) for querying entities, relationships, and decision traces. Tool calls stream in real-time with live progress indicators.
 - **Streaming chat** -- Token-by-token responses via Server-Sent Events. Tool calls appear as a live timeline with spinner indicators. Graph visualization updates incrementally after each tool completes.
 - **Interactive graph visualization** -- NVL-powered graph explorer with entity detail panel, document browser with template filtering, and decision trace viewer.
 - **Rich demo data** -- LLM-generated fixture data per domain: 80-90 entities, 25+ professional documents, and 3-5 multi-step decision traces. Loaded via `make seed`.
-- **Flexible Neo4j setup** -- Neo4j Aura (free cloud), `@johnymontana/neo4j-local`, Docker Compose, or any existing instance.
-- **12 SaaS data connectors** -- GitHub (`github`), Slack (`slack`), Jira (`jira`), Notion (`notion`), Gmail (`gmail`), Google Calendar (`gcal`), Salesforce (`salesforce`), Linear (`linear`), Google Workspace (`google-workspace`), Claude Code (`claude-code`), Claude AI (`claude-ai`), and ChatGPT (`chatgpt`). Use the ID in parentheses with `--connector`.
+- **13 SaaS data connectors** -- GitHub (`github`), Slack (`slack`), Jira (`jira`), Notion (`notion`), Gmail (`gmail`), Google Calendar (`gcal`), Salesforce (`salesforce`), Linear (`linear`), Google Workspace (`google-workspace`), Claude Code (`claude-code`), Claude AI (`claude-ai`), ChatGPT (`chatgpt`), and local files (`local-file`). Use the ID in parentheses with `--connector`.
 - **Custom domains** -- Describe your domain in natural language to generate a complete ontology, or write your own YAML definition.
 - **MCP server for Claude Desktop** -- Optionally generate an MCP server config so Claude Desktop queries the same knowledge graph as your web app.
 
@@ -45,7 +46,11 @@ npx create-context-graph
 See the **[Quick Start](/docs/quick-start)** for a complete walkthrough, or skip the wizard with flags:
 
 ```bash
-uvx create-context-graph my-app --domain healthcare --framework pydanticai --demo-data
+# NAMS-default (hosted memory)
+uvx create-context-graph my-app --domain healthcare --framework strands --nams-api-key sk-nams-...
+
+# Self-hosted (bolt Neo4j) with full demo fixtures
+uvx create-context-graph my-app --domain healthcare --framework pydanticai --self-hosted --demo
 ```
 
 ## See All Available Domains
@@ -77,6 +82,6 @@ Choose your path based on what you want to do:
 - **[Your First Context Graph App](/docs/tutorials/first-context-graph-app)** -- step-by-step tutorial to create, run, and explore a generated application.
 - **[Why Context Graphs](/docs/explanation/why-context-graphs)** -- understand the conceptual foundation behind graph-based agent memory.
 - **[Three Memory Types](/docs/explanation/three-memory-types)** -- how short-term, long-term, and reasoning memory work together.
-- **[Domain Catalog](/docs/reference/domain-catalog)** -- browse all 22 built-in domains with entity types and sample questions.
+- **[Domain Catalog](/docs/reference/domain-catalog)** -- browse all 27 built-in domains with entity types and sample questions.
 - **[Import SaaS Data](/docs/how-to/import-saas-data)** -- connect your existing tools to populate the knowledge graph.
 - **[Switch Frameworks](/docs/how-to/switch-frameworks)** -- compare and switch between 8 agent frameworks.

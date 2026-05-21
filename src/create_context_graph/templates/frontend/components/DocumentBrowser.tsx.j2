@@ -154,8 +154,8 @@ export function DocumentBrowser() {
           </Badge>
           {selectedDoc.mentioned_entities.length > 0 && (
             <HStack mb={3} flexWrap="wrap" gap={1}>
-              {selectedDoc.mentioned_entities.map((e, i) => (
-                <Badge key={`${e.name}-${i}`} size="sm" variant="outline">
+              {selectedDoc.mentioned_entities.map((e) => (
+                <Badge key={`${selectedDoc.document.title}-${e.name}`} size="sm" variant="outline">
                   {e.name}
                 </Badge>
               ))}

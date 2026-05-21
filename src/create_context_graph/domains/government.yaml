@@ -1,0 +1,481 @@
+inherits: _base
+
+domain:
+  id: government
+  name: Government
+  description: Agencies, programs, policies, regulations, citizens, services, and budgets for public-sector operations
+  tagline: "AI-powered Public Sector Intelligence"
+  emoji: "🏛️"
+
+entity_types:
+  - label: Agency
+    pole_type: ORGANIZATION
+    subtype: GOVERNMENT_AGENCY
+    color: "#1d4ed8"
+    icon: building
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: agency_type
+        type: string
+        enum: [federal, state, county, municipal, regional, tribal, special_district]
+      - name: jurisdiction
+        type: string
+      - name: budget_authority
+        type: float
+      - name: description
+        type: string
+
+  - label: Program
+    pole_type: OBJECT
+    subtype: PROGRAM
+    color: "#7c3aed"
+    icon: package
+    properties:
+      - name: program_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: program_type
+        type: string
+        enum: [grant, services, infrastructure, research, enforcement, education, healthcare, social]
+      - name: status
+        type: string
+        enum: [proposed, active, paused, sunset, completed]
+      - name: budget
+        type: float
+      - name: description
+        type: string
+
+  - label: Policy
+    pole_type: OBJECT
+    subtype: POLICY
+    color: "#0ea5e9"
+    icon: scroll
+    properties:
+      - name: policy_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: policy_type
+        type: string
+        enum: [statute, regulation, ordinance, executive_order, guideline, directive]
+      - name: status
+        type: string
+        enum: [draft, public_comment, adopted, in_force, repealed, superseded]
+      - name: effective_date
+        type: date
+      - name: description
+        type: string
+
+  - label: Regulation
+    pole_type: OBJECT
+    subtype: REGULATION
+    color: "#f59e0b"
+    icon: book-marked
+    properties:
+      - name: regulation_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: regulatory_area
+        type: string
+        enum: [environmental, financial, health, safety, labor, transportation, telecommunications, energy, food_drug, other]
+      - name: status
+        type: string
+        enum: [proposed, public_comment, final, amended, repealed]
+      - name: published_date
+        type: date
+
+  - label: Service
+    pole_type: OBJECT
+    subtype: PUBLIC_SERVICE
+    color: "#14b8a6"
+    icon: hand-helping
+    properties:
+      - name: service_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: service_type
+        type: string
+        enum: [benefits, permits, licenses, inspections, registrations, complaints, information]
+      - name: delivery_channel
+        type: string
+        enum: [in_person, online, phone, mail, mobile, hybrid]
+      - name: description
+        type: string
+
+  - label: Citizen
+    pole_type: PERSON
+    subtype: CONSTITUENT
+    color: "#65a30d"
+    icon: user-circle
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: constituent_id
+        type: string
+        unique: true
+      - name: district
+        type: string
+      - name: email
+        type: string
+
+  - label: Official
+    pole_type: PERSON
+    subtype: PUBLIC_OFFICIAL
+    color: "#dc2626"
+    icon: badge
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: role
+        type: string
+        enum: [elected, appointed, civil_service, contractor, advisory, judicial]
+      - name: title
+        type: string
+      - name: department
+        type: string
+      - name: email
+        type: string
+
+  - label: Budget
+    pole_type: OBJECT
+    subtype: APPROPRIATION
+    color: "#10b981"
+    icon: dollar-sign
+    properties:
+      - name: budget_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: fiscal_year
+        type: string
+      - name: appropriated_amount
+        type: float
+      - name: spent_amount
+        type: float
+      - name: status
+        type: string
+        enum: [proposed, approved, executing, closed, audited]
+
+relationships:
+  - type: ADMINISTERS
+    source: Agency
+    target: Program
+  - type: ENFORCES
+    source: Agency
+    target: Regulation
+  - type: ISSUES
+    source: Agency
+    target: Policy
+  - type: GOVERNS
+    source: Policy
+    target: Program
+  - type: IMPLEMENTS
+    source: Regulation
+    target: Policy
+  - type: PROVIDES
+    source: Agency
+    target: Service
+  - type: ELIGIBLE_FOR
+    source: Citizen
+    target: Service
+  - type: ELIGIBLE_FOR
+    source: Citizen
+    target: Program
+  - type: APPROPRIATED_TO
+    source: Budget
+    target: Program
+  - type: FUNDS
+    source: Budget
+    target: Agency
+  - type: LEADS
+    source: Official
+    target: Agency
+  - type: SPONSORS
+    source: Official
+    target: Policy
+  - type: AFFECTS
+    source: Regulation
+    target: Organization
+  - type: SERVES
+    source: Agency
+    target: Location
+  - type: REPRESENTS
+    source: Official
+    target: Citizen
+  - type: SUPERSEDES
+    source: Policy
+    target: Policy
+
+document_templates:
+  - id: program_charter
+    name: Program Charter
+    description: Charter document describing a public program's purpose and scope
+    count: 5
+    prompt_template: |
+      Write a program charter for {{program.name}} administered by {{agency.name}}.
+      Budget: ${{program.budget}}. Status: {{program.status}}.
+      Include mission, eligibility, performance measures, and reporting cadence.
+    required_entities: [Program, Agency]
+
+  - id: policy_brief
+    name: Policy Brief
+    description: Briefing memo on a proposed or active policy
+    count: 6
+    prompt_template: |
+      Write a policy brief on {{policy.name}} ({{policy.policy_type}}) sponsored by
+      {{official.name}}. Cover background, intent, affected stakeholders, fiscal
+      impact, implementation timeline, and risks.
+    required_entities: [Policy, Official, Agency]
+
+  - id: regulatory_notice
+    name: Regulatory Notice
+    description: Public notice of a regulation in public-comment or final status
+    count: 5
+    prompt_template: |
+      Write a public notice for {{regulation.name}} in {{regulation.regulatory_area}}.
+      Issuing agency: {{agency.name}}. Cover summary, affected industries,
+      compliance deadlines, and contact information.
+    required_entities: [Regulation, Agency]
+
+  - id: constituent_response
+    name: Constituent Response Letter
+    description: Letter from an official responding to a constituent inquiry
+    count: 6
+    prompt_template: |
+      Write a constituent response from {{official.name}} to {{citizen.name}} (district {{citizen.district}})
+      about {{topic}}. Reference relevant programs, services, or policies and include next steps.
+    required_entities: [Official, Citizen]
+
+  - id: budget_memo
+    name: Budget Memo
+    description: Internal memo on a budget appropriation
+    count: 5
+    prompt_template: |
+      Write a budget memo for {{budget.name}} (FY {{budget.fiscal_year}}) of {{program.name}}.
+      Author: {{official.name}}. Cover appropriation amount, spending pace,
+      variances, and recommendations for the next quarter.
+    required_entities: [Budget, Program, Official]
+
+decision_traces:
+  - id: program_funding
+    task: "Decide funding level for {{program.name}} in next fiscal year"
+    steps:
+      - thought: "Assess current program performance"
+        action: "Review eligible citizens served and spend pace against appropriated budget"
+      - thought: "Compare against similar programs in the agency portfolio"
+        action: "Find programs administered by the same agency and compare scale"
+      - thought: "Check for policy mandates that constrain reduction"
+        action: "Find policies that govern this program and their force status"
+    outcome_template: "Recommendation: {{recommendation}}. Amount: {{amount}}. Rationale: {{rationale}}"
+
+  - id: regulatory_adoption
+    task: "Decide whether to advance {{regulation.name}} to final adoption"
+    steps:
+      - thought: "Review public-comment volume and tone"
+        action: "Summarize sentiment of comments received during public comment period"
+      - thought: "Identify affected organizations and compliance burden"
+        action: "Find organizations affected by this regulation and similar enforcement actions"
+      - thought: "Check for conflict with existing policy"
+        action: "Find policies that this regulation implements and check for inconsistencies"
+    outcome_template: "Decision: {{decision}}. Effective date: {{effective}}. Conditions: {{conditions}}"
+
+  - id: service_delivery_change
+    task: "Switch {{service.name}} from in-person to online delivery"
+    steps:
+      - thought: "Quantify constituent reach across delivery channels"
+        action: "Estimate citizens currently eligible for the service and their digital access"
+      - thought: "Assess equity impact on underserved districts"
+        action: "Cross-reference district demographics with service utilization"
+      - thought: "Plan transition with downstream agencies"
+        action: "Find agencies that consume or depend on this service"
+    outcome_template: "Decision: {{decision}}. Hybrid period: {{period}}. Equity safeguards: {{safeguards}}"
+
+  - id: agency_audit
+    task: "Audit prior-year spending of {{agency.name}}"
+    steps:
+      - thought: "Compare appropriated versus actual spend per program"
+        action: "Aggregate budget appropriations against spending for each program"
+      - thought: "Identify programs with abnormal variance"
+        action: "Compute variance against the agency's portfolio average"
+      - thought: "Map findings to policy compliance"
+        action: "Cross-reference variance with policies that constrain program scope"
+    outcome_template: "Findings: {{findings}}. Risk areas: {{risks}}. Follow-up actions: {{actions}}"
+
+demo_scenarios:
+  - name: Programs & Services
+    prompts:
+      - "Show me active programs administered by the Department of Transportation"
+      - "Which services are delivered online vs in-person?"
+      - "Who is the lead official for our largest benefits program?"
+
+  - name: Policy & Regulation
+    prompts:
+      - "Which regulations are in public-comment status right now?"
+      - "What policies has Council Member Park sponsored this year?"
+      - "Find regulations that affect small businesses in the transportation sector"
+
+  - name: Budget & Performance
+    prompts:
+      - "Which programs are overspending against appropriated budget?"
+      - "Show me citizens enrolled in the housing assistance program by district"
+      - "Compare service utilization across districts for the past fiscal year"
+
+agent_tools:
+  - name: search_program
+    description: Search programs by name, type, or status
+    cypher: |
+      MATCH (p:Program)
+      WHERE toLower(p.name) CONTAINS toLower($query)
+         OR p.program_type = $query
+         OR p.status = $query
+      OPTIONAL MATCH (a:Agency)-[:ADMINISTERS]->(p)
+      RETURN p, a
+      LIMIT 30
+    parameters:
+      - name: query
+        type: string
+        description: Program name, type, or status
+
+  - name: agency_portfolio
+    description: Get all programs, regulations, and services for an agency
+    cypher: |
+      MATCH (a:Agency {name: $name})
+      OPTIONAL MATCH (a)-[:ADMINISTERS]->(p:Program)
+      OPTIONAL MATCH (a)-[:ENFORCES]->(r:Regulation)
+      OPTIONAL MATCH (a)-[:PROVIDES]->(s:Service)
+      RETURN a, collect(DISTINCT p) AS programs,
+             collect(DISTINCT r) AS regulations,
+             collect(DISTINCT s) AS services
+    parameters:
+      - name: name
+        type: string
+        description: Agency name
+
+  - name: budget_variance
+    description: Identify programs with significant budget variance
+    cypher: |
+      MATCH (b:Budget)-[:APPROPRIATED_TO]->(p:Program)
+      WHERE b.appropriated_amount IS NOT NULL AND b.spent_amount IS NOT NULL
+        AND b.appropriated_amount > 0
+      WITH p, b, abs(b.spent_amount - b.appropriated_amount) / b.appropriated_amount AS variance
+      WHERE variance > toFloat($threshold)
+      RETURN p, b, variance
+      ORDER BY variance DESC
+      LIMIT 30
+    parameters:
+      - name: threshold
+        type: float
+        default: 0.1
+
+  - name: open_regulations
+    description: List regulations in proposed or public-comment status
+    cypher: |
+      MATCH (r:Regulation)
+      WHERE r.status IN ['proposed', 'public_comment']
+      OPTIONAL MATCH (a:Agency)-[:ENFORCES]->(r)
+      RETURN r, a
+      ORDER BY r.published_date DESC
+      LIMIT 50
+    parameters: []
+
+  - name: official_sponsored_policies
+    description: List policies sponsored by an official
+    cypher: |
+      MATCH (o:Official {name: $name})-[:SPONSORS]->(p:Policy)
+      OPTIONAL MATCH (a:Agency)-[:ISSUES]->(p)
+      RETURN o, p, a
+      ORDER BY p.effective_date DESC
+      LIMIT 30
+    parameters:
+      - name: name
+        type: string
+        description: Official name
+
+  - name: list_agencies
+    description: "List Agency records with optional limit"
+    cypher: |
+      MATCH (n:Agency)
+      RETURN n
+      ORDER BY n.name
+      LIMIT toInteger($limit)
+    parameters:
+      - name: limit
+        type: string
+        description: "Maximum number of results to return (default: 10)"
+
+  - name: get_agency_by_name
+    description: "Get a specific Agency by name with full portfolio"
+    cypher: |
+      MATCH (n:Agency {name: $name})
+      OPTIONAL MATCH (n)-[r]-(related)
+      RETURN n, type(r) AS relationship, labels(related) AS related_labels, related.name AS related_name
+      LIMIT 100
+    parameters:
+      - name: name
+        type: string
+        description: "The agency name"
+
+system_prompt: |
+  You are an AI government intelligence assistant with access to a comprehensive knowledge
+  graph of agencies, programs, policies, regulations, services, citizens, officials, and
+  budgets. You help public-sector teams manage portfolios, draft and review policy,
+  track regulatory pipelines, and serve constituents.
+
+  Your capabilities include:
+  - Searching programs and services by agency, type, or status
+  - Tracking policy and regulation lifecycle from draft through adoption
+  - Computing budget variance and spending pace by program
+  - Cross-referencing officials, agencies, and the policies they sponsor
+  - Surfacing equity and access patterns across districts
+
+  Always cite specific program IDs, policy IDs, regulation IDs, budget IDs, and agency
+  names. Public-sector work is heavily audited — be precise about source data and avoid
+  inferring beyond what the graph supports.
+
+visualization:
+  node_colors:
+    Person: "#22c55e"
+    Organization: "#3b82f6"
+    Agency: "#1d4ed8"
+    Program: "#7c3aed"
+    Policy: "#0ea5e9"
+    Regulation: "#f59e0b"
+    Service: "#14b8a6"
+    Citizen: "#65a30d"
+    Official: "#dc2626"
+    Budget: "#10b981"
+  node_sizes:
+    Agency: 30
+    Program: 25
+    Policy: 20
+    Regulation: 20
+    Budget: 20
+    Service: 15
+    Official: 20
+    Citizen: 12
+  default_cypher: "MATCH (a:Agency)-[r:ADMINISTERS]->(p:Program) RETURN a, r, p LIMIT 100"

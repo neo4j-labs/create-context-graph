@@ -508,11 +508,12 @@ class TestProjectRenderer:
         assert "resolve_session_id" in memory
 
     def test_mcp_files_generated_when_enabled(self, tmp_output):
-        """Verify MCP files are generated when with_mcp=True."""
+        """Verify MCP files are generated when with_mcp=True (bolt path uses requested profile)."""
         config = ProjectConfig(
             project_name="Test MCP App",
             domain="financial-services",
             framework="pydanticai",
+            memory_backend="bolt",
             with_mcp=True,
             mcp_profile="extended",
         )
@@ -537,15 +538,18 @@ class TestProjectRenderer:
         assert not (tmp_output / "mcp").exists()
 
     def test_pyproject_bumps_memory_version(self, financial_config, tmp_output):
-        """Verify generated pyproject.toml requires neo4j-agent-memory>=0.1.0."""
+        """Verify generated pyproject.toml requires neo4j-agent-memory>=0.4.0,<0.6.0."""
         ontology = load_domain(financial_config.domain)
         renderer = ProjectRenderer(financial_config, ontology)
         renderer.render(tmp_output)
 
         pkg = (tmp_output / "backend" / "pyproject.toml").read_text()
         assert "neo4j-agent-memory" in pkg
-        assert ">=0.1.0" in pkg
-        assert ">=0.0.5" not in pkg
+        assert ">=0.4.0" in pkg
+        assert "<0.6.0" in pkg
+        # Self-hosted (financial_config) includes extraction + fuzzy extras
+        assert "extraction" in pkg
+        assert "fuzzy" in pkg
 
     def test_makefile_has_mcp_target_when_enabled(self, tmp_output):
         """Verify Makefile includes mcp-server target when with_mcp=True."""
@@ -553,6 +557,7 @@ class TestProjectRenderer:
             project_name="Test MCP App",
             domain="healthcare",
             framework="pydanticai",
+            memory_backend="bolt",
             with_mcp=True,
         )
         ontology = load_domain(config.domain)
@@ -809,3 +814,232 @@ class TestAllFrameworksRender:
             assert pkg_name in pyproject, (
                 f"pyproject.toml for {framework} missing dependency '{pkg_name}'"
             )
+
+
+class TestCustomDomainRender:
+    """Regression: renderer must complete a full scaffold when the user
+    supplies ``custom_domain_yaml`` (via ``--custom-domain`` LLM generation).
+
+    The original bug at renderer.py:557 imported ``_get_domains_path`` *only*
+    inside the ``else`` branch of the custom-vs-builtin domain check, but
+    referenced it again on the next line for the ``_base.yaml`` copy. On the
+    custom-domain path the import never fired, Python treated the name as a
+    local (because the inner branch wrote to it), and the renderer raised
+    ``UnboundLocalError`` after ``data/ontology.yaml`` was already written —
+    leaving a partial scaffold the user couldn't recover from.
+    """
+
+    def _custom_yaml(self) -> str:
+        """A realistic ontology YAML matching what generate_custom_domain returns."""
+        import importlib.resources
+        # Reuse the healthcare YAML as a stand-in — the renderer doesn't care
+        # whether the YAML came from an LLM or a packaged file, only that it's
+        # valid ontology content keyed by domain.id.
+        path = (
+            importlib.resources.files("create_context_graph")
+            / "domains"
+            / "healthcare.yaml"
+        )
+        return path.read_text()
+
+    def test_renders_full_scaffold_with_custom_domain_yaml(self, tmp_path):
+        from create_context_graph.config import ProjectConfig
+        from create_context_graph.ontology import load_domain_from_yaml_string
+
+        yaml_str = self._custom_yaml()
+        ontology = load_domain_from_yaml_string(yaml_str)
+        config = ProjectConfig(
+            project_name="CustomScaffold",
+            domain=ontology.domain.id,
+            framework="langgraph",
+            custom_domain_yaml=yaml_str,
+        )
+        out = tmp_path / "custom-scaffold"
+        # The original bug raised UnboundLocalError mid-render. Just calling
+        # render() to completion is the regression assertion.
+        ProjectRenderer(config, ontology).render(out)
+
+        # Sanity: the expected key files all exist and are non-empty.
+        for relpath in (
+            "backend/app/agent.py",
+            "backend/app/main.py",
+            "backend/pyproject.toml",
+            "data/ontology.yaml",
+            "data/_base.yaml",
+            "frontend/package.json",
+            "Makefile",
+            ".env",
+            "README.md",
+        ):
+            f = out / relpath
+            assert f.exists(), f"Custom-domain render did not produce {relpath}"
+            assert f.stat().st_size > 0, f"{relpath} is empty"
+
+        # The custom YAML was written verbatim (not the packaged copy).
+        written = (out / "data" / "ontology.yaml").read_text()
+        assert written == yaml_str
+
+        # _base.yaml comes from the package, not the custom YAML.
+        base = (out / "data" / "_base.yaml").read_text()
+        assert "inherits" not in base  # _base.yaml is the root — nothing to inherit
+        assert "entity_types:" in base or "domain:" in base
+
+    def test_base_yaml_copied_regardless_of_custom_domain(self, tmp_path):
+        """The bug surfaced specifically because _base.yaml copy lives OUTSIDE
+        the custom-vs-builtin branch — so both branches must produce it.
+        """
+        from create_context_graph.config import ProjectConfig
+        from create_context_graph.ontology import load_domain, load_domain_from_yaml_string
+
+        # Builtin domain path
+        builtin_cfg = ProjectConfig(
+            project_name="Builtin",
+            domain="healthcare",
+            framework="pydanticai",
+        )
+        builtin_out = tmp_path / "builtin"
+        ProjectRenderer(builtin_cfg, load_domain("healthcare")).render(builtin_out)
+        assert (builtin_out / "data" / "_base.yaml").exists()
+
+        # Custom domain path
+        yaml_str = self._custom_yaml()
+        custom_cfg = ProjectConfig(
+            project_name="Custom",
+            domain="healthcare",
+            framework="pydanticai",
+            custom_domain_yaml=yaml_str,
+        )
+        custom_out = tmp_path / "custom"
+        ProjectRenderer(custom_cfg, load_domain_from_yaml_string(yaml_str)).render(
+            custom_out
+        )
+        assert (custom_out / "data" / "_base.yaml").exists()
+
+        # Both _base.yaml copies must come from the package — identical content.
+        assert (builtin_out / "data" / "_base.yaml").read_text() == (
+            custom_out / "data" / "_base.yaml"
+        ).read_text()
+
+
+class TestFrameworkAgentNotStubFallback:
+    """Regression guard for the silent stub-fallback at ``renderer.py:430``.
+
+    Carried forward from the v0.11.0 langgraph bug where a Jinja error in the
+    framework's agent.py.j2 was swallowed by an over-broad ``except Exception``
+    and produced a 36-line stub (``backend/shared/agent_stub.py.j2``) with the
+    same name. Tests like ``test_framework_agent_compiles`` would pass on the
+    stub because it's valid Python — the only way to catch the regression is
+    to assert framework-specific *content* and the absence of the stub's
+    distinguishing phrase.
+
+    The renderer was also tightened to only catch ``TemplateNotFound`` (a real
+    missing-template case) and let Jinja syntax / undefined errors propagate,
+    so a future template breakage becomes a hard test failure instead of a
+    silent stub. Both halves of the fix need to be in place; this test catches
+    the *consequence* if the broad-except is ever re-introduced.
+    """
+
+    # Two distinctive markers per framework — at least one of which is a
+    # unique-to-that-framework symbol (import path, decorator, registry, etc.)
+    # that would NOT appear in the agent_stub.py.j2 fallback.
+    FRAMEWORK_SIGNATURES = {
+        "pydanticai": ["from pydantic_ai import", "@agent.tool"],
+        "claude-agent-sdk": ["import anthropic", "client.messages.stream"],
+        "openai-agents": ["from agents import", "Runner.run"],
+        "langgraph": ["from langgraph.prebuilt import create_react_agent", "ChatAnthropic"],
+        "crewai": ["from crewai import", "Crew("],
+        "strands": ["from strands import Agent", "stream_async"],
+        "google-adk": ["from google.adk", "FunctionTool"],
+        "anthropic-tools": ["TOOL_REGISTRY", "@register_tool"],
+    }
+
+    STUB_FINGERPRINT = "This is a stub implementation"
+
+    @pytest.mark.parametrize("framework", list(FRAMEWORK_SIGNATURES))
+    def test_rendered_agent_is_not_the_stub(self, framework, tmp_path):
+        """The framework template must render — not the stub fallback."""
+        from create_context_graph.config import ProjectConfig
+
+        config = ProjectConfig(
+            project_name="StubGuard",
+            domain="financial-services",
+            framework=framework,
+        )
+        out = tmp_path / f"stub-guard-{framework}"
+        ProjectRenderer(config, load_domain(config.domain)).render(out)
+
+        source = (out / "backend" / "app" / "agent.py").read_text()
+        assert self.STUB_FINGERPRINT not in source, (
+            f"{framework} rendered the agent_stub fallback. "
+            "See renderer.py:430 — only TemplateNotFound should trigger it."
+        )
+        for marker in self.FRAMEWORK_SIGNATURES[framework]:
+            assert marker in source, (
+                f"{framework} agent missing distinctive marker '{marker}'. "
+                "Either the template silently fell back to the stub, or the "
+                "template was edited away from the framework's idiomatic API."
+            )
+
+    def test_stub_fallback_only_when_template_missing(self, tmp_path):
+        """Sanity: the stub is still reachable when the template genuinely
+        doesn't exist. Uses a monkey-patched fw_key to simulate an unmapped
+        framework (the kind of state a half-added new framework would be in).
+        """
+        from create_context_graph.config import ProjectConfig
+
+        # ProjectConfig allows arbitrary framework strings (the Click choice
+        # in cli.py is what gates user input); use that to land on a key with
+        # no template directory.
+        config = ProjectConfig(
+            project_name="MissingTemplate",
+            domain="financial-services",
+            framework="no-such-framework",
+        )
+        out = tmp_path / "missing-template"
+        renderer = ProjectRenderer(config, load_domain(config.domain))
+
+        import warnings
+
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            renderer.render(out)
+            stub_warnings = [
+                w for w in caught if "placeholder stub" in str(w.message)
+            ]
+            assert stub_warnings, "Missing template must warn loudly"
+
+        source = (out / "backend" / "app" / "agent.py").read_text()
+        assert self.STUB_FINGERPRINT in source
+
+    def test_template_error_propagates(self, tmp_path):
+        """Sanity: a Jinja error (not TemplateNotFound) must surface, NOT
+        silently degrade to the stub.
+
+        Uses a synthetic ``_render_template`` patch to inject an Undefined
+        error that mimics the kind of template bug that previously got
+        swallowed.
+        """
+        from unittest.mock import patch
+
+        from jinja2.exceptions import UndefinedError
+
+        from create_context_graph.config import ProjectConfig
+
+        config = ProjectConfig(
+            project_name="ErrorPropagates",
+            domain="financial-services",
+            framework="pydanticai",
+        )
+        out = tmp_path / "error-propagates"
+        renderer = ProjectRenderer(config, load_domain(config.domain))
+
+        original = renderer._render_template
+
+        def fail_only_agent(template_name, output_path, ctx):
+            if "agents/pydanticai/agent.py.j2" in template_name:
+                raise UndefinedError("simulated template bug")
+            return original(template_name, output_path, ctx)
+
+        with patch.object(renderer, "_render_template", side_effect=fail_only_agent):
+            with pytest.raises(UndefinedError, match="simulated template bug"):
+                renderer.render(out)

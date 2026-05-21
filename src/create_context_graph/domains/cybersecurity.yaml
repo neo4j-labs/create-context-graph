@@ -1,0 +1,479 @@
+inherits: _base
+
+domain:
+  id: cybersecurity
+  name: Cybersecurity
+  description: Assets, vulnerabilities, alerts, incidents, threat actors, and controls for security operations centers
+  tagline: "AI-powered Security Intelligence"
+  emoji: "🛡️"
+
+entity_types:
+  - label: Asset
+    pole_type: OBJECT
+    subtype: IT_ASSET
+    color: "#0ea5e9"
+    icon: server
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: asset_type
+        type: string
+        enum: [server, workstation, network_device, application, database, cloud_resource, container, mobile_device, iot]
+      - name: criticality
+        type: string
+        enum: [critical, high, medium, low]
+      - name: environment
+        type: string
+        enum: [production, staging, development, dr, sandbox]
+      - name: owner_email
+        type: string
+      - name: ip_address
+        type: string
+      - name: description
+        type: string
+
+  - label: Vulnerability
+    pole_type: OBJECT
+    subtype: VULNERABILITY
+    color: "#dc2626"
+    icon: bug
+    properties:
+      - name: cve_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: severity
+        type: string
+        enum: [critical, high, medium, low, informational]
+      - name: cvss_score
+        type: float
+      - name: status
+        type: string
+        enum: [open, in_remediation, patched, accepted_risk, false_positive]
+      - name: published_date
+        type: date
+      - name: description
+        type: string
+
+  - label: Alert
+    pole_type: EVENT
+    subtype: SECURITY_ALERT
+    color: "#f59e0b"
+    icon: alert-circle
+    properties:
+      - name: alert_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: detection_source
+        type: string
+        enum: [siem, edr, ids, waf, cloud_native, manual, threat_intel]
+      - name: severity
+        type: string
+        enum: [critical, high, medium, low]
+      - name: status
+        type: string
+        enum: [new, triaged, investigating, resolved, false_positive, suppressed]
+      - name: detected_at
+        type: datetime
+        required: true
+      - name: description
+        type: string
+
+  - label: Incident
+    pole_type: EVENT
+    subtype: SECURITY_INCIDENT
+    color: "#ef4444"
+    icon: shield-alert
+    properties:
+      - name: incident_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: incident_type
+        type: string
+        enum: [malware, phishing, account_compromise, data_exfiltration, insider, ddos, ransomware, unauthorized_access]
+      - name: severity
+        type: string
+        enum: [sev1, sev2, sev3, sev4]
+      - name: status
+        type: string
+        enum: [open, contained, eradicated, recovered, closed]
+      - name: detected_at
+        type: datetime
+      - name: description
+        type: string
+
+  - label: ThreatActor
+    pole_type: ORGANIZATION
+    subtype: THREAT_ACTOR
+    color: "#7c2d12"
+    icon: skull
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: actor_type
+        type: string
+        enum: [apt, cybercriminal, hacktivist, insider, nation_state, unknown]
+      - name: motivation
+        type: string
+        enum: [financial, espionage, ideological, disruption, unknown]
+      - name: sophistication
+        type: string
+        enum: [novice, intermediate, advanced, expert]
+      - name: description
+        type: string
+
+  - label: Control
+    pole_type: OBJECT
+    subtype: SECURITY_CONTROL
+    color: "#10b981"
+    icon: lock
+    properties:
+      - name: control_id
+        type: string
+        required: true
+        unique: true
+      - name: name
+        type: string
+        required: true
+      - name: control_family
+        type: string
+        enum: [access_control, awareness, audit, configuration, identification, incident_response, maintenance, media, physical, planning, personnel, risk_assessment, security_assessment, system, communications, integrity]
+      - name: status
+        type: string
+        enum: [implemented, partially_implemented, planned, not_applicable, failed]
+      - name: framework
+        type: string
+
+  - label: User
+    pole_type: PERSON
+    subtype: SYSTEM_USER
+    color: "#2563eb"
+    icon: user
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: username
+        type: string
+        unique: true
+      - name: role
+        type: string
+        enum: [employee, contractor, admin, service_account, partner, vendor]
+      - name: status
+        type: string
+        enum: [active, disabled, locked, terminated]
+      - name: email
+        type: string
+
+relationships:
+  - type: AFFECTS
+    source: Vulnerability
+    target: Asset
+  - type: TRIGGERED
+    source: Alert
+    target: Incident
+  - type: TARGETS
+    source: Alert
+    target: Asset
+  - type: ATTRIBUTED_TO
+    source: Incident
+    target: ThreatActor
+  - type: USES
+    source: ThreatActor
+    target: Vulnerability
+  - type: OWNS
+    source: Person
+    target: Asset
+  - type: ACCESSES
+    source: User
+    target: Asset
+  - type: MITIGATES
+    source: Control
+    target: Vulnerability
+  - type: PROTECTS
+    source: Control
+    target: Asset
+  - type: ASSIGNED_TO
+    source: Incident
+    target: Person
+  - type: REPORTED_BY
+    source: Alert
+    target: User
+  - type: DEPENDS_ON
+    source: Asset
+    target: Asset
+  - type: BELONGS_TO
+    source: Asset
+    target: Organization
+  - type: ORIGINATES_FROM
+    source: Alert
+    target: Location
+
+document_templates:
+  - id: incident_report
+    name: Incident Report
+    description: Post-incident report with root cause and remediation
+    count: 5
+    prompt_template: |
+      Write an incident report for {{incident.name}} ({{incident.incident_type}}, {{incident.severity}}).
+      Incident commander: {{person.name}}. Affected assets: {{asset_list}}.
+      Cover timeline, impact, root cause, containment, eradication, and lessons learned.
+    required_entities: [Incident, Person, Asset]
+
+  - id: vulnerability_advisory
+    name: Vulnerability Advisory
+    description: Internal advisory for a newly disclosed CVE
+    count: 6
+    prompt_template: |
+      Write an internal advisory for {{vulnerability.cve_id}} ({{vulnerability.severity}})
+      affecting {{asset_list}}. Owner: {{person.name}}. Cover impact, exploitation likelihood,
+      detection guidance, and remediation steps with timelines.
+    required_entities: [Vulnerability, Asset, Person]
+
+  - id: threat_brief
+    name: Threat Intelligence Brief
+    description: Intel brief on a threat actor or campaign
+    count: 5
+    prompt_template: |
+      Write a threat intel brief on {{threat_actor.name}} ({{threat_actor.actor_type}}).
+      Cover known TTPs, recent activity, targets, attribution confidence, and recommended
+      detections referencing CVEs they exploit.
+    required_entities: [ThreatActor, Vulnerability]
+
+  - id: control_assessment
+    name: Control Assessment
+    description: Assessment of a security control against the framework
+    count: 5
+    prompt_template: |
+      Write a control assessment for {{control.name}} ({{control.framework}}).
+      Owner: {{person.name}}. Cover current implementation state, gaps,
+      evidence, residual risk, and remediation plan.
+    required_entities: [Control, Person]
+
+  - id: phishing_email
+    name: Phishing Investigation Email
+    description: Internal email about a suspicious phishing campaign
+    count: 6
+    prompt_template: |
+      Write an email from {{person.name}} to the security team about a suspected
+      phishing campaign targeting {{user_list}}. Reference the original alert and
+      include indicators of compromise.
+    required_entities: [Person, User, Alert]
+
+decision_traces:
+  - id: alert_triage
+    task: "Triage alert {{alert.name}} with severity {{alert.severity}}"
+    steps:
+      - thought: "Confirm the alert against detection signal quality"
+        action: "Check the detection source, prior false-positive rate, and alert volume"
+      - thought: "Map the alert to affected assets and users"
+        action: "Find assets targeted by the alert and users with recent access"
+      - thought: "Search for correlated alerts in the same window"
+        action: "Query alerts on the same assets in the past 24 hours"
+      - thought: "Assign severity and ownership"
+        action: "Compare against criticality of affected assets and on-call roster"
+    outcome_template: "Triage: {{disposition}}. Owner: {{owner}}. Escalation: {{escalation}}"
+
+  - id: patch_prioritization
+    task: "Prioritize patching for {{vulnerability.cve_id}}"
+    steps:
+      - thought: "Quantify exposure across the fleet"
+        action: "Count assets affected and break down by criticality and environment"
+      - thought: "Assess exploitability and active threat interest"
+        action: "Find threat actors known to exploit this vulnerability"
+      - thought: "Evaluate compensating controls"
+        action: "Find controls that mitigate this vulnerability and check their status"
+      - thought: "Schedule against maintenance windows"
+        action: "Review dependencies for assets requiring patching"
+    outcome_template: "Priority: {{priority}}. Window: {{window}}. Risk-accepted assets: {{risk_accept}}"
+
+  - id: incident_containment
+    task: "Containment plan for {{incident.name}}"
+    steps:
+      - thought: "Identify lateral-movement risk"
+        action: "Find assets connected to the affected asset via DEPENDS_ON or ACCESSES"
+      - thought: "Decide between isolation and continued observation"
+        action: "Compare business impact of isolation against attacker's known TTPs"
+      - thought: "Coordinate user-credential responses"
+        action: "Find users with recent access to affected assets and their privilege levels"
+    outcome_template: "Action: {{action}}. Assets isolated: {{count}}. User actions: {{user_actions}}"
+
+  - id: false_positive_review
+    task: "Review repeated false positives from {{alert.detection_source}}"
+    steps:
+      - thought: "Quantify the noise volume and pattern"
+        action: "Count alerts marked false-positive over the past 30 days from this source"
+      - thought: "Determine if a detection rule needs tuning"
+        action: "Find common asset targets and timing patterns in the false-positives"
+      - thought: "Evaluate downstream cost of suppression"
+        action: "Check whether any true incidents originated from this rule historically"
+    outcome_template: "Decision: {{decision}}. Tuning: {{tuning}}. Owner: {{owner}}"
+
+demo_scenarios:
+  - name: Triage & Response
+    prompts:
+      - "Show me critical alerts from the last 24 hours"
+      - "Which incidents are still in containment?"
+      - "Who is the incident commander for our largest open ransomware incident?"
+
+  - name: Vulnerability Management
+    prompts:
+      - "Which production assets are affected by critical CVEs?"
+      - "Show me unpatched vulnerabilities older than 30 days"
+      - "Which assets have the most open vulnerabilities?"
+
+  - name: Threat Intelligence
+    prompts:
+      - "Which threat actors target our financial services assets?"
+      - "What CVEs are actively exploited by APT groups we track?"
+      - "Show me the attack path from a recent phishing alert to a critical asset"
+
+agent_tools:
+  - name: search_alert
+    description: Search for alerts by name, severity, or status
+    cypher: |
+      MATCH (a:Alert)
+      WHERE toLower(a.name) CONTAINS toLower($query)
+         OR a.severity = $query
+         OR a.status = $query
+      OPTIONAL MATCH (a)-[:TARGETS]->(asset:Asset)
+      RETURN a, collect(DISTINCT asset) AS assets
+      ORDER BY a.detected_at DESC
+      LIMIT 30
+    parameters:
+      - name: query
+        type: string
+        description: Alert name, severity, or status
+
+  - name: asset_exposure
+    description: Get an asset's open vulnerabilities and active alerts
+    cypher: |
+      MATCH (asset:Asset {name: $asset_name})
+      OPTIONAL MATCH (v:Vulnerability)-[:AFFECTS]->(asset)
+      WHERE v.status IN ['open', 'in_remediation']
+      OPTIONAL MATCH (alert:Alert)-[:TARGETS]->(asset)
+      WHERE alert.status IN ['new', 'triaged', 'investigating']
+      OPTIONAL MATCH (c:Control)-[:PROTECTS]->(asset)
+      RETURN asset, collect(DISTINCT v) AS vulnerabilities,
+             collect(DISTINCT alert) AS active_alerts,
+             collect(DISTINCT c) AS controls
+    parameters:
+      - name: asset_name
+        type: string
+        description: Asset name
+
+  - name: critical_vulns
+    description: List critical open vulnerabilities on production assets
+    cypher: |
+      MATCH (v:Vulnerability)-[:AFFECTS]->(a:Asset)
+      WHERE v.severity = 'critical' AND v.status IN ['open', 'in_remediation']
+        AND a.environment = 'production'
+      RETURN v, a
+      ORDER BY v.cvss_score DESC
+      LIMIT 50
+    parameters: []
+
+  - name: incident_blast_radius
+    description: Map the blast radius of an incident through asset dependencies
+    cypher: |
+      MATCH (i:Incident {incident_id: $incident_id})
+      OPTIONAL MATCH (alert:Alert)-[:TRIGGERED]->(i)
+      OPTIONAL MATCH (alert)-[:TARGETS]->(direct:Asset)
+      OPTIONAL MATCH path = (direct)-[:DEPENDS_ON*1..2]-(connected:Asset)
+      RETURN i, collect(DISTINCT direct) AS direct, collect(DISTINCT connected) AS connected
+    parameters:
+      - name: incident_id
+        type: string
+        description: Incident ID
+
+  - name: threat_actor_targets
+    description: Find vulnerabilities used by a threat actor and assets exposed
+    cypher: |
+      MATCH (ta:ThreatActor)
+      WHERE toLower(ta.name) CONTAINS toLower($name)
+      OPTIONAL MATCH (ta)-[:USES]->(v:Vulnerability)
+      OPTIONAL MATCH (v)-[:AFFECTS]->(asset:Asset)
+      WHERE v.status IN ['open', 'in_remediation']
+      RETURN ta, collect(DISTINCT v) AS vulnerabilities,
+             collect(DISTINCT asset) AS exposed_assets
+    parameters:
+      - name: name
+        type: string
+        description: Threat actor name
+
+  - name: list_incidents
+    description: "List Incident records with optional limit"
+    cypher: |
+      MATCH (n:Incident)
+      RETURN n
+      ORDER BY n.detected_at DESC
+      LIMIT toInteger($limit)
+    parameters:
+      - name: limit
+        type: string
+        description: "Maximum number of results to return (default: 10)"
+
+  - name: get_incident_by_id
+    description: "Get a specific Incident by ID with full connections"
+    cypher: |
+      MATCH (n:Incident {incident_id: $incident_id})
+      OPTIONAL MATCH (n)-[r]-(related)
+      RETURN n, type(r) AS relationship, labels(related) AS related_labels, related.name AS related_name
+      LIMIT 50
+    parameters:
+      - name: incident_id
+        type: string
+        description: "The incident ID"
+
+system_prompt: |
+  You are an AI cybersecurity intelligence assistant with access to a comprehensive
+  knowledge graph of assets, vulnerabilities, alerts, incidents, threat actors, and
+  controls. You help SOC analysts triage alerts, prioritize patching, contain
+  incidents, and assess control effectiveness.
+
+  Your capabilities include:
+  - Triaging alerts by severity, source, and affected asset criticality
+  - Mapping vulnerabilities to assets and recommending patch priorities
+  - Tracing incident blast radius through dependency graphs
+  - Correlating alerts to known threat actor TTPs
+  - Assessing control coverage against open vulnerabilities
+
+  Always cite specific CVE IDs, alert IDs, asset names, and incident IDs. Lead with
+  the highest-severity finding and surface compensating controls when severity drops.
+
+visualization:
+  node_colors:
+    Person: "#22c55e"
+    Organization: "#3b82f6"
+    Asset: "#0ea5e9"
+    Vulnerability: "#dc2626"
+    Alert: "#f59e0b"
+    Incident: "#ef4444"
+    ThreatActor: "#7c2d12"
+    Control: "#10b981"
+    User: "#2563eb"
+  node_sizes:
+    Incident: 30
+    Asset: 25
+    Vulnerability: 20
+    Alert: 15
+    ThreatActor: 25
+    Control: 15
+    User: 15
+  default_cypher: "MATCH (v:Vulnerability)-[r:AFFECTS]->(a:Asset {environment: 'production'}) WHERE v.severity = 'critical' RETURN v, r, a LIMIT 100"

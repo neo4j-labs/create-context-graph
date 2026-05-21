@@ -22,10 +22,12 @@ from importlib.resources import files
 from pathlib import Path
 
 from jinja2 import Environment, PackageLoader
+from jinja2.exceptions import TemplateNotFound
 
 from create_context_graph.config import ProjectConfig
 from create_context_graph.ontology import (
     DomainOntology,
+    _get_domains_path,
     generate_cypher_schema,
     generate_pydantic_models,
     generate_visualization_config,
@@ -255,7 +257,7 @@ class ProjectRenderer:
             "relationships": [r.model_dump() for r in self.ontology.relationships],
             "demo_scenarios": self._build_demo_scenarios(),
             "agent_tools": self._build_agent_tools(),
-            "framework": self.config.resolved_framework,
+            "framework": self.config.framework,
             "framework_display_name": self.config.framework_display_name,
             "framework_deps": self.config.framework_deps,
             "neo4j_uri": self.config.neo4j_uri,
@@ -265,6 +267,12 @@ class ProjectRenderer:
             "anthropic_api_key": self.config.anthropic_api_key or "",
             "openai_api_key": self.config.openai_api_key or "",
             "google_api_key": self.config.google_api_key or "",
+            "memory_backend": self.config.memory_backend,
+            "is_nams": self.config.is_nams,
+            "nams_api_key": self.config.nams_api_key or "",
+            "nams_endpoint": self.config.nams_endpoint,
+            "memory_llm": self.config.memory_llm or "",
+            "memory_embedding": self.config.memory_embedding or "",
             "system_prompt": self._build_system_prompt(),
             "from_database": self.config.from_database,
             "cypher_schema": ""
@@ -275,10 +283,10 @@ class ProjectRenderer:
             "saas_connectors": self.config.saas_connectors,
             "connector_credentials": self.config.saas_credentials,
             "with_mcp": self.config.with_mcp,
-            "mcp_profile": self.config.mcp_profile,
+            "mcp_profile": self.config.effective_mcp_profile,
             "session_strategy": self.config.session_strategy,
             "auto_extract": self.config.auto_extract,
-            "auto_preferences": self.config.auto_preferences,
+            "auto_preferences": self.config.effective_auto_preferences,
         }
 
     def _build_system_prompt(self) -> str:
@@ -414,6 +422,7 @@ class ProjectRenderer:
             "backend/shared/models.py.j2": "app/models.py",
             "backend/shared/routes.py.j2": "app/routes.py",
             "backend/shared/memory.py.j2": "app/memory.py",
+            "backend/shared/memory_adapter.py.j2": "app/memory_adapter.py",
             "backend/shared/pyproject.toml.j2": "pyproject.toml",
         }
         for template_name, output_name in shared_templates.items():
@@ -423,13 +432,27 @@ class ProjectRenderer:
         (backend_dir / "app").mkdir(parents=True, exist_ok=True)
         (backend_dir / "app" / "__init__.py").write_text("")
 
-        # Framework-specific agent template
-        fw_key = self.config.resolved_framework.replace("-", "_")
+        # Framework-specific agent template. Only fall back to the stub when
+        # the framework directory doesn't exist (e.g. a new framework key was
+        # added without a template). Template-rendering errors — Jinja syntax,
+        # undefined variables, missing context — must propagate so they don't
+        # silently degrade into a 36-line stub the way the v0.11.0 langgraph
+        # regression did.
+        fw_key = self.config.framework.replace("-", "_")
         agent_template = f"backend/agents/{fw_key}/agent.py.j2"
         try:
             self._render_template(agent_template, backend_dir / "app" / "agent.py", ctx)
-        except Exception:
-            # Fallback: render a minimal agent stub
+        except TemplateNotFound:
+            # Genuine missing template — render the documented stub so the
+            # scaffold still boots, but make the situation discoverable.
+            import warnings
+
+            warnings.warn(
+                f"No agent template found at {agent_template}; "
+                "falling back to the placeholder stub. The scaffolded "
+                "backend/app/agent.py will need a real implementation.",
+                stacklevel=2,
+            )
             self._render_template(
                 "backend/shared/agent_stub.py.j2",
                 backend_dir / "app" / "agent.py",
@@ -541,13 +564,11 @@ class ProjectRenderer:
             # Write custom domain YAML directly
             (data_dir / "ontology.yaml").write_text(self.config.custom_domain_yaml)
         else:
-            from create_context_graph.ontology import _get_domains_path
-
             domain_yaml = _get_domains_path() / f"{self.config.domain}.yaml"
             if domain_yaml.exists():
                 shutil.copy2(domain_yaml, data_dir / "ontology.yaml")
 
-        # Also copy base
+        # Also copy base (always — independent of custom-vs-builtin domain)
         base_yaml = _get_domains_path() / "_base.yaml"
         if base_yaml.exists():
             shutil.copy2(base_yaml, data_dir / "_base.yaml")

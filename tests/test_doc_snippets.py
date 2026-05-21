@@ -308,3 +308,100 @@ class TestEnvVariables:
             f"Expected at least 3 env vars in common between docs and template, "
             f"found {len(overlap)}: {sorted(overlap)}"
         )
+
+
+class TestNamsRelationshipEncoding:
+    """Both the docs and the code must describe the ccg-edges encoding the
+    NAMS path uses in lieu of native relationships."""
+
+    def test_use_nams_doc_covers_ccg_edges_encoding(self):
+        doc = (DOCS_DIR / "how-to" / "use-nams.md").read_text()
+        # The encoding section heading + the literal fence marker + a
+        # readable example so users know what they're looking at.
+        assert "Seeding a relationship-rich graph" in doc
+        assert "ccg-edges" in doc
+        # The self-hosted escape hatch must still be discoverable for users
+        # who need native edges today.
+        assert "--self-hosted" in doc
+        assert "--demo" in doc
+
+    def test_ingest_py_uses_ccg_edges_marker(self):
+        ingest = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "create_context_graph"
+            / "ingest.py"
+        ).read_text()
+        # The marker is the single seam future contributors swap when NAMS
+        # ships add_relationship; the contract test pins both consumers
+        # to its output.
+        assert "ccg-edges" in ingest
+        assert "_build_ccg_edges_block" in ingest
+
+    def test_scaffold_template_uses_ccg_edges_marker(self):
+        template = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "create_context_graph"
+            / "templates"
+            / "backend"
+            / "connectors"
+            / "import_data.py.j2"
+        ).read_text()
+        # The scaffolded path must use the same encoding so generated apps
+        # produce graph-identical output to the CLI ingest.
+        assert "ccg-edges" in template
+        assert "_build_ccg_edges_block" in template
+
+    def test_explanation_page_exists_and_round_trips(self):
+        """The new explanation/ccg-edges.md must exist and its example block
+        must match the format actually produced by ``_build_ccg_edges_block``.
+        Catches the page drifting out of sync with the encoder."""
+        page = DOCS_DIR / "explanation" / "ccg-edges.md"
+        assert page.exists(), "docs/docs/explanation/ccg-edges.md missing"
+        text = page.read_text()
+        assert "```ccg-edges" in text
+        assert "type:" in text and "target:" in text and "target_label:" in text
+
+        # Drive the encoder with the exact relationships shown in the doc's
+        # example and verify the output matches what the page claims.
+        from create_context_graph.ingest import _build_ccg_edges_block
+        relationships = [
+            {
+                "source_name": "Alice Park",
+                "type": "AUTHORED",
+                "target_name": "Q3 Strategy Memo",
+                "target_label": "Document",
+            },
+            {
+                "source_name": "Alice Park",
+                "type": "MENTIONS",
+                "target_name": "Market Opportunity",
+                "target_label": "Concept",
+            },
+        ]
+        block = _build_ccg_edges_block(relationships, "Alice Park")
+        # Sorted deterministically by (type, target) — AUTHORED < MENTIONS.
+        assert block.startswith("```ccg-edges")
+        assert block.endswith("```")
+        assert "- type: AUTHORED" in block
+        assert "  target: Q3 Strategy Memo" in block
+        assert "  target_label: Document" in block
+        assert "- type: MENTIONS" in block
+        assert "  target: Market Opportunity" in block
+        # AUTHORED entry must appear before MENTIONS in the deterministic sort.
+        assert block.index("AUTHORED") < block.index("MENTIONS")
+
+    def test_readme_template_links_to_ccg_edges_doc(self):
+        readme = (
+            Path(__file__).resolve().parent.parent
+            / "src"
+            / "create_context_graph"
+            / "templates"
+            / "base"
+            / "README.md.j2"
+        ).read_text()
+        # Scaffolded README must point at the explanation page so users who
+        # see the encoding in their graph can read the design rationale.
+        assert "ccg-edges" in readme
+        assert "explanation/ccg-edges" in readme

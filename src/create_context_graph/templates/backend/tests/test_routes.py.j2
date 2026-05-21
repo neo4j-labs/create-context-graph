@@ -16,11 +16,19 @@ from app.main import app
 
 
 @pytest.fixture(autouse=True)
-def mock_neo4j():
-    """Mock Neo4j connection for all tests."""
+def mock_backend():
+    """Mock the memory backend for all tests.
+
+    Patches both the bolt-Neo4j path (connect_neo4j, vector index) and the
+    NAMS path (connect_memory) so a single test file works regardless of
+    which backend the generated project targets.
+    """
     with patch("app.context_graph_client.connect_neo4j", new_callable=AsyncMock), \
          patch("app.context_graph_client.close_neo4j", new_callable=AsyncMock), \
          patch("app.main.is_connected", return_value=True), \
+         patch("app.main.get_memory_status", return_value=True), \
+         patch("app.memory.connect_memory", new_callable=AsyncMock), \
+         patch("app.memory.close_memory", new_callable=AsyncMock), \
          patch("app.vector_client.create_vector_index", new_callable=AsyncMock):
         yield
 

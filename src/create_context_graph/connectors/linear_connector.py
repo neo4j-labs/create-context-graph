@@ -127,6 +127,10 @@ class LinearConnector(BaseConnector):
     service_description = "Import issues, projects, cycles, and team data from Linear"
     requires_oauth = False
 
+    # Issue descriptions and ProjectUpdate bodies are already converted to
+    # :Document entities at fetch time, so we only need Comment.body here.
+    BODY_FIELDS = {"Comment": "body"}
+
     def __init__(self):
         self._api_key: str = ""
         self._team_key: str = ""

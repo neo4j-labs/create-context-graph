@@ -1,15 +1,48 @@
-{% raw %}"""Data import script — fetches data from connected SaaS services.
+{% raw %}"""Data import script — fetch from connected SaaS services and write into
+the configured memory backend (NAMS or self-hosted bolt Neo4j).
 
 Usage:
-    python scripts/import_data.py
-    python scripts/import_data.py --ingest  # Also ingest into Neo4j
+    python scripts/import_data.py              # fetch + ingest (idempotent)
+    python scripts/import_data.py --dry-run    # fetch only, write fixtures.json
+    python scripts/import_data.py --retry      # drain .context-graph/deadletter.jsonl
+
+Idempotency strategy:
+    * Each connector tracks an ``updated_after`` watermark in
+      ``.context-graph/watermarks.json`` so re-runs only fetch deltas.
+    * NAMS ``add_entity`` is trusted to merge by ``name``.
+    * Failures (one record at a time) are appended to
+      ``.context-graph/deadletter.jsonl`` and the watermark only advances on a
+      clean run; ``--retry`` drains the deadletter into the same write path.
+
+NAMS write shape:
+    * Entities → ``long_term.add_entity`` with attributes markdown-serialized
+      into ``description``. Outbound relationships from each entity are
+      encoded into the same description as a fenced ``ccg-edges`` YAML block
+      (NAMS REST has no add_relationship today; the block migrates cleanly
+      when it does).
+    * Documents → dual-tracked: ``add_entity(name=title, type=OBJECT)`` AND
+      ``short_term.add_message(role="document")`` so the NAMS extractor sees
+      the prose.
+    * Entity records with a body field (declared per-connector via
+      ``BODY_FIELDS = {label: property}``) also flow through ``add_message``.
+    * Decision traces use the reasoning REST API.
+
+This file is duplicated from ``src/create_context_graph/ingest.py``'s
+``run_nams_ingest`` by design (see the create-context-graph CLAUDE.md
+discussion). The contract test ``test_nams_ingest_parity.py`` pins their call
+sequences against a shared fixture.
 """
 
 from __future__ import annotations
 
+import asyncio
 import json
+import logging
+import re
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 
 {% endraw %}{% for conn in saas_connectors %}{% if conn == 'github' %}{% raw %}
 from app.connectors.github_connector import GitHubConnector
@@ -31,29 +64,480 @@ from app.connectors.linear_connector import LinearConnector
 from app.connectors.google_workspace_connector import GoogleWorkspaceConnector
 {% endraw %}{% elif conn == 'claude-code' %}{% raw %}
 from app.connectors.claude_code_connector import ClaudeCodeConnector
-{% endraw %}{% endif %}{% endfor %}
-{% raw %}
+{% endraw %}{% elif conn == 'local-file' %}{% raw %}
+from app.connectors.local_file_connector import LocalFileConnector
+{% endraw %}{% endif %}{% endfor %}{% raw %}
+
 from app.config import settings
 
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
-def main():
-    """Run all configured connectors and write results to fixtures.json."""
-    ingest = "--ingest" in sys.argv
-    data_dir = Path(__file__).parent.parent.parent / "data"
-    fixture_path = data_dir / "fixtures.json"
 
-    all_entities: dict[str, list[dict]] = {}
-    all_relationships: list[dict] = []
-    all_documents: list[dict] = []
+# ---------------------------------------------------------------------------
+# Paths & sidecar files
+# ---------------------------------------------------------------------------
 
-    connectors = []
+PROJECT_ROOT = Path(__file__).parent.parent.parent
+DATA_DIR = PROJECT_ROOT / "data"
+SIDECAR_DIR = PROJECT_ROOT / ".context-graph"
+WATERMARKS_FILE = SIDECAR_DIR / "watermarks.json"
+DEADLETTER_FILE = SIDECAR_DIR / "deadletter.jsonl"
+FIXTURES_FILE = DATA_DIR / "fixtures.json"
+
+
+def _load_watermarks() -> dict[str, str]:
+    if not WATERMARKS_FILE.exists():
+        return {}
+    try:
+        return json.loads(WATERMARKS_FILE.read_text())
+    except (OSError, json.JSONDecodeError):
+        logger.warning("watermarks.json unreadable, treating as empty")
+        return {}
+
+
+def _save_watermarks(marks: dict[str, str]) -> None:
+    SIDECAR_DIR.mkdir(parents=True, exist_ok=True)
+    WATERMARKS_FILE.write_text(json.dumps(marks, indent=2, sort_keys=True))
+
+
+def _append_deadletter(record: dict[str, Any]) -> None:
+    SIDECAR_DIR.mkdir(parents=True, exist_ok=True)
+    with DEADLETTER_FILE.open("a") as f:
+        f.write(json.dumps(record, default=str) + "\n")
+
+
+def _now_utc_iso() -> str:
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+# ---------------------------------------------------------------------------
+# NAMS write helpers — mirror ingest.py run_nams_ingest()
+# ---------------------------------------------------------------------------
+
+CCG_EDGES_OPEN = "```ccg-edges"
+CCG_EDGES_CLOSE = "```"
+_RESERVED_DESCRIPTION_KEYS = {"name", "description", "domain", "id", "uuid"}
+_SAFE_CYPHER_IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def _format_attribute(key: str, value: Any) -> str | None:
+    if value is None or value == "":
+        return None
+    if isinstance(value, (list, dict)):
+        value = json.dumps(value, default=str)
+    return f"**{key.replace('_', ' ').strip().capitalize()}**: {value}"
+
+
+def _serialize_entity_to_description(item: dict[str, Any], label: str, pole_type: str) -> str:
+    parts: list[str] = []
+    existing = (item.get("description") or "").strip()
+    parts.append(existing if existing else f"{label}.")
+    attr_lines: list[str] = []
+    for key, value in item.items():
+        if key in _RESERVED_DESCRIPTION_KEYS:
+            continue
+        line = _format_attribute(key, value)
+        if line:
+            attr_lines.append(line)
+    if attr_lines:
+        parts.append("")
+        parts.extend(attr_lines)
+    parts.append("")
+    parts.append(f"_pole_type: {pole_type}_")
+    return "\n".join(parts)
+
+
+def _build_ccg_edges_block(relationships: list[dict[str, Any]], source_name: str) -> str:
+    out: list[dict[str, str]] = []
+    for rel in relationships:
+        if rel.get("source_name") != source_name:
+            continue
+        out.append({
+            "type": rel.get("type", ""),
+            "target": rel.get("target_name", ""),
+            "target_label": rel.get("target_label", ""),
+        })
+    if not out:
+        return ""
+    out.sort(key=lambda e: (e["type"], e["target"]))
+    lines = [CCG_EDGES_OPEN]
+    for edge in out:
+        lines.append(f"- type: {edge['type']}")
+        lines.append(f"  target: {edge['target']}")
+        if edge["target_label"]:
+            lines.append(f"  target_label: {edge['target_label']}")
+    lines.append(CCG_EDGES_CLOSE)
+    return "\n".join(lines)
+
+
+def _description_with_edges(base: str, relationships: list[dict[str, Any]], source_name: str) -> str:
+    block = _build_ccg_edges_block(relationships, source_name)
+    return f"{base}\n\n{block}" if block else base
+
+
+def _pole_type_for_label(label: str) -> str:
+    """Best-effort POLE+O type from label heuristics — connectors are
+    free-form and don't always map cleanly to the ontology, so we fall back
+    to OBJECT for anything unrecognized."""
+    person_like = {"Person", "User", "Author", "Assignee", "Creator", "Reviewer"}
+    org_like = {"Organization", "Team", "Project", "Workspace", "Group"}
+    location_like = {"Location", "Folder", "Place"}
+    event_like = {"Event", "Meeting", "Cycle", "Activity"}
+    if label in person_like:
+        return "PERSON"
+    if label in org_like:
+        return "ORGANIZATION"
+    if label in location_like:
+        return "LOCATION"
+    if label in event_like:
+        return "EVENT"
+    return "OBJECT"
+
+
+def _resolve_body(item: dict[str, Any], label: str, body_fields: dict[str, str]) -> str | None:
+    field = body_fields.get(label)
+    if not field:
+        return None
+    value = item.get(field)
+    if not isinstance(value, str):
+        return None
+    return value if value.strip() else None
+
+
+def _require_safe_cypher_identifier(value: str, kind: str) -> str:
+    if isinstance(value, str) and _SAFE_CYPHER_IDENTIFIER_RE.fullmatch(value):
+        return value
+    raise ValueError(f"Unsafe Cypher {kind}: {value!r}")
+
+
+async def _ingest_via_nams(data: dict[str, Any], body_fields: dict[str, str]) -> dict[str, int]:
+    """Write data into NAMS. Mirrors src/create_context_graph/ingest.py
+    run_nams_ingest() — kept in lockstep via test_nams_ingest_parity.py."""
+    from neo4j_agent_memory import MemoryClient, MemorySettings, NamsConfig
+    from pydantic import SecretStr
+
+    mem_settings = MemorySettings(
+        backend="nams",
+        nams=NamsConfig(
+            api_key=SecretStr(settings.memory_api_key),
+            endpoint=settings.memory_nams_endpoint or "https://memory.neo4jlabs.com/v1",
+        ),
+    )
+
+    relationships = data.get("relationships", [])
+    counts = {"entities": 0, "documents": 0, "bodies": 0, "traces": 0, "edges_encoded": 0, "failures": 0}
+
+    async with MemoryClient(mem_settings) as client:
+        # Entities + bodies
+        entities = data.get("entities", {})
+        ent_idx = 0
+        for label, items in entities.items():
+            pole_type = _pole_type_for_label(label)
+            for item in items:
+                name = item.get("name") or f"{label}-{ent_idx}"
+                ent_idx += 1
+                base = _serialize_entity_to_description(item, label, pole_type)
+                description = _description_with_edges(base, relationships, name)
+                if description is not base:
+                    counts["edges_encoded"] += 1
+                try:
+                    await client.long_term.add_entity(
+                        name=name, entity_type=pole_type, description=description,
+                    )
+                    counts["entities"] += 1
+                except Exception as exc:  # noqa: BLE001
+                    counts["failures"] += 1
+                    _append_deadletter({
+                        "ts": _now_utc_iso(), "kind": "entity",
+                        "label": label, "name": name, "error": str(exc), "item": item,
+                    })
+                    continue
+
+                body = _resolve_body(item, label, body_fields)
+                if body is None:
+                    continue
+                try:
+                    await client.short_term.add_message(
+                        session_id="bodies-import",
+                        role="document",
+                        content=body,
+                        metadata={"entity_name": name, "entity_label": label},
+                    )
+                    counts["bodies"] += 1
+                except Exception as exc:  # noqa: BLE001
+                    counts["failures"] += 1
+                    _append_deadletter({
+                        "ts": _now_utc_iso(), "kind": "body",
+                        "label": label, "name": name, "error": str(exc),
+                        "item": item, "body_field": body_fields.get(label, ""),
+                    })
+
+        # Documents — dual-tracked
+        for doc in data.get("documents", []):
+            title = doc.get("title", "")
+            if not title:
+                counts["failures"] += 1
+                _append_deadletter({"ts": _now_utc_iso(), "kind": "document", "error": "missing title", "doc": doc})
+                continue
+            content = doc.get("content", "")
+            base = (
+                f"{content}\n\n_pole_type: OBJECT_"
+                if content else f"Document: {title}\n\n_pole_type: OBJECT_"
+            )
+            description = _description_with_edges(base, relationships, title)
+            try:
+                await client.long_term.add_entity(
+                    name=title, entity_type="OBJECT", description=description,
+                )
+                await client.short_term.add_message(
+                    session_id="docs-import",
+                    role="document",
+                    content=content,
+                    metadata={
+                        "title": title,
+                        "template_id": doc.get("template_id", ""),
+                        "template_name": doc.get("template_name", ""),
+                    },
+                )
+                counts["documents"] += 1
+            except Exception as exc:  # noqa: BLE001
+                counts["failures"] += 1
+                _append_deadletter({
+                    "ts": _now_utc_iso(), "kind": "document",
+                    "title": title, "error": str(exc), "doc": doc,
+                })
+
+        # Decision traces
+        for trace in data.get("traces", []):
+            try:
+                started = await client.reasoning.start_trace(
+                    session_id="traces-import", task=trace.get("task", ""),
+                )
+                trace_id = getattr(started, "id", None) or trace.get("id", "")
+                for step in trace.get("steps", []):
+                    await client.reasoning.add_step(
+                        trace_id=trace_id,
+                        thought=step.get("thought", ""),
+                        action=step.get("action", ""),
+                        observation=step.get("observation", ""),
+                    )
+                await client.reasoning.complete_trace(
+                    trace_id=trace_id, outcome=trace.get("outcome", ""), success=True,
+                )
+                counts["traces"] += 1
+            except Exception as exc:  # noqa: BLE001
+                counts["failures"] += 1
+                _append_deadletter({
+                    "ts": _now_utc_iso(), "kind": "trace",
+                    "id": trace.get("id", ""), "error": str(exc), "trace": trace,
+                })
+
+    return counts
+
+
+# ---------------------------------------------------------------------------
+# Bolt write path — native edges via raw Cypher MERGE
+# ---------------------------------------------------------------------------
+
+
+async def _ingest_via_bolt(data: dict[str, Any], body_fields: dict[str, str]) -> dict[str, int]:
+    """Write data into self-hosted Neo4j via Cypher MERGE. Native edges, no
+    ccg-edges encoding (the bolt graph IS the source of truth).
+
+    ``app.context_graph_client`` exposes an ``AsyncDriver``; this function
+    and every ``session.run`` call must be awaited. The script is invoked
+    outside the FastAPI lifespan, so we open and close the driver here.
+    """
+    from neo4j import AsyncGraphDatabase
+
+    counts = {"entities": 0, "documents": 0, "relationships": 0, "traces": 0, "failures": 0}
+    driver = AsyncGraphDatabase.driver(
+        settings.neo4j_uri,
+        auth=(settings.neo4j_username, settings.neo4j_password),
+    )
+
+    try:
+        await driver.verify_connectivity()
+    except Exception as exc:  # noqa: BLE001
+        await driver.close()
+        raise RuntimeError(f"Failed to connect to Neo4j at {settings.neo4j_uri}: {exc}") from exc
+
+    async with driver, driver.session() as session:
+        # Entities — UNWIND batched by label
+        for label, items in data.get("entities", {}).items():
+            if not items:
+                continue
+            try:
+                safe_label = _require_safe_cypher_identifier(label, "label")
+            except ValueError as exc:
+                counts["failures"] += 1
+                _append_deadletter({
+                    "ts": _now_utc_iso(), "kind": "entity-batch",
+                    "label": label, "error": str(exc), "items": items,
+                })
+                continue
+            all_keys: set[str] = set()
+            for item in items:
+                all_keys.update(item.keys())
+            safe_items = []
+            for item in items:
+                safe: dict[str, Any] = {}
+                for k in all_keys:
+                    v = item.get(k)
+                    if isinstance(v, bool):
+                        safe[k] = v
+                    elif isinstance(v, (int, float, str)):
+                        safe[k] = v
+                    elif v is None:
+                        safe[k] = ""
+                    else:
+                        safe[k] = str(v)
+                safe_items.append(safe)
+            set_clause = ", ".join(f"n.{k} = item.{k}" for k in all_keys)
+            cypher = (
+                f"UNWIND $batch AS item MERGE (n:{safe_label} {{name: item.name}}) "
+                f"ON CREATE SET {set_clause} ON MATCH SET {set_clause}"
+            )
+            for i in range(0, len(safe_items), 500):
+                batch = safe_items[i:i + 500]
+                try:
+                    await session.run(cypher, batch=batch)
+                    counts["entities"] += len(batch)
+                except Exception as exc:  # noqa: BLE001
+                    counts["failures"] += 1
+                    _append_deadletter({
+                        "ts": _now_utc_iso(), "kind": "entity-batch",
+                        "label": label, "error": str(exc),
+                        "items": batch,
+                    })
+
+        # Relationships — native edges
+        for rel in data.get("relationships", []):
+            rel_type = rel.get("type", "")
+            if not rel_type:
+                continue
+            try:
+                safe_rel_type = _require_safe_cypher_identifier(rel_type, "relationship type")
+                source_label = rel.get("source_label", "")
+                target_label = rel.get("target_label", "")
+                source_pattern = "a"
+                target_pattern = "b"
+                if source_label:
+                    safe_source_label = _require_safe_cypher_identifier(source_label, "source label")
+                    source_pattern = f"a:{safe_source_label}"
+                if target_label:
+                    safe_target_label = _require_safe_cypher_identifier(target_label, "target label")
+                    target_pattern = f"b:{safe_target_label}"
+            except ValueError as exc:
+                counts["failures"] += 1
+                _append_deadletter({
+                    "ts": _now_utc_iso(), "kind": "relationship",
+                    "type": rel_type, "error": str(exc), "rel": rel,
+                })
+                continue
+            cypher = (
+                f"MATCH ({source_pattern} {{name: $source_name}}) "
+                f"MATCH ({target_pattern} {{name: $target_name}}) "
+                f"MERGE (a)-[r:{safe_rel_type}]->(b)"
+            )
+            try:
+                await session.run(cypher, {
+                    "source_name": rel.get("source_name", ""),
+                    "target_name": rel.get("target_name", ""),
+                })
+                counts["relationships"] += 1
+            except Exception as exc:  # noqa: BLE001
+                counts["failures"] += 1
+                _append_deadletter({
+                    "ts": _now_utc_iso(), "kind": "relationship",
+                    "type": rel_type, "error": str(exc), "rel": rel,
+                })
+
+        # Documents
+        for doc in data.get("documents", []):
+            try:
+                await session.run(
+                    "MERGE (d:Document {title: $title}) "
+                    "SET d.content = $content, d.template_id = $template_id, "
+                    "d.template_name = $template_name",
+                    {
+                        "title": doc.get("title", ""),
+                        "content": doc.get("content", ""),
+                        "template_id": doc.get("template_id", ""),
+                        "template_name": doc.get("template_name", ""),
+                    },
+                )
+                counts["documents"] += 1
+            except Exception as exc:  # noqa: BLE001
+                counts["failures"] += 1
+                _append_deadletter({
+                    "ts": _now_utc_iso(), "kind": "document",
+                    "title": doc.get("title", ""), "error": str(exc), "doc": doc,
+                })
+
+        # Decision traces
+        for trace in data.get("traces", []):
+            try:
+                await session.run(
+                    "MERGE (t:DecisionTrace {id: $id}) "
+                    "SET t.task = $task, t.outcome = $outcome",
+                    {
+                        "id": trace.get("id", ""),
+                        "task": trace.get("task", ""),
+                        "outcome": trace.get("outcome", ""),
+                    },
+                )
+                for i, step in enumerate(trace.get("steps", [])):
+                    await session.run(
+                        "MATCH (t:DecisionTrace {id: $trace_id}) "
+                        "MERGE (s:TraceStep {trace_id: $trace_id, step_number: $step_number}) "
+                        "SET s.thought = $thought, s.action = $action, s.observation = $observation "
+                        "MERGE (t)-[:HAS_STEP]->(s)",
+                        {
+                            "trace_id": trace.get("id", ""),
+                            "step_number": i + 1,
+                            "thought": step.get("thought", ""),
+                            "action": step.get("action", ""),
+                            "observation": step.get("observation", ""),
+                        },
+                    )
+                counts["traces"] += 1
+            except Exception as exc:  # noqa: BLE001
+                counts["failures"] += 1
+                _append_deadletter({
+                    "ts": _now_utc_iso(), "kind": "trace",
+                    "id": trace.get("id", ""), "error": str(exc), "trace": trace,
+                })
+
+    return counts
+
+
+# ---------------------------------------------------------------------------
+# Connector orchestration
+# ---------------------------------------------------------------------------
+
+
+def _normalized_to_dict(data: Any) -> dict[str, Any]:
+    """NormalizedData is a Pydantic model; older returns might already be dict.
+    Coerce to the dict shape the writers expect."""
+    if hasattr(data, "model_dump"):
+        return data.model_dump()
+    if hasattr(data, "dict"):
+        return data.dict()
+    return data
+
+
+def _build_connectors() -> list[tuple[str, Any, dict[str, Any], dict[str, Any]]]:
+    """Build (name, instance, credentials, fetch_kwargs) tuples for every
+    enabled connector with credentials present."""
+    out: list[tuple[str, Any, dict[str, Any], dict[str, Any]]] = []
 {% endraw %}
 {% for conn in saas_connectors %}
 {% if conn == 'github' %}{% raw %}
     if settings.github_token and settings.github_repo:
-        connectors.append(("GitHub", GitHubConnector(), {
-            "token": settings.github_token,
-            "repo": settings.github_repo,
+        out.append(("GitHub", GitHubConnector(), {
+            "token": settings.github_token, "repo": settings.github_repo,
         }, {
             "issues_limit": settings.github_issues_limit or settings.github_limit,
             "prs_limit": settings.github_prs_limit or settings.github_limit,
@@ -64,30 +548,25 @@ def main():
         }))
 {% endraw %}{% elif conn == 'notion' %}{% raw %}
     if settings.notion_token:
-        connectors.append(("Notion", NotionConnector(), {
-            "token": settings.notion_token,
-        }, {}))
+        out.append(("Notion", NotionConnector(), {"token": settings.notion_token}, {}))
 {% endraw %}{% elif conn == 'jira' %}{% raw %}
     if settings.jira_url and settings.jira_email and settings.jira_token:
-        connectors.append(("Jira", JiraConnector(), {
-            "url": settings.jira_url,
-            "email": settings.jira_email,
-            "token": settings.jira_token,
-            "project": settings.jira_project,
+        out.append(("Jira", JiraConnector(), {
+            "url": settings.jira_url, "email": settings.jira_email,
+            "token": settings.jira_token, "project": settings.jira_project,
         }, {}))
 {% endraw %}{% elif conn == 'slack' %}{% raw %}
     if settings.slack_token:
-        connectors.append(("Slack", SlackConnector(), {
-            "token": settings.slack_token,
-            "channels": settings.slack_channels or "all",
+        out.append(("Slack", SlackConnector(), {
+            "token": settings.slack_token, "channels": settings.slack_channels or "all",
         }, {}))
 {% endraw %}{% elif conn == 'gmail' %}{% raw %}
-    connectors.append(("Gmail", GmailConnector(), {}, {}))
+    out.append(("Gmail", GmailConnector(), {}, {}))
 {% endraw %}{% elif conn == 'gcal' %}{% raw %}
-    connectors.append(("Google Calendar", GCalConnector(), {}, {}))
+    out.append(("Google Calendar", GCalConnector(), {}, {}))
 {% endraw %}{% elif conn == 'salesforce' %}{% raw %}
     if settings.salesforce_username and settings.salesforce_password:
-        connectors.append(("Salesforce", SalesforceConnector(), {
+        out.append(("Salesforce", SalesforceConnector(), {
             "username": settings.salesforce_username,
             "password": settings.salesforce_password,
             "security_token": settings.salesforce_security_token or "",
@@ -95,93 +574,183 @@ def main():
         }, {}))
 {% endraw %}{% elif conn == 'linear' %}{% raw %}
     if settings.linear_api_key:
-        connectors.append(("Linear", LinearConnector(), {
+        out.append(("Linear", LinearConnector(), {
             "api_key": settings.linear_api_key,
             "team_key": settings.linear_team or "",
         }, {}))
 {% endraw %}{% elif conn == 'google-workspace' %}{% raw %}
-    connectors.append(("Google Workspace", GoogleWorkspaceConnector(), {
+    out.append(("Google Workspace", GoogleWorkspaceConnector(), {
         "client_id": settings.google_client_id or "",
         "client_secret": settings.google_client_secret or "",
         "folder_id": settings.gws_folder_id or "",
     }, {}))
 {% endraw %}{% elif conn == 'claude-code' %}{% raw %}
-    connectors.append(("Claude Code", ClaudeCodeConnector(), {
+    out.append(("Claude Code", ClaudeCodeConnector(), {
         "scope": settings.claude_code_scope,
         "since": settings.claude_code_since or None,
         "max_sessions": settings.claude_code_max_sessions or None,
         "content_mode": settings.claude_code_content_mode or None,
         "base_path": settings.claude_code_base_path or None,
     }, {}))
+{% endraw %}{% elif conn == 'local-file' %}{% raw %}
+    out.append(("Local File", LocalFileConnector(), {}, {}))
 {% endraw %}{% endif %}
 {% endfor %}
 {% raw %}
-    failed = 0
-    for name, connector, creds, fetch_kwargs in connectors:
+    return out
+
+
+def _watermark_key(connector_name: str) -> str:
+    return connector_name.lower().replace(" ", "-")
+
+
+def main() -> int:
+    dry_run = "--dry-run" in sys.argv
+    retry = "--retry" in sys.argv
+
+    if retry:
+        return _retry_deadletter()
+
+    watermarks = _load_watermarks()
+    connector_specs = _build_connectors()
+
+    if not connector_specs:
+        print("No connectors enabled or no credentials present.", file=sys.stderr)
+        return 1
+
+    aggregated: dict[str, Any] = {"entities": {}, "relationships": [], "documents": [], "traces": []}
+    body_fields: dict[str, str] = {}
+    advanced_watermarks: dict[str, str] = {}
+    any_failure = False
+
+    for name, connector, creds, fetch_kwargs in connector_specs:
         try:
             print(f"Connecting to {name}...")
             connector.authenticate(creds)
-            print(f"Fetching data from {name}...")
-            data = connector.fetch(**fetch_kwargs)
+            kw = dict(fetch_kwargs)
+            wm = watermarks.get(_watermark_key(name))
+            if wm:
+                kw.setdefault("updated_after", wm)
+            print(f"Fetching from {name} (watermark={wm or 'none'})...")
+            data = _normalized_to_dict(connector.fetch(**kw))
+        except Exception as exc:  # noqa: BLE001
+            print(f"  ! {name}: {exc}", file=sys.stderr)
+            any_failure = True
+            continue
 
-            for label, items in data["entities"].items():
-                all_entities.setdefault(label, []).extend(items)
-            all_relationships.extend(data["relationships"])
-            all_documents.extend(data["documents"])
+        for label, items in data.get("entities", {}).items():
+            aggregated["entities"].setdefault(label, []).extend(items)
+        aggregated["relationships"].extend(data.get("relationships", []))
+        aggregated["documents"].extend(data.get("documents", []))
+        aggregated["traces"].extend(data.get("traces", []))
 
-            entity_count = sum(len(v) for v in data["entities"].values())
-            print(f"  + {name}: {entity_count} entities, {len(data['documents'])} documents")
-        except Exception as e:
-            print(f"  ! {name}: {e}", file=sys.stderr)
-            failed += 1
+        for label, field in getattr(connector, "BODY_FIELDS", {}).items():
+            body_fields[label] = field
 
-    if not all_entities and not all_relationships:
-        print("\nNo data collected. fixtures.json not modified.", file=sys.stderr)
-        sys.exit(1)
+        # Tentative watermark advance — only committed if the whole import
+        # batch lands cleanly.
+        advanced_watermarks[_watermark_key(name)] = _now_utc_iso()
 
-    # Write results
-    result = {
-        "entities": all_entities,
-        "relationships": all_relationships,
-        "documents": all_documents,
-    }
-    fixture_path.parent.mkdir(parents=True, exist_ok=True)
-    fixture_path.write_text(json.dumps(result, indent=2, default=str))
-    print(f"\nImported data written to {fixture_path}")
+        ent_count = sum(len(v) for v in data.get("entities", {}).values())
+        print(f"  + {name}: {ent_count} entities, {len(data.get('documents', []))} documents")
 
-    if ingest:
-        print("\nIngesting into Neo4j...")
-        from app.context_graph_client import get_driver
+    # Persist the fetched payload as fixtures.json regardless of ingest mode.
+    DATA_DIR.mkdir(parents=True, exist_ok=True)
+    FIXTURES_FILE.write_text(json.dumps(aggregated, indent=2, default=str))
+    print(f"\nWrote {FIXTURES_FILE}")
 
-        driver = get_driver()
-        with driver.session() as session:
-            for label, items in all_entities.items():
-                if not items:
-                    continue
-                all_keys = set()
-                for item in items:
-                    all_keys.update(item.keys())
-                safe_items = []
-                for item in items:
-                    safe = {}
-                    for k in all_keys:
-                        v = item.get(k)
-                        if isinstance(v, bool):
-                            safe[k] = v
-                        elif isinstance(v, (int, float, str)):
-                            safe[k] = v
-                        elif v is None:
-                            safe[k] = ""
-                        else:
-                            safe[k] = str(v)
-                    safe_items.append(safe)
-                set_clause = ", ".join(f"n.{k} = item.{k}" for k in all_keys)
-                cypher = f"UNWIND $batch AS item MERGE (n:{label} {{name: item.name}}) ON CREATE SET {set_clause} ON MATCH SET {set_clause}"
-                for i in range(0, len(safe_items), 500):
-                    session.run(cypher, batch=safe_items[i:i + 500])
-            print(f"  + Ingested {sum(len(v) for v in all_entities.values())} entities")
+    if dry_run:
+        print("Dry-run: skipping ingest.")
+        return 0 if not any_failure else 2
+
+    print(f"\nIngesting into {settings.memory_backend}...")
+    if settings.memory_backend == "nams":
+        counts = asyncio.run(_ingest_via_nams(aggregated, body_fields))
+    else:
+        counts = asyncio.run(_ingest_via_bolt(aggregated, body_fields))
+
+    print(f"  Ingest counts: {counts}")
+    if counts.get("failures"):
+        print(
+            f"  {counts['failures']} record(s) failed — appended to {DEADLETTER_FILE}. "
+            f"Re-run with --retry to drain.",
+            file=sys.stderr,
+        )
+        any_failure = True
+
+    # Only advance watermarks on a clean run; otherwise the user keeps the
+    # ability to re-fetch the same window.
+    if not any_failure:
+        watermarks.update(advanced_watermarks)
+        _save_watermarks(watermarks)
+        print(f"Watermarks advanced: {list(advanced_watermarks)}")
+
+    return 0 if not any_failure else 2
+
+
+def _retry_deadletter() -> int:
+    """Re-attempt every line in deadletter.jsonl, removing the file on success."""
+    if not DEADLETTER_FILE.exists():
+        print("No deadletter file — nothing to retry.")
+        return 0
+
+    pending: list[dict[str, Any]] = []
+    for line in DEADLETTER_FILE.read_text().splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            pending.append(json.loads(line))
+        except json.JSONDecodeError:
+            continue
+
+    if not pending:
+        DEADLETTER_FILE.unlink()
+        return 0
+
+    # Rebuild a minimal NormalizedData payload from deadletter records that
+    # carry enough info to retry. Entity bodies live in the original item.
+    payload: dict[str, Any] = {"entities": {}, "relationships": [], "documents": [], "traces": []}
+    body_fields: dict[str, str] = {}
+    for rec in pending:
+        kind = rec.get("kind")
+        if kind == "entity" and "item" in rec:
+            payload["entities"].setdefault(rec["label"], []).append(rec["item"])
+        elif kind == "entity-batch" and "items" in rec:
+            payload["entities"].setdefault(rec["label"], []).extend(rec["items"])
+        elif kind == "relationship" and "rel" in rec:
+            payload["relationships"].append(rec["rel"])
+        elif kind == "document" and "doc" in rec:
+            payload["documents"].append(rec["doc"])
+        elif kind == "trace" and "trace" in rec:
+            payload["traces"].append(rec["trace"])
+        elif kind == "body" and "item" in rec:
+            payload["entities"].setdefault(rec["label"], []).append(rec["item"])
+            body_field = rec.get("body_field")
+            if body_field:
+                body_fields[rec["label"]] = body_field
+        else:
+            logger.warning("Skipping unsupported deadletter record kind during retry: %r", kind)
+
+    # Move the old file aside; if retry fails, write a fresh deadletter.
+    archive = DEADLETTER_FILE.with_suffix(".jsonl.retrying")
+    DEADLETTER_FILE.rename(archive)
+
+    if settings.memory_backend == "nams":
+        counts = asyncio.run(_ingest_via_nams(payload, body_fields))
+    else:
+        counts = asyncio.run(_ingest_via_bolt(payload, body_fields))
+
+    if counts.get("failures"):
+        print(f"Retry left {counts['failures']} record(s) unresolved (new deadletter written).", file=sys.stderr)
+        archive.unlink(missing_ok=True)
+        return 2
+
+    archive.unlink(missing_ok=True)
+    print(f"Retry drained {len(pending)} record(s).")
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
 {% endraw %}

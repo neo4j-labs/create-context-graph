@@ -453,6 +453,7 @@ class LocalFileConnector:
         "formats."
     )
     requires_oauth = False
+    BODY_FIELDS = {"Document": "description", "Section": "description"}
 
     def __init__(self) -> None:
         self._paths: list[Path] = []

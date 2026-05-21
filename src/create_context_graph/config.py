@@ -24,6 +24,11 @@ from pydantic import BaseModel, Field, computed_field
 
 SESSION_STRATEGIES = ["per_conversation", "per_day", "persistent"]
 MCP_PROFILES = ["core", "extended"]
+MEMORY_BACKENDS = ["nams", "bolt"]
+DEFAULT_FRAMEWORK = "strands"
+DEFAULT_MEMORY_BACKEND = "nams"
+DEFAULT_NAMS_ENDPOINT = "https://memory.neo4jlabs.com/v1"
+NAMS_SIGNUP_URL = "https://memory.neo4jlabs.com"
 
 SUPPORTED_FRAMEWORKS = [
     "pydanticai",
@@ -35,11 +40,6 @@ SUPPORTED_FRAMEWORKS = [
     "crewai",
     "anthropic-tools",
 ]
-
-# Deprecated aliases — map old keys to current ones
-FRAMEWORK_ALIASES = {
-    "maf": "anthropic-tools",
-}
 
 FRAMEWORK_DISPLAY_NAMES = {
     "pydanticai": "PydanticAI",
@@ -69,21 +69,43 @@ class ProjectConfig(BaseModel):
 
     project_name: str = Field(description="Human-readable project name")
     domain: str = Field(description="Domain ID from ontology YAML")
-    framework: str = Field(description="Agent framework key")
+    framework: str = Field(default=DEFAULT_FRAMEWORK, description="Agent framework key")
     data_source: Literal["demo", "saas", "none"] = Field(default="demo")
+
+    # Memory backend: NAMS hosted service (default) or self-hosted Bolt Neo4j
+    memory_backend: Literal["nams", "bolt"] = Field(
+        default=DEFAULT_MEMORY_BACKEND,
+        description="Memory backend: 'nams' (hosted) or 'bolt' (self-hosted Neo4j)",
+    )
+    nams_api_key: str | None = Field(default=None, exclude=True)
+    nams_endpoint: str = Field(default=DEFAULT_NAMS_ENDPOINT)
+
+    # Self-hosted Neo4j (only meaningful when memory_backend == "bolt")
     neo4j_uri: str = Field(default="neo4j://localhost:7687")
     neo4j_username: str = Field(default="neo4j")
     neo4j_password: str = Field(default="password")
     neo4j_type: Literal["docker", "existing", "aura", "local"] = Field(default="docker")
+
     anthropic_api_key: str | None = Field(default=None)
     openai_api_key: str | None = Field(default=None)
     google_api_key: str | None = Field(default=None)
+
+    # LiteLLM provider strings for memory layer (optional — defaults applied at runtime)
+    memory_llm: str | None = Field(
+        default=None,
+        description="LiteLLM-style provider/model for memory entity extraction",
+    )
+    memory_embedding: str | None = Field(
+        default=None,
+        description="LiteLLM-style provider/model for memory embeddings",
+    )
+
     generate_data: bool = Field(default=False)
     custom_domain_yaml: str | None = Field(default=None, exclude=True)
     saas_connectors: list[str] = Field(default_factory=list)
     saas_credentials: dict[str, dict[str, str]] = Field(default_factory=dict, exclude=True)
 
-    # Memory enhancement settings (neo4j-agent-memory v0.1.0)
+    # Memory enhancement settings (neo4j-agent-memory)
     with_mcp: bool = Field(default=False, description="Generate MCP server config for Claude Desktop")
     mcp_profile: Literal["core", "extended"] = Field(
         default="extended", description="MCP tool profile"
@@ -102,6 +124,28 @@ class ProjectConfig(BaseModel):
         description="Discover ontology from a connected Neo4j database",
     )
 
+    @property
+    def is_nams(self) -> bool:
+        return self.memory_backend == "nams"
+
+    @property
+    def is_self_hosted(self) -> bool:
+        return self.memory_backend == "bolt"
+
+    @property
+    def effective_mcp_profile(self) -> str:
+        """NAMS forces ``core`` profile — extended-profile tools (preferences/facts) are unsupported."""
+        if self.is_nams:
+            return "core"
+        return self.mcp_profile
+
+    @property
+    def effective_auto_preferences(self) -> bool:
+        """NAMS does not expose preference endpoints — force off when backend=nams."""
+        if self.is_nams:
+            return False
+        return self.auto_preferences
+
     @computed_field
     @property
     def project_slug(self) -> str:
@@ -111,14 +155,9 @@ class ProjectConfig(BaseModel):
         return slug.strip("-")
 
     @property
-    def resolved_framework(self) -> str:
-        """Resolve deprecated framework aliases to current keys."""
-        return FRAMEWORK_ALIASES.get(self.framework, self.framework)
-
-    @property
     def framework_display_name(self) -> str:
-        return FRAMEWORK_DISPLAY_NAMES.get(self.resolved_framework, self.framework)
+        return FRAMEWORK_DISPLAY_NAMES.get(self.framework, self.framework)
 
     @property
     def framework_deps(self) -> list[str]:
-        return FRAMEWORK_DEPENDENCIES.get(self.resolved_framework, [])
+        return FRAMEWORK_DEPENDENCIES.get(self.framework, [])

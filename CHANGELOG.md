@@ -1,5 +1,251 @@
 # Changelog
 
+## v0.13.1 — v0.13.0 feedback report triage (unreleased)
+
+Addresses the May 20, 2026 v0.13.0 feedback report. The report mixed verified issues with claims that don't match the current codebase; each claim was verified before scoping work. This release closes every real issue, makes the generated `app.models` module load-bearing, and adds regression tests so the v0.12.0/v0.13.0 fixes can't silently come back.
+
+### Bug Fixes
+
+- **`create-context-graph --dry-run` no longer demands a NAMS API key.** The non-interactive path validated `MEMORY_API_KEY` before reaching the `--dry-run` branch, so users couldn't preview a scaffold without first signing up. The credential gate is now scoped to non-dry-run flows; `--dry-run` skips it entirely. (`cli.py:392`)
+- **Dead `template_id` parameter removed from `list_documents_nams`.** The NAMS branch of `GET /documents` already raises HTTP 501 when `template_id` is supplied, so the parameter could never reach the function meaningfully. Signature is now `list_documents_nams(skip, limit)`. (`templates/backend/shared/memory_adapter.py.j2`, `templates/backend/shared/routes.py.j2`)
+- **DocumentBrowser entity badges use a stable composite key.** The mentioned-entities map was the last `key={\`${e.name}-${i}\`}` (index-tainted) site in the frontend; switched to `key={\`${selectedDoc.document.title}-${e.name}\`}` so badges don't collide when the user navigates back to the same document. (`templates/frontend/components/DocumentBrowser.tsx.j2`)
+
+### Code Quality
+
+- **Generated `models.py` uses `Field(...)` for required fields.** Previously, `generate_pydantic_models` emitted `name: str = ...` (bare Ellipsis literal). Valid Pydantic v2, but unfamiliar to contributors and harder to extend with constraints (`Field(..., min_length=1)`). Required fields now emit `name: str = Field(...)`. (`ontology.py:478`)
+- **New `GET /schema/models` endpoint wires `app.models` into the runtime.** Returns the JSON Schema for every Pydantic entity model generated from the domain ontology, useful for frontend codegen and OpenAPI clients. Makes the previously-unused `app.models` module load-bearing. (`templates/backend/shared/routes.py.j2`)
+
+### Testing
+
+- **`TestCompositeKeyRegressions`** (`tests/test_frontend_logic.py`) — five new assertions pin the composite-key patterns introduced in v0.13.0 (`ChatInterface` entity/preference/tool-call badges, `DecisionTracePanel` step keys) plus the new `DocumentBrowser` fix.
+- **`TestV0131ModelsPolish` and `TestV0131TemplateIdRemoval`** (`tests/test_generated_project.py`) — assert that the generated `models.py` uses `Field(...)` (and never bare `= ...`), that the `/schema/models` endpoint compiles, and that the `list_documents_nams` signature no longer takes `template_id`.
+- **Three new Playwright tests** (`templates/frontend/e2e/app.spec.ts.j2`) — watch the browser console for React duplicate-key warnings across a multi-prompt chat sequence, verify the decision trace step list renders without page errors, and verify the document browser entity badges render without page errors.
+
+### Not Changed (and why)
+
+The v0.13.0 feedback report flagged several issues that don't reflect the current code. Documenting here so contributors don't re-litigate:
+
+- **"Backend connectors removed from scaffolded projects" — false.** `templates/backend/connectors/` still exists and `renderer.py:474-514` renders connector modules + `backend/scripts/import_data.py` whenever `--connector` is supplied. Runtime `make import` / `make import-dry-run` / `make import-retry` targets continue to work on every scaffold.
+- **"`pyproject.toml.j2` bloats NAMS users with `sentence-transformers`" — false.** The template already branches on backend mode at lines 16-20: NAMS scaffolds pin `neo4j-agent-memory[litellm]`, self-hosted scaffolds pin `neo4j-agent-memory[litellm,sentence-transformers,extraction,fuzzy]`. NAMS users never pull PyTorch.
+- **"Restore media / insurance / supply-chain domains" — these never existed.** `git log --all -- src/create_context_graph/domains/*.yaml` shows no history for these labels. v0.13.0's "restored domains" are `legal`, `education`, `cybersecurity`, `government` — total domain count remains 27.
+- **"Unused `i` in `ContextGraphView` line 210" — leave as-is.** The unused index is in a fallback `extractNodesAndRels` parser, not a render hot path, and removing it would churn a path that hasn't drifted in months.
+
+## v0.13.0 — v0.12.0 feedback report fixes (unreleased)
+
+Addresses the May 2026 v0.12.0 feedback report: one runtime bug on the `--self-hosted` ingest path, one React state bug in the streaming chat, four `key={i}` re-render hazards, dead/over-fetching code in the document adapter, four restored domains, and documentation for the `ccg-edges` encoding strategy.
+
+### Bug Fixes
+
+- **`_ingest_via_bolt()` now async (scaffolded `import_data.py`).** `app.context_graph_client.get_driver()` returns an `AsyncDriver`, but the generated `_ingest_via_bolt()` was `def` and called `with driver.session() as session:` followed by sync `session.run(...)`. Every self-hosted `make import` / `make import-retry` failed at runtime with a coroutine-not-iterable error. Function is now `async def`, uses `async with driver, driver.session() as session:` to own the driver lifecycle, and `await`s every `session.run(...)`. Both call sites (`main()`, `_retry_deadletter()`) wrap with `asyncio.run(...)` to mirror the NAMS branch.
+- **`ChatInterface` "done" handler no longer reads stale streaming state.** The `setMessages` callback in the `done` SSE branch referenced `streamingEntities`/`streamingPreferences` from closure — these are `useState`-backed and could be one render behind the most recent `entities_extracted`/`preferences_detected` event. Accumulators are now `useRef`-backed (`streamingEntitiesRef`, `streamingPreferencesRef`); the `done` handler reads from `.current` and the two-step `setMessages` was collapsed into one.
+- **`list_documents_nams()` pushes the `OBJECT` filter to the server.** Previously, the over-fetch buffer (`skip + limit + 50`) could be exhausted by unrelated POLE+O entities, silently dropping valid documents on busy NAMS instances. Now passes `entity_type="OBJECT"` to `search_entities`. Dead `template_id` filter at the same site removed.
+- **`useEffect` for `externalInput` now also depends on `loading`.** An "Ask about this" click that landed mid-stream was silently dropped because the effect didn't re-fire when `loading` flipped back to false.
+
+### Breaking Changes
+
+- **`--framework maf` alias removed.** Use `--framework anthropic-tools` instead. Click now rejects `maf` with the standard "Invalid value for '--framework'" error. The `FRAMEWORK_ALIASES` dict and the `resolved_framework` property on `ProjectConfig` are gone — call sites use `config.framework` directly.
+
+### Domains
+
+- **Restored 4 domains as YAML definitions:** `legal`, `education`, `cybersecurity`, `government`. Each ships with the full schema (entity_types, relationships, document_templates, decision_traces, demo_scenarios, agent_tools, system_prompt, visualization) plus a deterministic static-fallback fixture. Domain count: 23 → 27.
+
+### Code Quality
+
+- **`key={i}` replaced with stable identifiers in 4 locations.** `ChatInterface.tsx`: suggested-prompt buttons keyed by prompt text; entity/preference badges keyed by `${type}-${name}-${i}` and `${category}-${preference}-${i}`. `DecisionTracePanel.tsx`: trace steps keyed by `step-${i}-${action.slice(0, 32)}`.
+
+### Documentation
+
+- **`ccg-edges` encoding strategy documented.** New Docusaurus page (`docs/docs/explanation/ccg-edges.md`) explains the fenced YAML block inside entity descriptions, fragility (what happens if descriptions are edited or truncated), the migration playbook once NAMS adds native `add_relationship`, and the parity test that pins the format. Scaffolded README gains a short "How NAMS stores relationships" section linking to the page.
+- **Custom domain generation walkthrough.** New Docusaurus page (`docs/docs/how-to/custom-domains.md`) covers `create-context-graph --custom-domain "..."` end-to-end, including the few-shot prompting strategy, the validate-retry loop, and how to convert a generated domain into a permanent contribution.
+
+### Testing
+
+- **Bolt ingest parity test.** New `tests/test_bolt_ingest_parity.py` mirrors `test_nams_ingest_parity.py` — renders the scaffolded template, exec's it against a mock `AsyncDriver`, and asserts the Cypher statement + parameter sequence matches a frozen golden file.
+- **AST async-shape check.** `tests/test_generated_project.py` now parses generated `import_data.py` and asserts `_ingest_via_bolt` is `AsyncFunctionDef`, every `session.run` call is inside an `Await`, and both call sites wrap with `asyncio.run`. `backend/scripts/import_data.py` was added to `PYTHON_FILES` so it gets `py_compile`-checked on every scaffold.
+- **Streaming ref-accumulation test.** `tests/test_frontend_logic.py` now AST-checks that the `done` handler in `ChatInterface.tsx.j2` reads from `streamingEntitiesRef.current`/`streamingPreferencesRef.current`, not the `useState` values.
+- **E2E coverage for new panels.** Playwright tests for `DecisionTracePanel` (tab-switch + step rendering) and `DocumentBrowser` (pagination + markdown detail view).
+
+## v0.12.0 — NAMS-native connector ingest + `ccg-edges` relationship encoding (2026-05-19)
+
+The big shift in v0.12.0 is that connector ingest (`make import` in a scaffolded project) now writes through NAMS REST on NAMS scaffolds — previously the generated `import_data.py` only spoke bolt Cypher, so the SaaS connectors didn't actually work on the default backend. The two ingest paths (CLI demo-fixture seeding and connector-driven imports) now share a single write shape pinned by a contract test.
+
+### New Features
+
+- **`ccg-edges` relationship encoding for NAMS.** NAMS REST has no `add_relationship` endpoint yet, so each entity's outbound edges are now encoded into the source entity's `description` as a fenced ```ccg-edges``` YAML block (deterministically sorted by `type` then `target`). The frontend graph view recognizes this marker and renders edges from it; the agent reads them out naturally as part of the description. A one-shot migration replays them as native edges once NAMS gains `add_relationship` — the seam is `_build_ccg_edges_block()` in both `src/create_context_graph/ingest.py` and `src/create_context_graph/templates/backend/connectors/import_data.py.j2`.
+- **Dual-tracked documents on NAMS.** Documents now land as both `long_term.add_entity(name=title, type=OBJECT, description=...)` AND `short_term.add_message(role="document", content=...)`. The long-term entity is the queryable source of truth (matches the bolt `:Document` shape and powers `/documents`); the short-term message is extraction fuel for the NAMS server-side extractor. The document browser now reads from long-term entities and strips the `ccg-edges` / `_pole_type:` markers for a clean preview.
+- **Per-connector `BODY_FIELDS` mapping.** Each connector declares `BODY_FIELDS: dict[str, str]` mapping `entity_label → property_name` for the prose body. The ingestor pipes that body through `short_term.add_message` so the NAMS extractor can mine it for secondary entities. Wired up for `Comment.body` (Linear), `Message.content` (Claude AI / ChatGPT / Claude Code), `DecisionThread.content` / `Reply.content` (Google Workspace), and `Document.description` / `Section.description` (local-file). Pure-metadata entities (Person, Project, Label) opt out by omission.
+- **Idempotent connector imports.** Generated `import_data.py` now tracks per-connector watermarks in `.context-graph/watermarks.json` so re-runs only fetch deltas. Failed records (one at a time) are appended to `.context-graph/deadletter.jsonl` and the watermark only advances on a clean run. NAMS `add_entity` is trusted to merge by `name` for entity-level idempotency.
+- **`--dry-run` and `--retry` modes for `import_data.py`.** `--dry-run` fetches connectors and writes `data/fixtures.json` without touching the memory backend (useful for sanity-checking a large pull before paying the write cost). `--retry` drains `.context-graph/deadletter.jsonl` back through the writer.
+- **New Make targets.** `make import-dry-run` (fetch-only, writes fixtures.json), `make import-retry` (drain deadletter). The legacy `make import-and-seed` target collapsed into `make import` — it now both fetches and ingests in one step on either backend.
+- **`run_nams_ingest()` extracted as a reusable async function** in `ingest.py`. Takes an already-open `MemoryClient` plus the fixture dict, ontology, optional `body_fields`, and optional `on_event` callback; returns counts and a list of failure records. Used by both the CLI's Rich-progress path and the scaffolded `import_data.py`. Pinned to the same call sequence as the generated importer via the new `tests/test_nams_ingest_parity.py` contract test (~526 LOC, 14 assertions).
+
+### Breaking Changes
+
+- **`make import-and-seed` removed from generated Makefiles.** Replaced by the now-idempotent `make import`, which both fetches from connectors and ingests on either backend. Existing scaffolds with the old target keep working until regenerated; the generated `import_data.py` is the source of truth.
+- **`/documents?template_id=...` returns HTTP 501 on NAMS.** Template-based filtering relied on the `MENTIONS` graph edges that NAMS doesn't yet have. The bolt path is unchanged; un-filtered `GET /documents` works on both backends.
+
+### Bug Fixes
+
+- **`ingest_data()` legacy bolt signature restored.** v0.11.0 had changed the signature to take a `ProjectConfig` exclusively, breaking library callers that were on the older `(neo4j_uri, neo4j_username, neo4j_password)` triple. `ingest_data()` now accepts either: a `ProjectConfig` instance OR the legacy three positional bolt args; `_coerce_ingest_config()` synthesizes a bolt `ProjectConfig` from the legacy triple. CLI usage is unaffected.
+- **Cypher identifier injection guards on bolt fallback.** `_ingest_with_driver` and `_ingest_with_memory_client` now validate relationship types, source labels, and target labels against `[A-Za-z_][A-Za-z0-9_]*` before string-interpolating them into a Cypher template. Unsafe identifiers log a warning and skip the record instead of executing. Closes the CodeQL `py/code-injection`-shaped finding flagged on the bolt ingest path. (NAMS path was never affected — it never builds Cypher.)
+- **Labeled MATCH on bolt relationship ingest.** The bolt connector path was falling back to a label-less `MATCH (a {name: $name})` for relationship endpoints, which would match across labels and silently mis-merge. Now uses `MATCH (a:SourceLabel ...)` / `MATCH (b:TargetLabel ...)` when the connector supplies both labels, with the existing sanitization guard.
+- **Deadletter retry on partial-failure imports.** Records that failed during a connector run (rate limit, transient 5xx) are appended to `.context-graph/deadletter.jsonl` with their original payload; `make import-retry` (or `python scripts/import_data.py --retry`) replays them through the same write path. Records whose failure category isn't retryable (e.g. a permanently unsupported entity shape) are logged but kept in the deadletter for inspection rather than dropped silently.
+
+### Documentation
+
+- **`docs/docs/explanation/memory-backends.md`** — replaced the "best-effort B-partial port" framing with the actual hybrid write shape: `ccg-edges` encoding, dual-tracked documents, `BODY_FIELDS` extractor channel. Added a note about the `test_nams_ingest_parity.py` contract test that pins the two ingest paths together.
+- **`docs/docs/how-to/use-nams.md`** — rewrote the "Seeding a relationship-rich graph" section to reflect that NAMS scaffolds now do encode relationships (just inside descriptions) rather than dropping them, with a `ccg-edges` example block. Kept the `--self-hosted --demo` recommendation for native-edge workflows (`expand_node`, GDS, arbitrary Cypher).
+- **`src/create_context_graph/ingest.py`** — module docstring rewritten end-to-end documenting the new NAMS write shape, the `BODY_FIELDS` extension point, and why the two ingestors are duplicated by design (rendered template vs. runtime CLI consumer).
+
+### Internal / CI
+
+- **New `tests/test_nams_ingest_parity.py` contract test** — drives `run_nams_ingest` and the rendered `import_data.py` against a shared fixture and asserts identical call sequences against a mock `MemoryClient`. Pins entity → ccg-edges → body → document → trace ordering, fenced-block format, body-field routing, and decision-trace shape.
+- **Expanded NAMS test coverage.** ~1,500 new test lines across `test_ingest_nams.py`, `test_memory_adapter.py`, `test_nams_ingest_parity.py`, `test_routes_integration.py`, and `test_doc_snippets.py` — covering `ccg-edges` round-trips, dual-tracked document reads, `BODY_FIELDS` per connector, deadletter retry behavior, watermark persistence, the 501 guard on template-filtered `/documents`, and the bolt Cypher identifier sanitizers.
+
+## v0.11.3 — Streaming for CrewAI/Strands + NAMS hardening (2026-05-19)
+
+Rolls up streaming chat for the last two non-streaming frameworks, a much better NAMS failure-mode UX (classified errors surfaced in `/health`, memory-backend auto-detection from `.env`), lighter NAMS dependencies, custom-domain robustness fixes, and silent-failure cleanup across all 8 agent templates.
+
+### New Features
+
+- **Streaming chat for CrewAI and Strands.** Both frameworks now implement `handle_message_stream()`, so the `/chat/stream` SSE endpoint streams text deltas as the model produces them — previously these two frameworks emitted tool events live but text only arrived at the end of the run. CrewAI subscribes to `LLMStreamChunkEvent` on the crew event bus; Strands iterates `agent.stream_async()`. Both include a 60s timeout, partial-text fallback assembly, and emit `entities_extracted` / `preferences_detected` events. This closes out the streaming matrix — all 8 frameworks now stream text.
+- **`--import-preview` CLI flag.** Parses a chat export file (`--import-file …` + `--import-type …`) and prints a sanity-check summary (entity counts, conversation date range, sample titles) without scaffolding or ingesting. Useful before committing to a long import of a 1 GB+ ChatGPT/Claude AI export. Implemented in `cli.py::_run_import_preview()`.
+- **NAMS error classification surfaced in `/health`.** New `_classify_memory_error()` in `memory.py.j2` buckets NAMS init failures into `auth` / `rate_limit` / `network` / `config` / `unknown`, with human-readable messages mapped per category (e.g. "NAMS authentication failed — verify MEMORY_API_KEY at https://memory.neo4jlabs.com"). The `/health` endpoint now returns `nams_error`, `nams_error_message`, `nams_error_detail`, and `nams_dashboard` so the frontend can show a useful diagnostic instead of a generic "memory unavailable". Exposed via `get_error_category()` / `get_error_message()` / `get_error_detail()` for the FastAPI startup banner.
+- **Memory-backend auto-detection from `.env`.** New `@model_validator` in `config.py.j2` reconciles `memory_backend` with the credentials actually present in `.env`: flips `nams → bolt` if `MEMORY_API_KEY` is blank but `NEO4J_URI` is set (and vice-versa), printing a warning. An explicit `MEMORY_BACKEND` env var still wins. Default Neo4j credentials in generated `.env` are now empty rather than baked-in placeholder passwords.
+- **Lighter NAMS dependency footprint.** Generated `pyproject.toml` for NAMS scaffolds drops the `sentence-transformers` extra (NAMS does embeddings server-side) — extras shrink from `[litellm,sentence-transformers]` to `[litellm]`. `_resolve_embedding_model()` short-circuits to `None` on NAMS so the generated venv no longer pulls `torch` for a backend that doesn't use local embeddings.
+
+### Bug Fixes
+
+- **Custom-domain renderer crash.** `_get_domains_path()` was imported inside a narrow `try:` scope in `renderer.py`, raising `UnboundLocalError` in the success path after partially writing `ontology.yaml`. Import hoisted to module scope.
+- **Custom-domain generation produced silently-truncated ontologies.** `custom_domain.py` now checks the LLM response `stop_reason` for truncation, validates with Pydantic, and asserts completeness (non-empty `system_prompt` / `visualization` / `agent_tools`) before accepting. Provides actionable retry messages and clearer errors when the Anthropic/OpenAI SDK isn't installed.
+- **Agent-template degradations across all 8 frameworks.** Jinja conditionals that checked `param.default` truthiness were rewritten to `param.default is defined`, and a silent fallback that swallowed Jinja syntax errors was removed so render failures now surface instead of degrading to stub code. Affects every framework template (`anthropic_tools`, `claude_agent_sdk`, `crewai`, `google_adk`, `langgraph`, `openai_agents`, `pydanticai`, `strands`).
+- **Partial streamed text discarded on agent errors.** Strands and CrewAI now accumulate emitted text deltas and return the partial response when a generator raises mid-stream, instead of throwing away accumulated output. Also drops a redundant `RuntimeError` branch from the memory error classifier.
+- **NAMS Docker builds crashed on `spacy download`.** The v0.11.2 fix for the generated `Makefile` is now mirrored in `Dockerfile.backend.j2` via `{% if not is_nams %}` — NAMS images no longer fail at build time on a download command for a package they don't depend on.
+- **Frontend "Ask about" button rendered on non-string entity names.** `ContextGraphView.tsx.j2` adds a `typeof === "string"` guard before reading `.properties.name`.
+- **E2E selector regex out of date.** `e2e/app.spec.ts.j2` regexes updated from `/try a demo scenario/i` to `/try these/i` to match the current welcome card label.
+
+### Documentation
+
+- **`docs/docs/how-to/use-nams.md` — new "Seeding a relationship-rich graph" section.** Documents NAMS's current lack of `add_relationship` REST support and shows two working patterns: (Option A) scaffold with `--self-hosted --demo` for the rich dev experience, flip `MEMORY_BACKEND=nams` for production reads; (Option B) seed bolt first then migrate. Includes a `TODO(nams-relationships)` pointer for the future server-side API.
+- **Generated README (`base/README.md.j2`)** — minor wording updates for the NAMS sign-up flow and the `--import-preview` workflow.
+
+### Internal / CI
+
+- **CodeQL `py/incomplete-url-substring-sanitization` cleanup.** Test assertions in `test_nams_adapter.py` switched from URL substring checks (`"memory.neo4jlabs.com" in env`) to full-URL or content-phrase matches.
+- **Frontend devDeps pinned (`package.json.j2`).** Added `@types/react-dom ^19.0.0`; `overrides` section pins `lodash ^4.17.24` and `postcss ^8.5.10` to dodge known vulnerable transitive versions.
+- **New test coverage:** ~600 new test lines spread across `test_nams_adapter.py` (NAMS error classification, backend auto-detection, Dockerfile spacy guard), `test_renderer.py` (template-degradation guards, custom-domain regression), `test_custom_domain.py` (truncation/completeness validation), `test_generated_project.py` (CrewAI/Strands streaming surface), `test_chat_import.py` (`--import-preview`), `test_cli.py`, `test_doc_snippets.py`, and `test_routes_integration.py`.
+
+## v0.11.2 — Post-release stabilization + pre-release smoke-render target (2026-05-19)
+
+Rolls up three follow-up fixes surfaced by running v0.11.0/v0.11.1 end-to-end on a fresh machine, plus a durable safeguard against the same class of bugs.
+
+### Bug Fixes
+
+- **Full matrix + performance test suites broken on CI.** `test_matrix.py` (184 combos) and `test_performance.py` (23 domains) defined their own local `runner = CliRunner()` fixtures that bypassed the auto-`--self-hosted` shim added to `test_cli.py` in v0.11.0. With NAMS as the new default, every matrix/perf invocation hit the "NAMS API key required for non-interactive mode" guard and failed. 207 of 1,398 slow-suite tests failed on the v0.11.1 tag. **Fix:** moved `_AutoSelfHostedRunner` and the `runner` / `nams_runner` fixtures to `tests/conftest.py` so every test file inherits the auto-self-hosted behavior. Removed the now-duplicate fixtures from `test_cli.py`, `test_matrix.py`, and `test_performance.py`.
+
+- **`make install` and Docker builds crashed on NAMS scaffolds** with `No module named spacy`. Both the generated `Makefile`'s `install-backend` target and the generated `Dockerfile.backend` ran `python -m spacy download en_core_web_sm` unconditionally, but spacy is only present in the `[extraction]` extra which NAMS scaffolds correctly omit (entity extraction happens server-side on NAMS). **Fix:** wrapped the `spacy download` line with `{% if not is_nams %}` in both `Makefile.j2` and `Dockerfile.backend.j2`. On bolt scaffolds the Makefile path is additionally guarded by an `import spacy` check so it stays robust even if the user uninstalls the extraction extras post-scaffold. Four regression tests in `test_nams_adapter.py::TestBoltRenderedTemplates`: `test_makefile_skips_spacy_download_on_nams`, `test_makefile_guards_spacy_download_on_bolt`, `test_dockerfile_skips_spacy_download_on_nams`, `test_dockerfile_includes_spacy_download_on_bolt`.
+
+- **`make test` in generated projects crashed** with `No module named pytest`. The generated `pyproject.toml` didn't declare pytest or httpx anywhere, so `uv sync` never installed them — the generated `tests/test_routes.py` scaffold couldn't run. **Fix:** added `[project.optional-dependencies] dev = ["pytest>=8.0", "httpx>=0.27"]` to `pyproject.toml.j2`, and changed the generated Makefile's `install-backend` target from `uv sync` → `uv sync --extra dev`. Generated projects can now run `make test` out of the box.
+
+### New Tooling
+
+- **Root `make smoke-render` target** — full scaffold → install → import-check → run-generated-tests sweep for both backends, in `<1 min`, no Neo4j / NAMS / LLM keys required. Catches the class of breakage the mocked unit suite can't see:
+  - dep-resolution failures (`uv sync` conflicts)
+  - install-time crashes (e.g. spacy download on NAMS)
+  - import-time failures in generated `app.main` (e.g. questionary default validation, framework SDKs that validate API keys at module-load time)
+  - generated test-scaffold regressions
+- Sub-targets `make smoke-render-nams` and `make smoke-render-bolt` for per-backend runs. `make smoke-render-clean` removes the scratch directory (`/tmp/ccg-smoke-render` by default).
+- Verified passing locally:
+  - NAMS: render → install (no spacy) → import-check → 2 generated tests pass
+  - Bolt: render → install (with guarded spacy download) → import-check → 2 generated tests pass
+
+### Process Note
+
+The three issues bundled here all surfaced from running the actual product end-to-end on a fresh machine after the v0.11.0/v0.11.1 tags. Each was a class of issue the mocked unit suite couldn't catch by design (CLI fixture bypass, install-time shell commands, generated-project deps). `make smoke-render` is the durable answer — run it before tagging future releases.
+
+## v0.11.1 — Wizard framework-prompt fix (2026-05-19)
+
+### Bug Fixes
+
+- **Interactive wizard crashed at the framework prompt** with `ValueError: Invalid 'default' value passed. The value ('Strands') does not exist in the set of choices.` — `questionary.select(default=...)` validates the default against `Choice.title`, not `Choice.value`. The wizard was passing the display label (`"Strands"`) but choices used the framework key (`"strands"`) as their value. Fixed by removing the `default=` argument entirely and reordering the choices list so `DEFAULT_FRAMEWORK` is first (questionary highlights the first row on entry). Regression test `TestQuestionaryConstruction` added to `tests/test_wizard.py` — exercises the real `questionary.select` constructor (only `.ask` is stubbed) so any bad `default=` argument fails at construction time. Total test count: 1,177 → 1,179.
+
+## v0.11.0 — NAMS by Default + LiteLLM Provider Injection (2026-05-19)
+
+### Breaking Changes
+
+- **Default memory backend flipped from self-hosted Neo4j to NAMS** — `create-context-graph my-app` now scaffolds against the hosted [Neo4j Agent Memory Service](https://memory.neo4jlabs.com) by default. The wizard collects a NAMS API key as its memory step. Use `--self-hosted` (or any explicit `--neo4j-*` flag) to opt into the legacy bolt path. Existing scaffolded projects are unaffected; only newly generated projects pick up the new default.
+- **Generated `pyproject.toml` pins `neo4j-agent-memory>=0.4.0,<0.6.0`** (was `>=0.1.0`). Extras conditional on backend: NAMS scaffolds get `[litellm,sentence-transformers]`; self-hosted scaffolds additionally get `[extraction,fuzzy]` for local entity extraction.
+- **`ingest_data()` library signature changed** — now takes a `ProjectConfig` instead of separate Neo4j credentials. CLI users see no change; programmatic users of the `create_context_graph` package must update callers.
+- **`MEMORY_API_KEY` env var added** to generated `.env` files. When set, the library auto-routes to NAMS even if `MEMORY_BACKEND` is unspecified.
+
+### New Features
+
+- **NAMS hosted backend support** — Generated `app/memory.py` now constructs `MemoryClient(MemorySettings(backend="nams", nams=NamsConfig(api_key=...)))` on the NAMS path. Sign-up panel printed in the wizard with the `https://memory.neo4jlabs.com` landing URL.
+- **`--self-hosted` CLI flag** — Preserves the legacy bolt-Neo4j path with full demo fixtures, schema DDL, and relationship-rich graph view. Recommended for workshops, screen recordings, demos, and air-gapped use.
+- **LiteLLM provider injection** — Generated memory layer reads `MEMORY_LLM` and `MEMORY_EMBEDDING` env vars (LiteLLM-style provider strings, e.g. `anthropic/claude-haiku-4-5`, `bedrock/anthropic.claude-3-haiku-20240307-v1:0`, `vertex_ai/gemini-1.5-flash`, `ollama/llama3`). Native adapters resolve first (Anthropic, OpenAI, Bedrock, Vertex AI, SentenceTransformers); everything else routes through LiteLLM. Default fallback: `sentence-transformers/all-MiniLM-L6-v2` for embeddings, `anthropic/claude-haiku-4-5` (or `openai/gpt-4o-mini`) for entity extraction.
+- **Streamlined 6-prompt wizard** — Collapsed from 11 prompts. Domain picker switched to `questionary.autocomplete`. Inline Anthropic-key prompt removed (deferred to post-scaffold `.env` editing with a prominent reminder panel). Advanced settings (MCP toggle, extraction toggles, extra API keys) gated behind a single Y/N prompt. Median wizard run is now ~6 prompts vs ~11.
+- **Default agent framework: AWS Strands** — was previously unselected; the wizard now suggests `strands` as the default. All 8 frameworks remain supported.
+- **Backend-aware route adapters** — Generated `app/routes.py` dispatches `/expand`, `/documents`, `/traces`, `/schema/visualization`, `/entities/{name}`, `/search`, `/cypher` to the NAMS REST adapter (`app/memory_adapter.py`) or bolt Cypher path based on `MEMORY_BACKEND`. `/gds/*` returns 501 on NAMS.
+- **Backend-aware MCP config** — `claude_desktop_config.json` ships in NAMS or bolt shape depending on the scaffold. NAMS forces `mcp_profile=core` because extended-profile tools rely on unsupported endpoints (preferences/facts).
+- **Backend-aware `make reset`** — On NAMS, enumerates entities via REST and deletes one-by-one (slow but correct, with a printed warning). On bolt, retains today's `MATCH (n) DETACH DELETE n`.
+- **NAMS-aware `make seed`** — Generated `generate_data.py` branches on `settings.memory_backend`. On NAMS, delegates to `memory_adapter.ingest_fixtures_nams()` which does the B-partial port (see below). On bolt, applies schema + ingests via Cypher.
+- **Health endpoint backend-aware** — `/health` returns `{"memory_backend": "nams", "nams": <bool>}` on NAMS or `{"memory_backend": "bolt", "neo4j": <bool>}` on self-hosted.
+
+### NAMS Write-Path Caveats (v0.4)
+
+The NAMS REST API exposes a narrower write surface than bolt Cypher. The CLI does **best-effort B-partial ingest** with these documented gaps:
+
+- **Relationships are dropped on NAMS** — `add_relationship` is not yet exposed by NAMS REST. The CLI logs a single warning per ingest run. The graph view shows entities but no edges.
+- **Entity properties collapse into `description`** — NAMS REST accepts only `{name, type, description}` per entity. All other properties (status, severity, blood_type, etc.) are serialized into a markdown block inside `description`. The frontend property panel renders this markdown so the data remains readable.
+- **Preferences and facts are unsupported** — `auto_preferences=True` is forced off on NAMS via `ProjectConfig.effective_auto_preferences`. `auto_extract=True` still runs but extracted relationships are silently dropped.
+- **Schema DDL skipped on NAMS** — NAMS owns its schema. `CREATE CONSTRAINT`/`CREATE INDEX` statements from `generate_cypher_schema()` are no-ops on the NAMS path.
+
+For the full relationship-rich demo experience, scaffold with `--self-hosted --demo`.
+
+### New CLI Flags
+
+| Flag | Purpose |
+|---|---|
+| `--self-hosted` | Use self-hosted Neo4j instead of NAMS (the v0.10 default behavior) |
+| `--nams-api-key` | NAMS API key (also reads `MEMORY_API_KEY` env) |
+| `--nams-endpoint` | Override NAMS endpoint URL (defaults to `https://memory.neo4jlabs.com/v1`) |
+| `--memory-llm` | LiteLLM provider string for memory entity extraction |
+| `--memory-embedding` | LiteLLM provider string for memory embeddings |
+
+### New Docs Pages
+
+- [Use NAMS](docs/docs/how-to/use-nams.md) — sign-up, API key, switching between NAMS and self-hosted, troubleshooting
+- [Configure Memory Providers](docs/docs/how-to/configure-memory-providers.md) — LiteLLM provider strings, native adapters, default fallback behavior, per-provider auth examples
+- [Memory Backends](docs/docs/explanation/memory-backends.md) — conceptual NAMS vs self-hosted comparison, choosing per-project, frontend dispatch architecture
+
+### Tests
+
+- **1,177 passing fast tests** (was 1,102 in v0.10). 50 new tests across 4 files:
+  - `test_ingest_nams.py` (15) — `_ingest_with_nams` dispatch, entity serialization, document/trace ingestion, relationship-skip warning, missing-API-key error path, `reset_memory_store` for both backends.
+  - `test_wizard.py` (7) — drives the interactive wizard via patched questionary; covers NAMS happy path, NAMS+advanced, self-hosted Docker, self-hosted existing-Neo4j, and edge cases.
+  - `test_memory_adapter.py` (18) — renders a project, imports the generated `memory_adapter.py` via `importlib`, exercises every adapter function with `AsyncMock` MemoryClient.
+  - `test_routes_integration.py` (10, gated by `pytest.importorskip("fastapi")`) — renders a NAMS or bolt project, mounts the generated FastAPI app via `TestClient`, asserts correct dispatch on `/health`, `/documents`, `/search`, `/schema/visualization`, `/expand`, `/traces`, `/gds/*`.
+  - `test_nams_adapter.py` extended with 5 runtime dispatch tests.
+- **`scripts/e2e_smoke_test.py`** — added `--backend {bolt,nams}` flag. `bolt` default preserves existing flow; `nams` exercises the hosted-memory scaffold path (requires `MEMORY_API_KEY` env).
+- **`[dev]` extras** — now include `fastapi`, `httpx`, `pydantic-settings` so route integration tests run in CI.
+
+### Implementation Notes
+
+- **`MemorySettings` / `MemoryClient` / `MemoryIntegration` construction split** in `memory.py.j2` — explicit `MemoryClient(settings)` then `MemoryIntegration(client=client, ...)` (instead of having `MemoryIntegration` build the client implicitly). Enables NAMS backend + LiteLLM provider injection in one place.
+- **CodeQL false-positive fix** — `test_nams_adapter.py` assertion changed from substring host check (`"memory.neo4jlabs.com" in env_example`) to full URL match (`"https://memory.neo4jlabs.com/v1" in env_example`) to satisfy `py/incomplete-url-substring-sanitization`.
+- **Generated test scaffold** (`backend/tests/test_routes.py`) — fixture patches both bolt and NAMS connect/close paths so the generated test suite works regardless of backend.
+
+## v0.10.0 — Local-File Document Connector (2026-05-18)
+
+### New Connector
+- **local-file connector** — Deterministic ingestion of local Markdown, PDF, HTML, AsciiDoc, and Word documents into `:Document` → `:Section` hierarchies, with `LINKS_TO` edges between sections and documents. No LLMs, no embeddings, no randomness. URI-keyed nodes integrate with the existing MERGE-on-`(name, domain)` pipeline without changes to `ingest.py`. Section URIs use GitHub/Pandoc slug rules (NFKD-normalize, ASCII-lower, `[a-z0-9_]` runs collapse to `-`); duplicate-heading collisions disambiguate per-parent (`-1`, `-2`, …); skipped heading levels (e.g. H1 → H3) preserve the original level on the child node rather than synthesizing intermediate H2s. Parser strategy per format: markdown-it-py with GFM extensions (Markdown); three-tier fallback pypdf outline → `/StructTreeRoot` → pdfplumber font-size heuristic (PDF); BeautifulSoup + lxml (HTML); pure-Python regex with block-delimiter state tracking (AsciiDoc); python-docx (Word). Adds 8 optional dependencies to the `connectors` extra: `markdown-it-py`, `mdit-py-plugins`, `pdf-oxide`, `pypdf`, `pdfplumber`, `beautifulsoup4`, `lxml`, `python-docx`. Implementation in `connectors/local_file_connector.py` and `connectors/_local_file/` subpackage (parser, mapper, slug, link-resolver). 1,721-line `test_local_file_connector.py` plus `test_local_file_vault.py` functional test (`make test-functional`) round-trips a 14-file fixture vault.
+
+### Bug Fixes
+- **`reset_database()` connection lifecycle** — Generated `context_graph_client.py` previously assumed a driver was already open. It now opens its own driver when `_driver` is `None` and closes it via `try/finally`, preserving any pre-existing connection. `TestResetDatabase` regression coverage added in `tests/test_generated_project.py`.
+
+### Tests
+- 1,102 passing fast tests (1,321 collected including slow/integration/functional).
+
 ## v0.9.5 — Options Intelligence Domain & GitHub Connector Enhancements (2026-04-29)
 
 ### New Domain
