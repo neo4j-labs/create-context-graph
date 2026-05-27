@@ -134,6 +134,11 @@ def _run_import_preview(
     help="Domain ID (e.g., financial-services, healthcare, software-engineering)",
 )
 @click.option(
+    "--ontology-file",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    help="Path to a custom domain ontology YAML file",
+)
+@click.option(
     "--framework",
     type=click.Choice(SUPPORTED_FRAMEWORKS, case_sensitive=False),
     help="Agent framework to use",
@@ -199,6 +204,7 @@ def _run_import_preview(
 def main(
     project_name: str | None,
     domain: str | None,
+    ontology_file: Path | None,
     framework: str | None,
     demo_data: bool,
     ingest: bool,
@@ -315,9 +321,31 @@ def main(
         console.print()
         return
 
+    domain_source_count = sum(
+        bool(source) for source in (domain, ontology_file, custom_domain)
+    )
+    if domain_source_count > 1:
+        console.print(
+            "[red]Error:[/red] --domain, --ontology-file, and --custom-domain "
+            "are mutually exclusive."
+        )
+        raise SystemExit(1)
+
     # Handle custom domain generation (non-interactive)
     custom_domain_yaml = None
     custom_ontology = None
+    if ontology_file:
+        from create_context_graph.ontology import load_domain_from_path
+
+        try:
+            custom_domain_yaml = ontology_file.read_text()
+            custom_ontology = load_domain_from_path(ontology_file)
+        except Exception as e:  # noqa: BLE001 — surface YAML/schema errors to the user
+            console.print(f"[red]Error:[/red] Failed to load ontology file: {e}")
+            raise SystemExit(1)
+
+        domain = custom_ontology.domain.id
+
     if custom_domain:
         if not anthropic_api_key:
             console.print("[red]Error:[/red] --anthropic-api-key is required for custom domain generation.")
@@ -368,7 +396,7 @@ def main(
         raise SystemExit(1)
 
     # Auto-generate project name when all required flags are provided but no positional arg
-    if not project_name and (domain or custom_domain) and framework:
+    if not project_name and (domain or custom_domain or ontology_file) and framework:
         domain_part = domain or "custom"
         project_name = f"{domain_part}-{framework}-app"
 
@@ -376,8 +404,8 @@ def main(
     import sys
     if not project_name and not sys.stdin.isatty():
         missing = []
-        if not domain and not custom_domain:
-            missing.append("--domain")
+        if not domain and not custom_domain and not ontology_file:
+            missing.append("--domain, --ontology-file, or --custom-domain")
         if not framework:
             missing.append("--framework")
         console.print(f"[red]Error:[/red] Non-interactive mode requires: {', '.join(missing or ['--domain and --framework'])}")
@@ -388,7 +416,7 @@ def main(
     # If all required args are provided (and a backend is determinable), skip wizard.
     # In non-interactive mode with default NAMS backend, --nams-api-key (or
     # MEMORY_API_KEY env) must be set unless --self-hosted is specified.
-    if project_name and (domain or custom_domain) and (framework or DEFAULT_FRAMEWORK):
+    if project_name and (domain or custom_domain or ontology_file) and (framework or DEFAULT_FRAMEWORK):
         # Skip the credential gate during --dry-run so users can preview a
         # scaffold without first signing up for a NAMS API key.
         if not dry_run and memory_backend_resolved == "nams" and not nams_api_key:

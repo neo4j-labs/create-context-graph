@@ -242,6 +242,27 @@ def load_domain(domain_id: str) -> DomainOntology:
     domain_path = domains_dir / f"{domain_id}.yaml"
 
     if not domain_path.exists():
+        custom_dir = _get_custom_domains_path()
+        custom_path = custom_dir / f"{domain_id}.yaml"
+        if custom_path.exists():
+            domain_path = custom_path
+        elif custom_dir.exists():
+            for path in sorted(custom_dir.glob("*.yaml")):
+                if path.stem.startswith("_"):
+                    continue
+                try:
+                    with open(path) as f:
+                        data = yaml.safe_load(f)
+                except Exception:
+                    continue
+                if (
+                    isinstance(data, dict)
+                    and data.get("domain", {}).get("id") == domain_id
+                ):
+                    domain_path = path
+                    break
+
+    if not domain_path.exists():
         raise FileNotFoundError(f"Domain ontology not found: {domain_id}")
 
     with open(domain_path) as f:
