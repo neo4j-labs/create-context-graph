@@ -15,14 +15,19 @@
 """Integration tests for the CLI module."""
 
 import json
+from pathlib import Path
 
 import pytest
+import yaml
 
 from create_context_graph.cli import main
 
 
 # The ``runner`` and ``nams_runner`` fixtures live in tests/conftest.py so they
 # can be shared with test_matrix.py, test_performance.py, and others.
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+HEALTHCARE_ONTOLOGY = REPO_ROOT / "src" / "create_context_graph" / "domains" / "healthcare.yaml"
 
 
 class TestListDomains:
@@ -75,6 +80,53 @@ class TestScaffoldGeneration:
         assert fixture.exists()
         data = json.loads(fixture.read_text())
         assert len(data["entities"]) > 0
+
+    def test_scaffold_with_ontology_file(self, runner, tmp_path):
+        ontology_file = HEALTHCARE_ONTOLOGY
+        out = tmp_path / "ontology-app"
+
+        result = runner.invoke(main, [
+            "ontology-app",
+            "--ontology-file", str(ontology_file),
+            "--framework", "pydanticai",
+            "--output-dir", str(out),
+        ])
+
+        assert result.exit_code == 0, result.output
+        assert (out / "backend" / "app" / "main.py").exists()
+        assert (out / "frontend" / "package.json").exists()
+        assert yaml.safe_load((out / "data" / "ontology.yaml").read_text()) == yaml.safe_load(
+            ontology_file.read_text()
+        )
+
+    def test_ontology_file_auto_generates_project_name(self, runner, tmp_path):
+        ontology_file = HEALTHCARE_ONTOLOGY
+        out = tmp_path / "dry-run-app"
+
+        result = runner.invoke(main, [
+            "--ontology-file", str(ontology_file),
+            "--framework", "pydanticai",
+            "--output-dir", str(out),
+            "--dry-run",
+        ])
+
+        assert result.exit_code == 0, result.output
+        assert "healthcare-pydanticai-app" in result.output
+
+    def test_ontology_file_is_mutually_exclusive_with_domain(self, runner, tmp_path):
+        ontology_file = HEALTHCARE_ONTOLOGY
+        out = tmp_path / "my-app"
+
+        result = runner.invoke(main, [
+            "my-app",
+            "--domain", "healthcare",
+            "--ontology-file", str(ontology_file),
+            "--framework", "pydanticai",
+            "--output-dir", str(out),
+        ])
+
+        assert result.exit_code == 2
+        assert "mutually exclusive" in result.output
 
     def test_invalid_domain(self, runner, tmp_path):
         out = tmp_path / "my-app"
