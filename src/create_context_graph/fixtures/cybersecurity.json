@@ -1,0 +1,1524 @@
+{
+  "domain": "cybersecurity",
+  "entities": {
+    "Person": [
+      {
+        "name": "Sarah Chen",
+        "email": "sarah.chen@acme.co",
+        "role": "Senior Analyst",
+        "description": "Sarah Chen, senior analyst specializing in cybersecurity."
+      },
+      {
+        "name": "James Morrison",
+        "email": "james.morrison@example.com",
+        "role": "Project Manager",
+        "description": "Project Manager James Morrison \u2014 active in the cybersecurity sector with relevant domain expertise."
+      },
+      {
+        "name": "Maria Rodriguez",
+        "email": "maria.rodriguez@example.com",
+        "role": "Technical Lead",
+        "description": "Maria Rodriguez serves as technical lead, contributing to cybersecurity initiatives and operations."
+      },
+      {
+        "name": "David Park",
+        "email": "david.park@example.com",
+        "role": "Research Director",
+        "description": "David Park, research director specializing in cybersecurity."
+      },
+      {
+        "name": "Elena Volkov",
+        "email": "elena.volkov@corp.net",
+        "role": "Operations Manager",
+        "description": "Operations Manager Elena Volkov \u2014 active in the cybersecurity sector with relevant domain expertise."
+      }
+    ],
+    "Organization": [
+      {
+        "name": "Meridian Consulting Group",
+        "description": "Meridian Consulting Group is a technology organization operating in the cybersecurity space.",
+        "industry": "Technology"
+      },
+      {
+        "name": "Pacific Northwest Industries",
+        "description": "Healthcare entity Pacific Northwest Industries, providing services and resources for cybersecurity operations.",
+        "industry": "Healthcare"
+      },
+      {
+        "name": "Apex Financial Partners",
+        "description": "Apex Financial Partners \u2014 a financial services institution active in cybersecurity.",
+        "industry": "Financial Services"
+      },
+      {
+        "name": "Greenleaf Technologies",
+        "description": "Greenleaf Technologies is a manufacturing organization operating in the cybersecurity space.",
+        "industry": "Manufacturing"
+      },
+      {
+        "name": "Summit Healthcare Systems",
+        "description": "Energy entity Summit Healthcare Systems, providing services and resources for cybersecurity operations.",
+        "industry": "Energy"
+      }
+    ],
+    "Location": [
+      {
+        "name": "Downtown Medical Center",
+        "address": "123 Main Street, Denver, CO 80202",
+        "latitude": 39.45,
+        "longitude": -73.68
+      },
+      {
+        "name": "Westside Corporate Campus",
+        "address": "789 Pine Boulevard, Denver, CO 80202",
+        "latitude": 39.71,
+        "longitude": -106.6
+      },
+      {
+        "name": "Harbor View Complex",
+        "address": "258 Willow Way, Miami, FL 33101",
+        "latitude": 40.03,
+        "longitude": -115.83
+      },
+      {
+        "name": "Mountain Ridge Facility",
+        "address": "456 Oak Avenue, Portland, OR 97201",
+        "latitude": 35.43,
+        "longitude": -115.77
+      },
+      {
+        "name": "Riverside Research Park",
+        "address": "147 Birch Road, Seattle, WA 98101",
+        "latitude": 27.29,
+        "longitude": -83.05
+      }
+    ],
+    "Event": [
+      {
+        "name": "Q4 Strategy Review",
+        "date": "2024-11-09T10:45:00",
+        "description": "Q4 Strategy Review, a event event recorded in the cybersecurity timeline."
+      },
+      {
+        "name": "Annual Compliance Audit",
+        "date": "2024-08-06T16:15:00",
+        "description": "Event Annual Compliance Audit \u2014 occurred as part of cybersecurity activities."
+      },
+      {
+        "name": "Emergency Response Drill",
+        "date": "2024-04-09T14:30:00",
+        "description": "Recorded event: Emergency Response Drill, relevant to cybersecurity workflows."
+      },
+      {
+        "name": "Product Launch Summit",
+        "date": "2024-09-05T11:00:00",
+        "description": "Product Launch Summit, a event event recorded in the cybersecurity timeline."
+      },
+      {
+        "name": "Board of Directors Meeting",
+        "date": "2026-09-01T13:30:00",
+        "description": "Event Board of Directors Meeting \u2014 occurred as part of cybersecurity activities."
+      }
+    ],
+    "Object": [
+      {
+        "name": "Primary Analysis Report",
+        "description": "Primary Analysis Report, a object used in cybersecurity workflows."
+      },
+      {
+        "name": "Standard Operating Procedure",
+        "description": "Object Standard Operating Procedure \u2014 cataloged for cybersecurity operations."
+      },
+      {
+        "name": "Quarterly Assessment Document",
+        "description": "Quarterly Assessment Document is a object supporting cybersecurity processes."
+      },
+      {
+        "name": "Technical Specification",
+        "description": "Technical Specification, a object used in cybersecurity workflows."
+      },
+      {
+        "name": "Compliance Certificate",
+        "description": "Object Compliance Certificate \u2014 cataloged for cybersecurity operations."
+      }
+    ],
+    "Asset": [
+      {
+        "name": "Industrial Compressor C-401",
+        "asset_type": "server",
+        "criticality": "critical",
+        "environment": "production",
+        "owner_email": "Industrial Compressor C-401 - Owner Email",
+        "ip_address": "Industrial Compressor C-401 - Ip Address",
+        "description": "Industrial Compressor C-401, a asset used in cybersecurity workflows."
+      },
+      {
+        "name": "Cooling Tower CT-3",
+        "asset_type": "workstation",
+        "criticality": "high",
+        "environment": "staging",
+        "owner_email": "Cooling Tower CT-3 - Owner Email",
+        "ip_address": "Cooling Tower CT-3 - Ip Address",
+        "description": "Asset Cooling Tower CT-3 \u2014 cataloged for cybersecurity operations."
+      },
+      {
+        "name": "Boiler Unit B-102",
+        "asset_type": "network_device",
+        "criticality": "medium",
+        "environment": "development",
+        "owner_email": "Boiler Unit B-102 - Owner Email",
+        "ip_address": "Boiler Unit B-102 - Ip Address",
+        "description": "Boiler Unit B-102 is a asset supporting cybersecurity processes."
+      },
+      {
+        "name": "Generator Set GS-7",
+        "asset_type": "application",
+        "criticality": "low",
+        "environment": "dr",
+        "owner_email": "Generator Set GS-7 - Owner Email",
+        "ip_address": "Generator Set GS-7 - Ip Address",
+        "description": "Generator Set GS-7, a asset used in cybersecurity workflows."
+      },
+      {
+        "name": "HVAC System Zone 5",
+        "asset_type": "database",
+        "criticality": "critical",
+        "environment": "sandbox",
+        "owner_email": "HVAC System Zone 5 - Owner Email",
+        "ip_address": "HVAC System Zone 5 - Ip Address",
+        "description": "Asset HVAC System Zone 5 \u2014 cataloged for cybersecurity operations."
+      }
+    ],
+    "Vulnerability": [
+      {
+        "name": "Primary Analysis Report",
+        "cve_id": "VUL-2026-0000",
+        "severity": "critical",
+        "cvss_score": 0.97,
+        "status": "open",
+        "published_date": "2026-12-02",
+        "description": "Primary Analysis Report, a vulnerability relevant to cybersecurity operations."
+      },
+      {
+        "name": "Standard Operating Procedure",
+        "cve_id": "VUL-2025-0001",
+        "severity": "high",
+        "cvss_score": 0.7,
+        "status": "in_remediation",
+        "published_date": "2026-08-03",
+        "description": "Vulnerability Standard Operating Procedure \u2014 part of the cybersecurity knowledge graph."
+      },
+      {
+        "name": "Quarterly Assessment Document",
+        "cve_id": "VUL-2025-0002",
+        "severity": "medium",
+        "cvss_score": 0.69,
+        "status": "patched",
+        "published_date": "2024-05-02",
+        "description": "Quarterly Assessment Document is a vulnerability tracked within the cybersecurity domain."
+      },
+      {
+        "name": "Technical Specification",
+        "cve_id": "VUL-2024-0003",
+        "severity": "low",
+        "cvss_score": 0.52,
+        "status": "accepted_risk",
+        "published_date": "2025-02-26",
+        "description": "Technical Specification, a vulnerability relevant to cybersecurity operations."
+      },
+      {
+        "name": "Compliance Certificate",
+        "cve_id": "VUL-2025-0004",
+        "severity": "informational",
+        "cvss_score": 0.72,
+        "status": "false_positive",
+        "published_date": "2025-01-01",
+        "description": "Vulnerability Compliance Certificate \u2014 part of the cybersecurity knowledge graph."
+      }
+    ],
+    "Alert": [
+      {
+        "name": "Temperature Threshold Exceeded",
+        "alert_id": "ALE-2025-0000",
+        "detection_source": "siem",
+        "severity": "critical",
+        "status": "new",
+        "detected_at": "2025-05-20T15:15:00",
+        "description": "Temperature Threshold Exceeded, a alert event recorded in the cybersecurity timeline."
+      },
+      {
+        "name": "Vibration Anomaly Detected",
+        "alert_id": "ALE-2025-0001",
+        "detection_source": "edr",
+        "severity": "high",
+        "status": "triaged",
+        "detected_at": "2025-01-24T13:15:00",
+        "description": "Alert Vibration Anomaly Detected \u2014 occurred as part of cybersecurity activities."
+      },
+      {
+        "name": "Pressure Drop Warning",
+        "alert_id": "ALE-2024-0002",
+        "detection_source": "ids",
+        "severity": "medium",
+        "status": "investigating",
+        "detected_at": "2025-08-11T09:00:00",
+        "description": "Recorded alert: Pressure Drop Warning, relevant to cybersecurity workflows."
+      },
+      {
+        "name": "Communication Timeout",
+        "alert_id": "ALE-2024-0003",
+        "detection_source": "waf",
+        "severity": "low",
+        "status": "resolved",
+        "detected_at": "2024-05-19T13:30:00",
+        "description": "Communication Timeout, a alert event recorded in the cybersecurity timeline."
+      },
+      {
+        "name": "Calibration Drift Alert",
+        "alert_id": "ALE-2026-0004",
+        "detection_source": "cloud_native",
+        "severity": "critical",
+        "status": "false_positive",
+        "detected_at": "2026-08-10T08:30:00",
+        "description": "Alert Calibration Drift Alert \u2014 occurred as part of cybersecurity activities."
+      }
+    ],
+    "Incident": [
+      {
+        "name": "INC-2025-041 Database failover",
+        "incident_id": "INC-2024-0000",
+        "incident_type": "malware",
+        "severity": "sev1",
+        "status": "open",
+        "detected_at": "2024-07-30T17:45:00",
+        "description": "INC-2025-041 Database failover, a incident event recorded in the cybersecurity timeline."
+      },
+      {
+        "name": "INC-2025-078 API latency spike",
+        "incident_id": "INC-2025-0001",
+        "incident_type": "phishing",
+        "severity": "sev2",
+        "status": "contained",
+        "detected_at": "2024-12-23T10:15:00",
+        "description": "Incident INC-2025-078 API latency spike \u2014 occurred as part of cybersecurity activities."
+      },
+      {
+        "name": "INC-2025-112 Certificate expiry",
+        "incident_id": "INC-2025-0002",
+        "incident_type": "account_compromise",
+        "severity": "sev3",
+        "status": "eradicated",
+        "detected_at": "2024-09-15T12:45:00",
+        "description": "Recorded incident: INC-2025-112 Certificate expiry, relevant to cybersecurity workflows."
+      },
+      {
+        "name": "INC-2025-156 DDoS mitigation",
+        "incident_id": "INC-2024-0003",
+        "incident_type": "data_exfiltration",
+        "severity": "sev4",
+        "status": "recovered",
+        "detected_at": "2026-07-16T12:45:00",
+        "description": "INC-2025-156 DDoS mitigation, a incident event recorded in the cybersecurity timeline."
+      },
+      {
+        "name": "INC-2025-189 Data corruption",
+        "incident_id": "INC-2025-0004",
+        "incident_type": "insider",
+        "severity": "sev1",
+        "status": "closed",
+        "detected_at": "2026-09-22T14:15:00",
+        "description": "Incident INC-2025-189 Data corruption \u2014 occurred as part of cybersecurity activities."
+      }
+    ],
+    "ThreatActor": [
+      {
+        "name": "Meridian Consulting Group",
+        "actor_type": "apt",
+        "motivation": "financial",
+        "sophistication": "novice",
+        "description": "Meridian Consulting Group, a threatactor relevant to cybersecurity operations."
+      },
+      {
+        "name": "Pacific Northwest Industries",
+        "actor_type": "cybercriminal",
+        "motivation": "espionage",
+        "sophistication": "intermediate",
+        "description": "ThreatActor Pacific Northwest Industries \u2014 part of the cybersecurity knowledge graph."
+      },
+      {
+        "name": "Apex Financial Partners",
+        "actor_type": "hacktivist",
+        "motivation": "ideological",
+        "sophistication": "advanced",
+        "description": "Apex Financial Partners is a threatactor tracked within the cybersecurity domain."
+      },
+      {
+        "name": "Greenleaf Technologies",
+        "actor_type": "insider",
+        "motivation": "disruption",
+        "sophistication": "expert",
+        "description": "Greenleaf Technologies, a threatactor relevant to cybersecurity operations."
+      },
+      {
+        "name": "Summit Healthcare Systems",
+        "actor_type": "nation_state",
+        "motivation": "unknown",
+        "sophistication": "novice",
+        "description": "ThreatActor Summit Healthcare Systems \u2014 part of the cybersecurity knowledge graph."
+      }
+    ],
+    "Control": [
+      {
+        "name": "Primary Analysis Report",
+        "control_id": "CON-2026-0000",
+        "control_family": "access_control",
+        "status": "implemented",
+        "framework": "Primary Analysis Report - Framework"
+      },
+      {
+        "name": "Standard Operating Procedure",
+        "control_id": "CON-2026-0001",
+        "control_family": "awareness",
+        "status": "partially_implemented",
+        "framework": "Standard Operating Procedure - Framework"
+      },
+      {
+        "name": "Quarterly Assessment Document",
+        "control_id": "CON-2026-0002",
+        "control_family": "audit",
+        "status": "planned",
+        "framework": "Quarterly Assessment Document - Framework"
+      },
+      {
+        "name": "Technical Specification",
+        "control_id": "CON-2025-0003",
+        "control_family": "configuration",
+        "status": "not_applicable",
+        "framework": "Technical Specification - Framework"
+      },
+      {
+        "name": "Compliance Certificate",
+        "control_id": "CON-2026-0004",
+        "control_family": "identification",
+        "status": "failed",
+        "framework": "Compliance Certificate - Framework"
+      }
+    ],
+    "User": [
+      {
+        "name": "Sarah Chen",
+        "username": "Sarah Chen",
+        "role": "employee",
+        "status": "active",
+        "email": "sarah.chen@acme.co"
+      },
+      {
+        "name": "James Morrison",
+        "username": "James Morrison",
+        "role": "contractor",
+        "status": "disabled",
+        "email": "james.morrison@company.org"
+      },
+      {
+        "name": "Maria Rodriguez",
+        "username": "Maria Rodriguez",
+        "role": "admin",
+        "status": "locked",
+        "email": "maria.rodriguez@acme.co"
+      },
+      {
+        "name": "David Park",
+        "username": "David Park",
+        "role": "service_account",
+        "status": "terminated",
+        "email": "david.park@acme.co"
+      },
+      {
+        "name": "Elena Volkov",
+        "username": "Elena Volkov",
+        "role": "partner",
+        "status": "active",
+        "email": "elena.volkov@corp.net"
+      }
+    ]
+  },
+  "relationships": [
+    {
+      "type": "WORKS_FOR",
+      "source_label": "Person",
+      "source_name": "Sarah Chen",
+      "target_label": "Organization",
+      "target_name": "Summit Healthcare Systems"
+    },
+    {
+      "type": "WORKS_FOR",
+      "source_label": "Person",
+      "source_name": "James Morrison",
+      "target_label": "Organization",
+      "target_name": "Summit Healthcare Systems"
+    },
+    {
+      "type": "WORKS_FOR",
+      "source_label": "Person",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Organization",
+      "target_name": "Pacific Northwest Industries"
+    },
+    {
+      "type": "WORKS_FOR",
+      "source_label": "Person",
+      "source_name": "David Park",
+      "target_label": "Organization",
+      "target_name": "Summit Healthcare Systems"
+    },
+    {
+      "type": "WORKS_FOR",
+      "source_label": "Person",
+      "source_name": "Elena Volkov",
+      "target_label": "Organization",
+      "target_name": "Summit Healthcare Systems"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Meridian Consulting Group",
+      "target_label": "Location",
+      "target_name": "Harbor View Complex"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Pacific Northwest Industries",
+      "target_label": "Location",
+      "target_name": "Mountain Ridge Facility"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Pacific Northwest Industries",
+      "target_label": "Location",
+      "target_name": "Westside Corporate Campus"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Apex Financial Partners",
+      "target_label": "Location",
+      "target_name": "Downtown Medical Center"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Apex Financial Partners",
+      "target_label": "Location",
+      "target_name": "Westside Corporate Campus"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Greenleaf Technologies",
+      "target_label": "Location",
+      "target_name": "Harbor View Complex"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Greenleaf Technologies",
+      "target_label": "Location",
+      "target_name": "Downtown Medical Center"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Summit Healthcare Systems",
+      "target_label": "Location",
+      "target_name": "Mountain Ridge Facility"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Summit Healthcare Systems",
+      "target_label": "Location",
+      "target_name": "Riverside Research Park"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "Sarah Chen",
+      "target_label": "Event",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "James Morrison",
+      "target_label": "Event",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "James Morrison",
+      "target_label": "Event",
+      "target_name": "Annual Compliance Audit"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Event",
+      "target_name": "Board of Directors Meeting"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Event",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "David Park",
+      "target_label": "Event",
+      "target_name": "Q4 Strategy Review"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "David Park",
+      "target_label": "Event",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "Elena Volkov",
+      "target_label": "Event",
+      "target_name": "Product Launch Summit"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "Elena Volkov",
+      "target_label": "Event",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "AFFECTS",
+      "source_label": "Vulnerability",
+      "source_name": "Primary Analysis Report",
+      "target_label": "Asset",
+      "target_name": "Boiler Unit B-102"
+    },
+    {
+      "type": "AFFECTS",
+      "source_label": "Vulnerability",
+      "source_name": "Standard Operating Procedure",
+      "target_label": "Asset",
+      "target_name": "Industrial Compressor C-401"
+    },
+    {
+      "type": "AFFECTS",
+      "source_label": "Vulnerability",
+      "source_name": "Standard Operating Procedure",
+      "target_label": "Asset",
+      "target_name": "Boiler Unit B-102"
+    },
+    {
+      "type": "AFFECTS",
+      "source_label": "Vulnerability",
+      "source_name": "Quarterly Assessment Document",
+      "target_label": "Asset",
+      "target_name": "Boiler Unit B-102"
+    },
+    {
+      "type": "AFFECTS",
+      "source_label": "Vulnerability",
+      "source_name": "Quarterly Assessment Document",
+      "target_label": "Asset",
+      "target_name": "Industrial Compressor C-401"
+    },
+    {
+      "type": "AFFECTS",
+      "source_label": "Vulnerability",
+      "source_name": "Technical Specification",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "AFFECTS",
+      "source_label": "Vulnerability",
+      "source_name": "Compliance Certificate",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "TRIGGERED",
+      "source_label": "Alert",
+      "source_name": "Temperature Threshold Exceeded",
+      "target_label": "Incident",
+      "target_name": "INC-2025-112 Certificate expiry"
+    },
+    {
+      "type": "TRIGGERED",
+      "source_label": "Alert",
+      "source_name": "Vibration Anomaly Detected",
+      "target_label": "Incident",
+      "target_name": "INC-2025-189 Data corruption"
+    },
+    {
+      "type": "TRIGGERED",
+      "source_label": "Alert",
+      "source_name": "Vibration Anomaly Detected",
+      "target_label": "Incident",
+      "target_name": "INC-2025-156 DDoS mitigation"
+    },
+    {
+      "type": "TRIGGERED",
+      "source_label": "Alert",
+      "source_name": "Pressure Drop Warning",
+      "target_label": "Incident",
+      "target_name": "INC-2025-078 API latency spike"
+    },
+    {
+      "type": "TRIGGERED",
+      "source_label": "Alert",
+      "source_name": "Communication Timeout",
+      "target_label": "Incident",
+      "target_name": "INC-2025-189 Data corruption"
+    },
+    {
+      "type": "TRIGGERED",
+      "source_label": "Alert",
+      "source_name": "Calibration Drift Alert",
+      "target_label": "Incident",
+      "target_name": "INC-2025-078 API latency spike"
+    },
+    {
+      "type": "TRIGGERED",
+      "source_label": "Alert",
+      "source_name": "Calibration Drift Alert",
+      "target_label": "Incident",
+      "target_name": "INC-2025-041 Database failover"
+    },
+    {
+      "type": "TARGETS",
+      "source_label": "Alert",
+      "source_name": "Temperature Threshold Exceeded",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "TARGETS",
+      "source_label": "Alert",
+      "source_name": "Temperature Threshold Exceeded",
+      "target_label": "Asset",
+      "target_name": "Generator Set GS-7"
+    },
+    {
+      "type": "TARGETS",
+      "source_label": "Alert",
+      "source_name": "Vibration Anomaly Detected",
+      "target_label": "Asset",
+      "target_name": "Generator Set GS-7"
+    },
+    {
+      "type": "TARGETS",
+      "source_label": "Alert",
+      "source_name": "Pressure Drop Warning",
+      "target_label": "Asset",
+      "target_name": "HVAC System Zone 5"
+    },
+    {
+      "type": "TARGETS",
+      "source_label": "Alert",
+      "source_name": "Pressure Drop Warning",
+      "target_label": "Asset",
+      "target_name": "Boiler Unit B-102"
+    },
+    {
+      "type": "TARGETS",
+      "source_label": "Alert",
+      "source_name": "Communication Timeout",
+      "target_label": "Asset",
+      "target_name": "HVAC System Zone 5"
+    },
+    {
+      "type": "TARGETS",
+      "source_label": "Alert",
+      "source_name": "Calibration Drift Alert",
+      "target_label": "Asset",
+      "target_name": "Industrial Compressor C-401"
+    },
+    {
+      "type": "TARGETS",
+      "source_label": "Alert",
+      "source_name": "Calibration Drift Alert",
+      "target_label": "Asset",
+      "target_name": "HVAC System Zone 5"
+    },
+    {
+      "type": "ATTRIBUTED_TO",
+      "source_label": "Incident",
+      "source_name": "INC-2025-041 Database failover",
+      "target_label": "ThreatActor",
+      "target_name": "Pacific Northwest Industries"
+    },
+    {
+      "type": "ATTRIBUTED_TO",
+      "source_label": "Incident",
+      "source_name": "INC-2025-078 API latency spike",
+      "target_label": "ThreatActor",
+      "target_name": "Meridian Consulting Group"
+    },
+    {
+      "type": "ATTRIBUTED_TO",
+      "source_label": "Incident",
+      "source_name": "INC-2025-112 Certificate expiry",
+      "target_label": "ThreatActor",
+      "target_name": "Greenleaf Technologies"
+    },
+    {
+      "type": "ATTRIBUTED_TO",
+      "source_label": "Incident",
+      "source_name": "INC-2025-112 Certificate expiry",
+      "target_label": "ThreatActor",
+      "target_name": "Apex Financial Partners"
+    },
+    {
+      "type": "ATTRIBUTED_TO",
+      "source_label": "Incident",
+      "source_name": "INC-2025-156 DDoS mitigation",
+      "target_label": "ThreatActor",
+      "target_name": "Summit Healthcare Systems"
+    },
+    {
+      "type": "ATTRIBUTED_TO",
+      "source_label": "Incident",
+      "source_name": "INC-2025-189 Data corruption",
+      "target_label": "ThreatActor",
+      "target_name": "Apex Financial Partners"
+    },
+    {
+      "type": "USES",
+      "source_label": "ThreatActor",
+      "source_name": "Meridian Consulting Group",
+      "target_label": "Vulnerability",
+      "target_name": "Technical Specification"
+    },
+    {
+      "type": "USES",
+      "source_label": "ThreatActor",
+      "source_name": "Meridian Consulting Group",
+      "target_label": "Vulnerability",
+      "target_name": "Standard Operating Procedure"
+    },
+    {
+      "type": "USES",
+      "source_label": "ThreatActor",
+      "source_name": "Pacific Northwest Industries",
+      "target_label": "Vulnerability",
+      "target_name": "Primary Analysis Report"
+    },
+    {
+      "type": "USES",
+      "source_label": "ThreatActor",
+      "source_name": "Apex Financial Partners",
+      "target_label": "Vulnerability",
+      "target_name": "Primary Analysis Report"
+    },
+    {
+      "type": "USES",
+      "source_label": "ThreatActor",
+      "source_name": "Greenleaf Technologies",
+      "target_label": "Vulnerability",
+      "target_name": "Primary Analysis Report"
+    },
+    {
+      "type": "USES",
+      "source_label": "ThreatActor",
+      "source_name": "Summit Healthcare Systems",
+      "target_label": "Vulnerability",
+      "target_name": "Compliance Certificate"
+    },
+    {
+      "type": "OWNS",
+      "source_label": "Person",
+      "source_name": "Sarah Chen",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "OWNS",
+      "source_label": "Person",
+      "source_name": "Sarah Chen",
+      "target_label": "Asset",
+      "target_name": "Boiler Unit B-102"
+    },
+    {
+      "type": "OWNS",
+      "source_label": "Person",
+      "source_name": "James Morrison",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "OWNS",
+      "source_label": "Person",
+      "source_name": "James Morrison",
+      "target_label": "Asset",
+      "target_name": "Industrial Compressor C-401"
+    },
+    {
+      "type": "OWNS",
+      "source_label": "Person",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "OWNS",
+      "source_label": "Person",
+      "source_name": "David Park",
+      "target_label": "Asset",
+      "target_name": "HVAC System Zone 5"
+    },
+    {
+      "type": "OWNS",
+      "source_label": "Person",
+      "source_name": "David Park",
+      "target_label": "Asset",
+      "target_name": "Boiler Unit B-102"
+    },
+    {
+      "type": "OWNS",
+      "source_label": "Person",
+      "source_name": "Elena Volkov",
+      "target_label": "Asset",
+      "target_name": "Industrial Compressor C-401"
+    },
+    {
+      "type": "ACCESSES",
+      "source_label": "User",
+      "source_name": "Sarah Chen",
+      "target_label": "Asset",
+      "target_name": "Generator Set GS-7"
+    },
+    {
+      "type": "ACCESSES",
+      "source_label": "User",
+      "source_name": "James Morrison",
+      "target_label": "Asset",
+      "target_name": "Boiler Unit B-102"
+    },
+    {
+      "type": "ACCESSES",
+      "source_label": "User",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Asset",
+      "target_name": "Generator Set GS-7"
+    },
+    {
+      "type": "ACCESSES",
+      "source_label": "User",
+      "source_name": "David Park",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "ACCESSES",
+      "source_label": "User",
+      "source_name": "Elena Volkov",
+      "target_label": "Asset",
+      "target_name": "Generator Set GS-7"
+    },
+    {
+      "type": "ACCESSES",
+      "source_label": "User",
+      "source_name": "Elena Volkov",
+      "target_label": "Asset",
+      "target_name": "Industrial Compressor C-401"
+    },
+    {
+      "type": "MITIGATES",
+      "source_label": "Control",
+      "source_name": "Primary Analysis Report",
+      "target_label": "Vulnerability",
+      "target_name": "Quarterly Assessment Document"
+    },
+    {
+      "type": "MITIGATES",
+      "source_label": "Control",
+      "source_name": "Quarterly Assessment Document",
+      "target_label": "Vulnerability",
+      "target_name": "Primary Analysis Report"
+    },
+    {
+      "type": "MITIGATES",
+      "source_label": "Control",
+      "source_name": "Quarterly Assessment Document",
+      "target_label": "Vulnerability",
+      "target_name": "Standard Operating Procedure"
+    },
+    {
+      "type": "MITIGATES",
+      "source_label": "Control",
+      "source_name": "Technical Specification",
+      "target_label": "Vulnerability",
+      "target_name": "Compliance Certificate"
+    },
+    {
+      "type": "MITIGATES",
+      "source_label": "Control",
+      "source_name": "Compliance Certificate",
+      "target_label": "Vulnerability",
+      "target_name": "Technical Specification"
+    },
+    {
+      "type": "PROTECTS",
+      "source_label": "Control",
+      "source_name": "Primary Analysis Report",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "PROTECTS",
+      "source_label": "Control",
+      "source_name": "Primary Analysis Report",
+      "target_label": "Asset",
+      "target_name": "Boiler Unit B-102"
+    },
+    {
+      "type": "PROTECTS",
+      "source_label": "Control",
+      "source_name": "Standard Operating Procedure",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "PROTECTS",
+      "source_label": "Control",
+      "source_name": "Quarterly Assessment Document",
+      "target_label": "Asset",
+      "target_name": "Boiler Unit B-102"
+    },
+    {
+      "type": "PROTECTS",
+      "source_label": "Control",
+      "source_name": "Quarterly Assessment Document",
+      "target_label": "Asset",
+      "target_name": "Generator Set GS-7"
+    },
+    {
+      "type": "PROTECTS",
+      "source_label": "Control",
+      "source_name": "Technical Specification",
+      "target_label": "Asset",
+      "target_name": "HVAC System Zone 5"
+    },
+    {
+      "type": "PROTECTS",
+      "source_label": "Control",
+      "source_name": "Technical Specification",
+      "target_label": "Asset",
+      "target_name": "Boiler Unit B-102"
+    },
+    {
+      "type": "PROTECTS",
+      "source_label": "Control",
+      "source_name": "Compliance Certificate",
+      "target_label": "Asset",
+      "target_name": "Generator Set GS-7"
+    },
+    {
+      "type": "PROTECTS",
+      "source_label": "Control",
+      "source_name": "Compliance Certificate",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "ASSIGNED_TO",
+      "source_label": "Incident",
+      "source_name": "INC-2025-041 Database failover",
+      "target_label": "Person",
+      "target_name": "Elena Volkov"
+    },
+    {
+      "type": "ASSIGNED_TO",
+      "source_label": "Incident",
+      "source_name": "INC-2025-078 API latency spike",
+      "target_label": "Person",
+      "target_name": "Elena Volkov"
+    },
+    {
+      "type": "ASSIGNED_TO",
+      "source_label": "Incident",
+      "source_name": "INC-2025-112 Certificate expiry",
+      "target_label": "Person",
+      "target_name": "Maria Rodriguez"
+    },
+    {
+      "type": "ASSIGNED_TO",
+      "source_label": "Incident",
+      "source_name": "INC-2025-156 DDoS mitigation",
+      "target_label": "Person",
+      "target_name": "David Park"
+    },
+    {
+      "type": "ASSIGNED_TO",
+      "source_label": "Incident",
+      "source_name": "INC-2025-189 Data corruption",
+      "target_label": "Person",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "REPORTED_BY",
+      "source_label": "Alert",
+      "source_name": "Temperature Threshold Exceeded",
+      "target_label": "User",
+      "target_name": "Sarah Chen"
+    },
+    {
+      "type": "REPORTED_BY",
+      "source_label": "Alert",
+      "source_name": "Vibration Anomaly Detected",
+      "target_label": "User",
+      "target_name": "Maria Rodriguez"
+    },
+    {
+      "type": "REPORTED_BY",
+      "source_label": "Alert",
+      "source_name": "Pressure Drop Warning",
+      "target_label": "User",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "REPORTED_BY",
+      "source_label": "Alert",
+      "source_name": "Pressure Drop Warning",
+      "target_label": "User",
+      "target_name": "Sarah Chen"
+    },
+    {
+      "type": "REPORTED_BY",
+      "source_label": "Alert",
+      "source_name": "Communication Timeout",
+      "target_label": "User",
+      "target_name": "Elena Volkov"
+    },
+    {
+      "type": "REPORTED_BY",
+      "source_label": "Alert",
+      "source_name": "Calibration Drift Alert",
+      "target_label": "User",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "REPORTED_BY",
+      "source_label": "Alert",
+      "source_name": "Calibration Drift Alert",
+      "target_label": "User",
+      "target_name": "David Park"
+    },
+    {
+      "type": "DEPENDS_ON",
+      "source_label": "Asset",
+      "source_name": "Industrial Compressor C-401",
+      "target_label": "Asset",
+      "target_name": "Boiler Unit B-102"
+    },
+    {
+      "type": "DEPENDS_ON",
+      "source_label": "Asset",
+      "source_name": "Cooling Tower CT-3",
+      "target_label": "Asset",
+      "target_name": "HVAC System Zone 5"
+    },
+    {
+      "type": "DEPENDS_ON",
+      "source_label": "Asset",
+      "source_name": "Boiler Unit B-102",
+      "target_label": "Asset",
+      "target_name": "Industrial Compressor C-401"
+    },
+    {
+      "type": "DEPENDS_ON",
+      "source_label": "Asset",
+      "source_name": "Boiler Unit B-102",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "DEPENDS_ON",
+      "source_label": "Asset",
+      "source_name": "Generator Set GS-7",
+      "target_label": "Asset",
+      "target_name": "HVAC System Zone 5"
+    },
+    {
+      "type": "DEPENDS_ON",
+      "source_label": "Asset",
+      "source_name": "HVAC System Zone 5",
+      "target_label": "Asset",
+      "target_name": "Cooling Tower CT-3"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Asset",
+      "source_name": "Industrial Compressor C-401",
+      "target_label": "Organization",
+      "target_name": "Summit Healthcare Systems"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Asset",
+      "source_name": "Cooling Tower CT-3",
+      "target_label": "Organization",
+      "target_name": "Apex Financial Partners"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Asset",
+      "source_name": "Cooling Tower CT-3",
+      "target_label": "Organization",
+      "target_name": "Meridian Consulting Group"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Asset",
+      "source_name": "Boiler Unit B-102",
+      "target_label": "Organization",
+      "target_name": "Meridian Consulting Group"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Asset",
+      "source_name": "Boiler Unit B-102",
+      "target_label": "Organization",
+      "target_name": "Summit Healthcare Systems"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Asset",
+      "source_name": "Generator Set GS-7",
+      "target_label": "Organization",
+      "target_name": "Pacific Northwest Industries"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Asset",
+      "source_name": "Generator Set GS-7",
+      "target_label": "Organization",
+      "target_name": "Summit Healthcare Systems"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Asset",
+      "source_name": "HVAC System Zone 5",
+      "target_label": "Organization",
+      "target_name": "Greenleaf Technologies"
+    },
+    {
+      "type": "ORIGINATES_FROM",
+      "source_label": "Alert",
+      "source_name": "Temperature Threshold Exceeded",
+      "target_label": "Location",
+      "target_name": "Downtown Medical Center"
+    },
+    {
+      "type": "ORIGINATES_FROM",
+      "source_label": "Alert",
+      "source_name": "Vibration Anomaly Detected",
+      "target_label": "Location",
+      "target_name": "Downtown Medical Center"
+    },
+    {
+      "type": "ORIGINATES_FROM",
+      "source_label": "Alert",
+      "source_name": "Vibration Anomaly Detected",
+      "target_label": "Location",
+      "target_name": "Riverside Research Park"
+    },
+    {
+      "type": "ORIGINATES_FROM",
+      "source_label": "Alert",
+      "source_name": "Pressure Drop Warning",
+      "target_label": "Location",
+      "target_name": "Harbor View Complex"
+    },
+    {
+      "type": "ORIGINATES_FROM",
+      "source_label": "Alert",
+      "source_name": "Communication Timeout",
+      "target_label": "Location",
+      "target_name": "Riverside Research Park"
+    },
+    {
+      "type": "ORIGINATES_FROM",
+      "source_label": "Alert",
+      "source_name": "Calibration Drift Alert",
+      "target_label": "Location",
+      "target_name": "Downtown Medical Center"
+    },
+    {
+      "type": "ORIGINATES_FROM",
+      "source_label": "Alert",
+      "source_name": "Calibration Drift Alert",
+      "target_label": "Location",
+      "target_name": "Westside Corporate Campus"
+    }
+  ],
+  "documents": [
+    {
+      "template_id": "incident_report",
+      "template_name": "Incident Report",
+      "title": "Incident Report: INC-2025-041 Database failover",
+      "content": "# Incident Report\n\n**Date:** 2025-05-08  \n**Domain:** Cybersecurity  \n**Reference:** Incident: INC-2025-041 Database failover, Person: Sarah Chen, Asset: Industrial Compressor C-401\n\n## Summary\n\nThis incident report documents post-incident report with root cause and remediation. It pertains to Incident: INC-2025-041 Database failover, Person: Sarah Chen, Asset: Industrial Compressor C-401 and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Incident: INC-2025-041 Database failover, Person: Sarah Chen, Asset: Industrial Compressor C-401 are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Incident: INC-2025-041 Database failover, Person: Sarah Chen, Asset: Industrial Compressor C-401, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior incident report records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "incident_report",
+      "template_name": "Incident Report",
+      "title": "Incident Report: INC-2025-078 API latency spike",
+      "content": "# Incident Report\n\n**Date:** 2025-09-19  \n**Domain:** Cybersecurity  \n**Reference:** Incident: INC-2025-078 API latency spike, Person: James Morrison, Asset: Cooling Tower CT-3\n\n## Summary\n\nThis incident report documents post-incident report with root cause and remediation. It pertains to Incident: INC-2025-078 API latency spike, Person: James Morrison, Asset: Cooling Tower CT-3 and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Incident: INC-2025-078 API latency spike, Person: James Morrison, Asset: Cooling Tower CT-3 are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Incident: INC-2025-078 API latency spike, Person: James Morrison, Asset: Cooling Tower CT-3, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior incident report records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "incident_report",
+      "template_name": "Incident Report",
+      "title": "Incident Report: INC-2025-112 Certificate expiry",
+      "content": "# Incident Report\n\n**Date:** 2026-01-02  \n**Domain:** Cybersecurity  \n**Reference:** Incident: INC-2025-112 Certificate expiry, Person: Maria Rodriguez, Asset: Boiler Unit B-102\n\n## Summary\n\nThis incident report documents post-incident report with root cause and remediation. It pertains to Incident: INC-2025-112 Certificate expiry, Person: Maria Rodriguez, Asset: Boiler Unit B-102 and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Incident: INC-2025-112 Certificate expiry, Person: Maria Rodriguez, Asset: Boiler Unit B-102 are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Incident: INC-2025-112 Certificate expiry, Person: Maria Rodriguez, Asset: Boiler Unit B-102, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior incident report records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "incident_report",
+      "template_name": "Incident Report",
+      "title": "Incident Report: INC-2025-156 DDoS mitigation",
+      "content": "# Incident Report\n\n**Date:** 2026-09-05  \n**Domain:** Cybersecurity  \n**Reference:** Incident: INC-2025-156 DDoS mitigation, Person: David Park, Asset: Generator Set GS-7\n\n## Summary\n\nThis incident report documents post-incident report with root cause and remediation. It pertains to Incident: INC-2025-156 DDoS mitigation, Person: David Park, Asset: Generator Set GS-7 and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Incident: INC-2025-156 DDoS mitigation, Person: David Park, Asset: Generator Set GS-7 are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Incident: INC-2025-156 DDoS mitigation, Person: David Park, Asset: Generator Set GS-7, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior incident report records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "incident_report",
+      "template_name": "Incident Report",
+      "title": "Incident Report: INC-2025-189 Data corruption",
+      "content": "# Incident Report\n\n**Date:** 2026-12-10  \n**Domain:** Cybersecurity  \n**Reference:** Incident: INC-2025-189 Data corruption, Person: Elena Volkov, Asset: HVAC System Zone 5\n\n## Summary\n\nThis incident report documents post-incident report with root cause and remediation. It pertains to Incident: INC-2025-189 Data corruption, Person: Elena Volkov, Asset: HVAC System Zone 5 and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Incident: INC-2025-189 Data corruption, Person: Elena Volkov, Asset: HVAC System Zone 5 are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Incident: INC-2025-189 Data corruption, Person: Elena Volkov, Asset: HVAC System Zone 5, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior incident report records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "vulnerability_advisory",
+      "template_name": "Vulnerability Advisory",
+      "title": "Vulnerability Advisory: Primary Analysis Report",
+      "content": "# Vulnerability Advisory\n\n**Date:** 2025-09-24  \n**Domain:** Cybersecurity  \n**Reference:** Vulnerability: Primary Analysis Report, Asset: Industrial Compressor C-401, Person: Sarah Chen\n\n## Summary\n\nThis vulnerability advisory documents internal advisory for a newly disclosed cve. It pertains to Vulnerability: Primary Analysis Report, Asset: Industrial Compressor C-401, Person: Sarah Chen and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Vulnerability: Primary Analysis Report, Asset: Industrial Compressor C-401, Person: Sarah Chen are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Vulnerability: Primary Analysis Report, Asset: Industrial Compressor C-401, Person: Sarah Chen, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior vulnerability advisory records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "vulnerability_advisory",
+      "template_name": "Vulnerability Advisory",
+      "title": "Vulnerability Advisory: Standard Operating Procedure",
+      "content": "# Vulnerability Advisory\n\n**Date:** 2025-06-25  \n**Domain:** Cybersecurity  \n**Reference:** Vulnerability: Standard Operating Procedure, Asset: Cooling Tower CT-3, Person: James Morrison\n\n## Summary\n\nThis vulnerability advisory documents internal advisory for a newly disclosed cve. It pertains to Vulnerability: Standard Operating Procedure, Asset: Cooling Tower CT-3, Person: James Morrison and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Vulnerability: Standard Operating Procedure, Asset: Cooling Tower CT-3, Person: James Morrison are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Vulnerability: Standard Operating Procedure, Asset: Cooling Tower CT-3, Person: James Morrison, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior vulnerability advisory records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "vulnerability_advisory",
+      "template_name": "Vulnerability Advisory",
+      "title": "Vulnerability Advisory: Quarterly Assessment Document",
+      "content": "# Vulnerability Advisory\n\n**Date:** 2024-10-17  \n**Domain:** Cybersecurity  \n**Reference:** Vulnerability: Quarterly Assessment Document, Asset: Boiler Unit B-102, Person: Maria Rodriguez\n\n## Summary\n\nThis vulnerability advisory documents internal advisory for a newly disclosed cve. It pertains to Vulnerability: Quarterly Assessment Document, Asset: Boiler Unit B-102, Person: Maria Rodriguez and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Vulnerability: Quarterly Assessment Document, Asset: Boiler Unit B-102, Person: Maria Rodriguez are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Vulnerability: Quarterly Assessment Document, Asset: Boiler Unit B-102, Person: Maria Rodriguez, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior vulnerability advisory records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "vulnerability_advisory",
+      "template_name": "Vulnerability Advisory",
+      "title": "Vulnerability Advisory: Technical Specification",
+      "content": "# Vulnerability Advisory\n\n**Date:** 2025-09-14  \n**Domain:** Cybersecurity  \n**Reference:** Vulnerability: Technical Specification, Asset: Generator Set GS-7, Person: David Park\n\n## Summary\n\nThis vulnerability advisory documents internal advisory for a newly disclosed cve. It pertains to Vulnerability: Technical Specification, Asset: Generator Set GS-7, Person: David Park and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Vulnerability: Technical Specification, Asset: Generator Set GS-7, Person: David Park are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Vulnerability: Technical Specification, Asset: Generator Set GS-7, Person: David Park, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior vulnerability advisory records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "vulnerability_advisory",
+      "template_name": "Vulnerability Advisory",
+      "title": "Vulnerability Advisory: Compliance Certificate",
+      "content": "# Vulnerability Advisory\n\n**Date:** 2024-10-15  \n**Domain:** Cybersecurity  \n**Reference:** Vulnerability: Compliance Certificate, Asset: HVAC System Zone 5, Person: Elena Volkov\n\n## Summary\n\nThis vulnerability advisory documents internal advisory for a newly disclosed cve. It pertains to Vulnerability: Compliance Certificate, Asset: HVAC System Zone 5, Person: Elena Volkov and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Vulnerability: Compliance Certificate, Asset: HVAC System Zone 5, Person: Elena Volkov are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Vulnerability: Compliance Certificate, Asset: HVAC System Zone 5, Person: Elena Volkov, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior vulnerability advisory records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "threat_brief",
+      "template_name": "Threat Intelligence Brief",
+      "title": "Threat Intelligence Brief: Meridian Consulting Group",
+      "content": "# Threat Intelligence Brief\n\n**Date:** 2025-11-05  \n**Domain:** Cybersecurity  \n**Reference:** ThreatActor: Meridian Consulting Group, Vulnerability: Primary Analysis Report\n\n## Summary\n\nThis threat intelligence brief documents intel brief on a threat actor or campaign. It pertains to ThreatActor: Meridian Consulting Group, Vulnerability: Primary Analysis Report and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to ThreatActor: Meridian Consulting Group, Vulnerability: Primary Analysis Report are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of ThreatActor: Meridian Consulting Group, Vulnerability: Primary Analysis Report, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior threat intelligence brief records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "threat_brief",
+      "template_name": "Threat Intelligence Brief",
+      "title": "Threat Intelligence Brief: Pacific Northwest Industries",
+      "content": "# Threat Intelligence Brief\n\n**Date:** 2026-11-07  \n**Domain:** Cybersecurity  \n**Reference:** ThreatActor: Pacific Northwest Industries, Vulnerability: Standard Operating Procedure\n\n## Summary\n\nThis threat intelligence brief documents intel brief on a threat actor or campaign. It pertains to ThreatActor: Pacific Northwest Industries, Vulnerability: Standard Operating Procedure and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to ThreatActor: Pacific Northwest Industries, Vulnerability: Standard Operating Procedure are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of ThreatActor: Pacific Northwest Industries, Vulnerability: Standard Operating Procedure, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior threat intelligence brief records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "threat_brief",
+      "template_name": "Threat Intelligence Brief",
+      "title": "Threat Intelligence Brief: Apex Financial Partners",
+      "content": "# Threat Intelligence Brief\n\n**Date:** 2025-11-15  \n**Domain:** Cybersecurity  \n**Reference:** ThreatActor: Apex Financial Partners, Vulnerability: Quarterly Assessment Document\n\n## Summary\n\nThis threat intelligence brief documents intel brief on a threat actor or campaign. It pertains to ThreatActor: Apex Financial Partners, Vulnerability: Quarterly Assessment Document and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to ThreatActor: Apex Financial Partners, Vulnerability: Quarterly Assessment Document are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of ThreatActor: Apex Financial Partners, Vulnerability: Quarterly Assessment Document, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior threat intelligence brief records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "threat_brief",
+      "template_name": "Threat Intelligence Brief",
+      "title": "Threat Intelligence Brief: Greenleaf Technologies",
+      "content": "# Threat Intelligence Brief\n\n**Date:** 2024-12-03  \n**Domain:** Cybersecurity  \n**Reference:** ThreatActor: Greenleaf Technologies, Vulnerability: Technical Specification\n\n## Summary\n\nThis threat intelligence brief documents intel brief on a threat actor or campaign. It pertains to ThreatActor: Greenleaf Technologies, Vulnerability: Technical Specification and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to ThreatActor: Greenleaf Technologies, Vulnerability: Technical Specification are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of ThreatActor: Greenleaf Technologies, Vulnerability: Technical Specification, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior threat intelligence brief records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "threat_brief",
+      "template_name": "Threat Intelligence Brief",
+      "title": "Threat Intelligence Brief: Summit Healthcare Systems",
+      "content": "# Threat Intelligence Brief\n\n**Date:** 2024-07-31  \n**Domain:** Cybersecurity  \n**Reference:** ThreatActor: Summit Healthcare Systems, Vulnerability: Compliance Certificate\n\n## Summary\n\nThis threat intelligence brief documents intel brief on a threat actor or campaign. It pertains to ThreatActor: Summit Healthcare Systems, Vulnerability: Compliance Certificate and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to ThreatActor: Summit Healthcare Systems, Vulnerability: Compliance Certificate are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of ThreatActor: Summit Healthcare Systems, Vulnerability: Compliance Certificate, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior threat intelligence brief records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "control_assessment",
+      "template_name": "Control Assessment",
+      "title": "Control Assessment: Primary Analysis Report",
+      "content": "# Control Assessment\n\n**Date:** 2025-06-09  \n**Domain:** Cybersecurity  \n**Reference:** Control: Primary Analysis Report, Person: Sarah Chen\n\n## Summary\n\nThis control assessment documents assessment of a security control against the framework. It pertains to Control: Primary Analysis Report, Person: Sarah Chen and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Control: Primary Analysis Report, Person: Sarah Chen are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Control: Primary Analysis Report, Person: Sarah Chen, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior control assessment records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "control_assessment",
+      "template_name": "Control Assessment",
+      "title": "Control Assessment: Standard Operating Procedure",
+      "content": "# Control Assessment\n\n**Date:** 2024-03-09  \n**Domain:** Cybersecurity  \n**Reference:** Control: Standard Operating Procedure, Person: James Morrison\n\n## Summary\n\nThis control assessment documents assessment of a security control against the framework. It pertains to Control: Standard Operating Procedure, Person: James Morrison and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Control: Standard Operating Procedure, Person: James Morrison are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Control: Standard Operating Procedure, Person: James Morrison, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior control assessment records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "control_assessment",
+      "template_name": "Control Assessment",
+      "title": "Control Assessment: Quarterly Assessment Document",
+      "content": "# Control Assessment\n\n**Date:** 2025-01-17  \n**Domain:** Cybersecurity  \n**Reference:** Control: Quarterly Assessment Document, Person: Maria Rodriguez\n\n## Summary\n\nThis control assessment documents assessment of a security control against the framework. It pertains to Control: Quarterly Assessment Document, Person: Maria Rodriguez and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Control: Quarterly Assessment Document, Person: Maria Rodriguez are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Control: Quarterly Assessment Document, Person: Maria Rodriguez, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior control assessment records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "control_assessment",
+      "template_name": "Control Assessment",
+      "title": "Control Assessment: Technical Specification",
+      "content": "# Control Assessment\n\n**Date:** 2025-07-24  \n**Domain:** Cybersecurity  \n**Reference:** Control: Technical Specification, Person: David Park\n\n## Summary\n\nThis control assessment documents assessment of a security control against the framework. It pertains to Control: Technical Specification, Person: David Park and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Control: Technical Specification, Person: David Park are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Control: Technical Specification, Person: David Park, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior control assessment records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "control_assessment",
+      "template_name": "Control Assessment",
+      "title": "Control Assessment: Compliance Certificate",
+      "content": "# Control Assessment\n\n**Date:** 2025-07-16  \n**Domain:** Cybersecurity  \n**Reference:** Control: Compliance Certificate, Person: Elena Volkov\n\n## Summary\n\nThis control assessment documents assessment of a security control against the framework. It pertains to Control: Compliance Certificate, Person: Elena Volkov and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Control: Compliance Certificate, Person: Elena Volkov are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Control: Compliance Certificate, Person: Elena Volkov, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior control assessment records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "phishing_email",
+      "template_name": "Phishing Investigation Email",
+      "title": "Phishing Investigation Email: Sarah Chen",
+      "content": "# Phishing Investigation Email\n\n**Date:** 2026-06-24  \n**Domain:** Cybersecurity  \n**Reference:** Person: Sarah Chen, User: Sarah Chen, Alert: Temperature Threshold Exceeded\n\n## Summary\n\nThis phishing investigation email documents internal email about a suspicious phishing campaign. It pertains to Person: Sarah Chen, User: Sarah Chen, Alert: Temperature Threshold Exceeded and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Person: Sarah Chen, User: Sarah Chen, Alert: Temperature Threshold Exceeded are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Person: Sarah Chen, User: Sarah Chen, Alert: Temperature Threshold Exceeded, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior phishing investigation email records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "phishing_email",
+      "template_name": "Phishing Investigation Email",
+      "title": "Phishing Investigation Email: James Morrison",
+      "content": "# Phishing Investigation Email\n\n**Date:** 2026-11-28  \n**Domain:** Cybersecurity  \n**Reference:** Person: James Morrison, User: James Morrison, Alert: Vibration Anomaly Detected\n\n## Summary\n\nThis phishing investigation email documents internal email about a suspicious phishing campaign. It pertains to Person: James Morrison, User: James Morrison, Alert: Vibration Anomaly Detected and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Person: James Morrison, User: James Morrison, Alert: Vibration Anomaly Detected are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Person: James Morrison, User: James Morrison, Alert: Vibration Anomaly Detected, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior phishing investigation email records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "phishing_email",
+      "template_name": "Phishing Investigation Email",
+      "title": "Phishing Investigation Email: Maria Rodriguez",
+      "content": "# Phishing Investigation Email\n\n**Date:** 2025-04-14  \n**Domain:** Cybersecurity  \n**Reference:** Person: Maria Rodriguez, User: Maria Rodriguez, Alert: Pressure Drop Warning\n\n## Summary\n\nThis phishing investigation email documents internal email about a suspicious phishing campaign. It pertains to Person: Maria Rodriguez, User: Maria Rodriguez, Alert: Pressure Drop Warning and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Person: Maria Rodriguez, User: Maria Rodriguez, Alert: Pressure Drop Warning are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Person: Maria Rodriguez, User: Maria Rodriguez, Alert: Pressure Drop Warning, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior phishing investigation email records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "phishing_email",
+      "template_name": "Phishing Investigation Email",
+      "title": "Phishing Investigation Email: David Park",
+      "content": "# Phishing Investigation Email\n\n**Date:** 2026-01-26  \n**Domain:** Cybersecurity  \n**Reference:** Person: David Park, User: David Park, Alert: Communication Timeout\n\n## Summary\n\nThis phishing investigation email documents internal email about a suspicious phishing campaign. It pertains to Person: David Park, User: David Park, Alert: Communication Timeout and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Person: David Park, User: David Park, Alert: Communication Timeout are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Person: David Park, User: David Park, Alert: Communication Timeout, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior phishing investigation email records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    },
+    {
+      "template_id": "phishing_email",
+      "template_name": "Phishing Investigation Email",
+      "title": "Phishing Investigation Email: Elena Volkov",
+      "content": "# Phishing Investigation Email\n\n**Date:** 2024-07-24  \n**Domain:** Cybersecurity  \n**Reference:** Person: Elena Volkov, User: Elena Volkov, Alert: Calibration Drift Alert\n\n## Summary\n\nThis phishing investigation email documents internal email about a suspicious phishing campaign. It pertains to Person: Elena Volkov, User: Elena Volkov, Alert: Calibration Drift Alert and was prepared as part of standard cybersecurity operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Person: Elena Volkov, User: Elena Volkov, Alert: Calibration Drift Alert are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Person: Elena Volkov, User: Elena Volkov, Alert: Calibration Drift Alert, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior phishing investigation email records for historical context and trend analysis.\n\n---\n\n*Document generated for Cybersecurity context graph application.*"
+    }
+  ],
+  "traces": [
+    {
+      "id": "alert_triage",
+      "task": "Triage alert Vibration Anomaly Detected with severity high",
+      "steps": [
+        {
+          "thought": "Confirm the alert against detection signal quality",
+          "action": "Check the detection source, prior false-positive rate, and alert volume",
+          "observation": "Verified Technical Specification against cybersecurity standards. All 6 checked parameters within acceptable thresholds."
+        },
+        {
+          "thought": "Map the alert to affected assets and users",
+          "action": "Find assets targeted by the alert and users with recent access",
+          "observation": "Action completed for David Park. Results consistent with expected cybersecurity domain patterns."
+        },
+        {
+          "thought": "Search for correlated alerts in the same window",
+          "action": "Query alerts on the same assets in the past 24 hours",
+          "observation": "Found 10 relevant records in the cybersecurity knowledge graph. Top result: Pacific Northwest Industries with 2 connected entities."
+        },
+        {
+          "thought": "Assign severity and ownership",
+          "action": "Compare against criticality of affected assets and on-call roster",
+          "observation": "Action completed for Quarterly Assessment Document. Results consistent with expected cybersecurity domain patterns."
+        }
+      ],
+      "outcome": "Triage: the assessed criteria. Owner: the assessed criteria. Escalation: the assessed criteria"
+    },
+    {
+      "id": "patch_prioritization",
+      "task": "Prioritize patching for VUL-2025-0004",
+      "steps": [
+        {
+          "thought": "Quantify exposure across the fleet",
+          "action": "Count assets affected and break down by criticality and environment",
+          "observation": "Action completed for Quarterly Assessment Document. Results consistent with expected cybersecurity domain patterns."
+        },
+        {
+          "thought": "Assess exploitability and active threat interest",
+          "action": "Find threat actors known to exploit this vulnerability",
+          "observation": "Action completed for Greenleaf Technologies. Results consistent with expected cybersecurity domain patterns."
+        },
+        {
+          "thought": "Evaluate compensating controls",
+          "action": "Find controls that mitigate this vulnerability and check their status",
+          "observation": "Verified Pressure Drop Warning against cybersecurity standards. All 7 checked parameters within acceptable thresholds."
+        },
+        {
+          "thought": "Schedule against maintenance windows",
+          "action": "Review dependencies for assets requiring patching",
+          "observation": "Review of James Morrison completed. Identified 5 key factors relevant to the current decision context."
+        }
+      ],
+      "outcome": "Priority: high. Window: the assessed criteria. Risk-accepted assets: the assessed criteria"
+    },
+    {
+      "id": "incident_containment",
+      "task": "Containment plan for INC-2025-078 API latency spike",
+      "steps": [
+        {
+          "thought": "Identify lateral-movement risk",
+          "action": "Find assets connected to the affected asset via DEPENDS_ON or ACCESSES",
+          "observation": "Action completed for Elena Volkov. Results consistent with expected cybersecurity domain patterns."
+        },
+        {
+          "thought": "Decide between isolation and continued observation",
+          "action": "Compare business impact of isolation against attacker's known TTPs",
+          "observation": "Action completed for Quarterly Assessment Document. Results consistent with expected cybersecurity domain patterns."
+        },
+        {
+          "thought": "Coordinate user-credential responses",
+          "action": "Find users with recent access to affected assets and their privilege levels",
+          "observation": "Action completed for Standard Operating Procedure. Results consistent with expected cybersecurity domain patterns."
+        }
+      ],
+      "outcome": "Action: immediate follow-up recommended. Assets isolated: the assessed criteria. User actions: the assessed criteria"
+    },
+    {
+      "id": "false_positive_review",
+      "task": "Review repeated false positives from cloud_native",
+      "steps": [
+        {
+          "thought": "Quantify the noise volume and pattern",
+          "action": "Count alerts marked false-positive over the past 30 days from this source",
+          "observation": "Action completed for Primary Analysis Report. Results consistent with expected cybersecurity domain patterns."
+        },
+        {
+          "thought": "Determine if a detection rule needs tuning",
+          "action": "Find common asset targets and timing patterns in the false-positives",
+          "observation": "Action completed for David Park. Results consistent with expected cybersecurity domain patterns."
+        },
+        {
+          "thought": "Evaluate downstream cost of suppression",
+          "action": "Check whether any true incidents originated from this rule historically",
+          "observation": "Verified Vibration Anomaly Detected against cybersecurity standards. All 8 checked parameters within acceptable thresholds."
+        }
+      ],
+      "outcome": "Decision: Approve. Tuning: the assessed criteria. Owner: the assessed criteria"
+    }
+  ]
+}

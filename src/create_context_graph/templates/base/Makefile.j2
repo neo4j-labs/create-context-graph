@@ -25,8 +25,12 @@ dev-backend:
 {% endif %}
 
 install-backend:
-	cd backend && uv sync
-	cd backend && uv run python -m spacy download en_core_web_sm
+	cd backend && uv sync --extra dev
+{% if not is_nams %}
+	@cd backend && uv run python -c "import spacy" 2>/dev/null && \
+		uv run python -m spacy download en_core_web_sm || \
+		echo "spacy not installed — skipping model download (NAMS backend or extraction extra disabled)"
+{% endif %}
 
 # Frontend
 dev-frontend:
@@ -46,6 +50,35 @@ schema:
 seed:
 	cd backend && uv run python scripts/generate_data.py
 
+{% if is_nams %}
+# Reset NAMS memory store (per-entity REST deletes — slow; use --self-hosted for fast Cypher reset)
+reset:
+	@echo "Resetting NAMS memory store via REST (this may take a while)..."
+	cd backend && uv run python -c "import asyncio; from app.memory import connect_memory, close_memory, get_client; \
+async def _reset(): \
+    await connect_memory(); \
+    c = get_client(); \
+    if c is None: print('NAMS client not connected'); return; \
+    entities = await c.long_term.search_entities(query='', limit=1000); \
+    for e in entities: \
+        eid = getattr(e, 'id', None) or getattr(e, 'entity_id', None); \
+        if eid: \
+            try: await c.long_term.delete_entity(eid) \
+            except Exception: pass; \
+    print(f'Removed {len(entities)} entities'); \
+    await close_memory(); \
+asyncio.run(_reset())"
+
+# Test NAMS connection
+test-connection:
+	@cd backend && uv run python -c "import asyncio; from app.memory import connect_memory, close_memory, get_client; \
+async def _check(): \
+    await connect_memory(); \
+    c = get_client(); \
+    print('NAMS connection successful' if c is not None else 'NAMS connection failed'); \
+    await close_memory(); \
+asyncio.run(_check())"
+{% else %}
 # Reset Neo4j data (drop and recreate)
 reset:
 	cd backend && uv run python -c "from app.context_graph_client import reset_database; import asyncio; asyncio.run(reset_database())"
@@ -54,6 +87,7 @@ reset:
 test-connection:
 	@cd backend && uv run python -c "import asyncio; from app.context_graph_client import connect_neo4j; asyncio.run(connect_neo4j()); print('Neo4j connection successful')" \
 		|| echo "Connection failed. Check NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD in .env"
+{% endif %}
 
 {% if neo4j_type == 'docker' %}
 # Docker Neo4j
@@ -79,22 +113,38 @@ neo4j-status:
 {% endif %}
 
 {% if with_mcp %}
-# MCP Server for Claude Desktop
+{% if is_nams %}
+# MCP Server for Claude Desktop (NAMS backend)
+mcp-server:  ## Start MCP server for Claude Desktop (NAMS)
+	cd backend && MEMORY_API_KEY=$${MEMORY_API_KEY} MEMORY_NAMS_ENDPOINT={{ nams_endpoint }} \
+		uv run python -m neo4j_agent_memory.mcp.server \
+		--backend nams \
+		--profile {{ mcp_profile }}
+{% else %}
+# MCP Server for Claude Desktop (bolt backend)
 mcp-server:  ## Start MCP server for Claude Desktop
 	cd backend && uv run python -m neo4j_agent_memory.mcp.server \
 		--neo4j-uri $${NEO4J_URI:-neo4j://localhost:7687} \
 		--neo4j-password $${NEO4J_PASSWORD:-password} \
 		--profile {{ mcp_profile }}
 {% endif %}
+{% endif %}
 
 {% if saas_connectors %}
-# Fetch real data from connected services into data/fixtures.json
+# Fetch from connected services and ingest into the configured memory backend
+# (NAMS or self-hosted bolt). Idempotent: each connector tracks a watermark in
+# .context-graph/watermarks.json so re-runs only fetch deltas.
 import:
 	cd backend && uv run python scripts/import_data.py
 
-# Fetch real data and ingest it into Neo4j (schema + import + seed in one step)
-import-and-seed: import
-	cd backend && uv run python scripts/generate_data.py
+# Fetch only (no ingest). Writes data/fixtures.json for inspection.
+import-dry-run:
+	cd backend && uv run python scripts/import_data.py --dry-run
+
+# Drain .context-graph/deadletter.jsonl back through the writer. Use after an
+# outage / partial-failure import to re-attempt the failed records.
+import-retry:
+	cd backend && uv run python scripts/import_data.py --retry
 {% endif %}
 
 # Test

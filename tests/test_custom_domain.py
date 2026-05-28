@@ -20,9 +20,11 @@ import pytest
 from pydantic import ValidationError
 
 from create_context_graph.custom_domain import (
+    _ONTOLOGY_MAX_TOKENS,
     _build_domain_generation_prompt,
     _build_retry_prompt,
     _strip_yaml_fences,
+    _validate_ontology_completeness,
     display_ontology_summary,
     generate_custom_domain,
     save_custom_domain,
@@ -279,11 +281,15 @@ class TestStripYamlFences:
 
 
 class TestGenerateCustomDomain:
+    # generate_custom_domain now calls _llm_generate with return_stop_reason=True,
+    # so all mocks must return ``(text, stop_reason)``. ``stop_reason="end_turn"``
+    # is the normal-completion value for Anthropic (OpenAI's equivalent is
+    # ``"stop"``); ``"max_tokens"`` / ``"length"`` signal truncation.
     @patch("create_context_graph.custom_domain._llm_generate")
     @patch("create_context_graph.custom_domain._get_llm_client")
     def test_success(self, mock_get_client, mock_generate):
         mock_get_client.return_value = (MagicMock(), "anthropic")
-        mock_generate.return_value = VALID_DOMAIN_YAML
+        mock_generate.return_value = (VALID_DOMAIN_YAML, "end_turn")
 
         ontology, raw_yaml = generate_custom_domain("test domain", "fake-key")
         assert isinstance(ontology, DomainOntology)
@@ -295,7 +301,10 @@ class TestGenerateCustomDomain:
     def test_retry_on_validation_error(self, mock_get_client, mock_generate):
         mock_get_client.return_value = (MagicMock(), "anthropic")
         # First call returns invalid, second returns valid
-        mock_generate.side_effect = [INVALID_DOMAIN_YAML, VALID_DOMAIN_YAML]
+        mock_generate.side_effect = [
+            (INVALID_DOMAIN_YAML, "end_turn"),
+            (VALID_DOMAIN_YAML, "end_turn"),
+        ]
 
         ontology, raw_yaml = generate_custom_domain("test domain", "fake-key")
         assert isinstance(ontology, DomainOntology)
@@ -305,7 +314,7 @@ class TestGenerateCustomDomain:
     @patch("create_context_graph.custom_domain._get_llm_client")
     def test_max_retries_exceeded(self, mock_get_client, mock_generate):
         mock_get_client.return_value = (MagicMock(), "anthropic")
-        mock_generate.return_value = INVALID_DOMAIN_YAML
+        mock_generate.return_value = (INVALID_DOMAIN_YAML, "end_turn")
 
         with pytest.raises(ValueError, match="Failed to generate valid domain"):
             generate_custom_domain("test domain", "fake-key", max_retries=2)
@@ -314,6 +323,120 @@ class TestGenerateCustomDomain:
         with patch("create_context_graph.custom_domain._get_llm_client", return_value=(None, None)):
             with pytest.raises(ValueError, match="Could not initialize LLM client"):
                 generate_custom_domain("test", "fake")
+
+    def test_no_client_error_message_is_actionable(self):
+        """When anthropic/openai isn't installed (common uvx footgun), the
+        error must tell the user exactly how to fix it.
+        """
+        with patch(
+            "create_context_graph.custom_domain._get_llm_client",
+            return_value=(None, None),
+        ):
+            with pytest.raises(ValueError) as excinfo:
+                generate_custom_domain("test", "fake")
+        msg = str(excinfo.value)
+        # Must mention both the pip-install and uvx-invocation paths.
+        assert "pip install" in msg
+        assert "create-context-graph[generate]" in msg
+        assert "uvx --with anthropic" in msg
+
+    @patch("create_context_graph.custom_domain._llm_generate")
+    @patch("create_context_graph.custom_domain._get_llm_client")
+    def test_uses_large_max_tokens(self, mock_get_client, mock_generate):
+        """The generator-wide 4096 default truncated 20KB+ ontology YAMLs.
+        Custom-domain generation must request a large output budget.
+        """
+        mock_get_client.return_value = (MagicMock(), "anthropic")
+        mock_generate.return_value = (VALID_DOMAIN_YAML, "end_turn")
+
+        generate_custom_domain("test domain", "fake-key")
+        # Inspect what _llm_generate was actually called with.
+        call_kwargs = mock_generate.call_args.kwargs
+        assert call_kwargs["max_tokens"] >= 16000, (
+            f"max_tokens must be large enough for full ontologies "
+            f"(~5–8k tokens of YAML); got {call_kwargs['max_tokens']}"
+        )
+        assert call_kwargs["return_stop_reason"] is True
+
+    @patch("create_context_graph.custom_domain._llm_generate")
+    @patch("create_context_graph.custom_domain._get_llm_client")
+    def test_truncation_triggers_retry(self, mock_get_client, mock_generate):
+        """When the LLM hits max_tokens, the partial output must be retried."""
+        mock_get_client.return_value = (MagicMock(), "anthropic")
+        # First call: truncated (parses OK-ish but should be rejected by
+        # stop_reason check). Second call: complete.
+        mock_generate.side_effect = [
+            (VALID_DOMAIN_YAML, "max_tokens"),  # would otherwise succeed
+            (VALID_DOMAIN_YAML, "end_turn"),
+        ]
+        ontology, _ = generate_custom_domain("test", "fake-key")
+        assert isinstance(ontology, DomainOntology)
+        assert mock_generate.call_count == 2
+
+    @patch("create_context_graph.custom_domain._llm_generate")
+    @patch("create_context_graph.custom_domain._get_llm_client")
+    def test_persistent_truncation_raises(self, mock_get_client, mock_generate):
+        mock_get_client.return_value = (MagicMock(), "anthropic")
+        mock_generate.return_value = (VALID_DOMAIN_YAML, "max_tokens")
+        with pytest.raises(ValueError, match="Failed to generate valid domain"):
+            generate_custom_domain("test", "fake-key", max_retries=2)
+
+    @patch("create_context_graph.custom_domain._llm_generate")
+    @patch("create_context_graph.custom_domain._get_llm_client")
+    def test_incomplete_ontology_triggers_retry(self, mock_get_client, mock_generate):
+        """A YAML missing system_prompt parses successfully (Pydantic defaults
+        to empty) but is unusable — must be caught by the completeness check.
+        """
+        mock_get_client.return_value = (MagicMock(), "anthropic")
+        # Strip system_prompt and visualization sections — the YAML still parses
+        # but produces a skeletal ontology with empty defaults.
+        truncated_yaml = VALID_DOMAIN_YAML.split("system_prompt:")[0]
+        mock_generate.side_effect = [
+            (truncated_yaml, "end_turn"),  # parses, but incomplete
+            (VALID_DOMAIN_YAML, "end_turn"),
+        ]
+        ontology, _ = generate_custom_domain("test", "fake-key")
+        assert isinstance(ontology, DomainOntology)
+        assert ontology.system_prompt  # second attempt had it
+        assert mock_generate.call_count == 2
+
+
+class TestValidateOntologyCompleteness:
+    """Direct tests for _validate_ontology_completeness."""
+
+    def test_full_ontology_is_complete(self):
+        ontology = load_domain_from_yaml_string(VALID_DOMAIN_YAML)
+        assert _validate_ontology_completeness(ontology) == []
+
+    def test_missing_system_prompt_flagged(self):
+        ontology = load_domain_from_yaml_string(VALID_DOMAIN_YAML)
+        ontology.system_prompt = ""
+        problems = _validate_ontology_completeness(ontology)
+        assert any("system_prompt" in p for p in problems)
+
+    def test_empty_visualization_flagged(self):
+        ontology = load_domain_from_yaml_string(VALID_DOMAIN_YAML)
+        ontology.visualization.node_colors = {}
+        problems = _validate_ontology_completeness(ontology)
+        assert any("visualization.node_colors" in p for p in problems)
+
+    def test_too_few_agent_tools_flagged(self):
+        ontology = load_domain_from_yaml_string(VALID_DOMAIN_YAML)
+        ontology.agent_tools = ontology.agent_tools[:2]
+        problems = _validate_ontology_completeness(ontology)
+        assert any("agent_tools" in p for p in problems)
+
+    def test_too_few_entity_types_flagged(self):
+        ontology = load_domain_from_yaml_string(VALID_DOMAIN_YAML)
+        # Schema spec requires "at least 3 domain-specific entity types"
+        ontology.entity_types = ontology.entity_types[:2]
+        problems = _validate_ontology_completeness(ontology)
+        assert any("entity_types" in p for p in problems)
+
+    def test_ontology_max_tokens_is_sane(self):
+        # Healthcare YAML is 20,793 bytes ≈ 5–7k tokens. The cap needs to
+        # be comfortably above that to leave room for richer ontologies.
+        assert _ONTOLOGY_MAX_TOKENS >= 16000
 
 
 # ---------------------------------------------------------------------------

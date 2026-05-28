@@ -62,6 +62,19 @@ The export email typically arrives within a few minutes. Check your spam folder 
 ChatGPT exports include DALL-E generated images and uploaded files alongside the conversation JSON. The import process only reads `conversations.json` -- image files are ignored.
 :::
 
+## Step 1.5: Preview your export (optional, recommended)
+
+Before scaffolding a full project, you can preview what will be imported. This parses the export file and prints a summary (conversation count, date range, sample titles) without creating any files or writing to Neo4j — useful for sanity-checking a multi-GB export before committing to a long ingest:
+
+```bash
+uvx create-context-graph \
+  --import-preview \
+  --import-type claude-ai \
+  --import-file ~/Downloads/claude-export.zip
+```
+
+The same flag works for ChatGPT exports — swap `--import-type chatgpt` and point `--import-file` at the ChatGPT `.zip`. Combine with any of the `--import-filter-*` flags below to preview a filtered subset.
+
 ## Step 2: Scaffold the project
 
 Run the CLI with the `--import-type` and `--import-file` flags:
@@ -162,6 +175,7 @@ uvx create-context-graph my-chat-graph \
 
 | Flag | Type | Default | Description |
 |------|------|---------|-------------|
+| `--import-preview` | `flag` | `false` | Parse the export file and print a summary without scaffolding or ingesting. Requires `--import-type` and `--import-file`. |
 | `--import-type` | `choice` | -- | Import source: `claude-ai` or `chatgpt` |
 | `--import-file` | `path` | -- | Path to export file (`.zip`, `.json`, `.jsonl`) |
 | `--import-depth` | `choice` | `fast` | Extraction depth: `fast` or `deep` |

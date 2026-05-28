@@ -21,6 +21,7 @@ valid syntax, and expected content.
 from __future__ import annotations
 
 import json
+import re
 
 import pytest
 import yaml
@@ -32,11 +33,12 @@ from create_context_graph.renderer import ProjectRenderer
 
 @pytest.fixture
 def generated_project(tmp_path):
-    """Scaffold a full project and return its path."""
+    """Scaffold a full project and return its path. Uses self-hosted bolt backend."""
     config = ProjectConfig(
         project_name="Deep Validation App",
         domain="financial-services",
         framework="pydanticai",
+        memory_backend="bolt",
         neo4j_uri="neo4j://localhost:7687",
         neo4j_username="neo4j",
         neo4j_password="testpass123",
@@ -83,6 +85,146 @@ class TestGeneratedPythonFiles:
         assert (out / "backend" / "app" / "__init__.py").exists()
 
 
+@pytest.fixture
+def generated_project_with_connectors(tmp_path):
+    """Scaffold a self-hosted bolt project with a connector enabled so the
+    ``backend/scripts/import_data.py`` template gets emitted (it is gated
+    behind ``saas_connectors`` in the renderer)."""
+    config = ProjectConfig(
+        project_name="Import Data Bolt App",
+        domain="healthcare",
+        framework="strands",
+        memory_backend="bolt",
+        neo4j_uri="neo4j://localhost:7687",
+        neo4j_username="neo4j",
+        neo4j_password="testpass123",
+        saas_connectors=["linear"],
+    )
+    ontology = load_domain(config.domain)
+    out = tmp_path / "import-bolt-project"
+    renderer = ProjectRenderer(config, ontology)
+    renderer.render(out)
+    return out, config
+
+
+@pytest.fixture
+def generated_project_with_connectors_nams(tmp_path):
+    """NAMS counterpart: same connector, NAMS backend. Both branches of
+    ``import_data.py`` are rendered into the same file regardless of backend
+    — the runtime ``settings.memory_backend`` selects which one runs — so
+    these fixtures exercise the same template through different ProjectConfig
+    paths to catch backend-specific Jinja2 issues."""
+    config = ProjectConfig(
+        project_name="Import Data Nams App",
+        domain="healthcare",
+        framework="strands",
+        memory_backend="nams",
+        memory_api_key="sk-test-nams",
+        saas_connectors=["linear"],
+    )
+    ontology = load_domain(config.domain)
+    out = tmp_path / "import-nams-project"
+    renderer = ProjectRenderer(config, ontology)
+    renderer.render(out)
+    return out, config
+
+
+class TestGeneratedImportDataAsyncShape:
+    """Pins the bolt ingest path's async shape so the v0.12.0 sync/async
+    mismatch (``def _ingest_via_bolt`` calling ``with driver.session()`` on
+    an ``AsyncDriver``) cannot regress silently. v0.12.0 shipped this bug
+    because the file was never syntax-checked AND no test exercised the
+    bolt branch."""
+
+    IMPORT_DATA_REL = "backend/scripts/import_data.py"
+
+    def _parse(self, out):
+        import ast
+        path = out / self.IMPORT_DATA_REL
+        assert path.exists(), f"{self.IMPORT_DATA_REL} missing — connector scaffold should emit it"
+        source = path.read_text()
+        # First: it must compile. v0.12.0 failed this when run, but the file
+        # itself was syntactically valid — so we also AST-walk below.
+        try:
+            tree = ast.parse(source)
+        except SyntaxError as e:
+            pytest.fail(f"{self.IMPORT_DATA_REL} syntax error: {e}")
+        return tree, source
+
+    def test_import_data_py_compiles_bolt(self, generated_project_with_connectors):
+        out, _ = generated_project_with_connectors
+        path = out / self.IMPORT_DATA_REL
+        compile(path.read_text(), str(path), "exec")
+
+    def test_import_data_py_compiles_nams(self, generated_project_with_connectors_nams):
+        out, _ = generated_project_with_connectors_nams
+        path = out / self.IMPORT_DATA_REL
+        compile(path.read_text(), str(path), "exec")
+
+    def test_ingest_via_bolt_is_async(self, generated_project_with_connectors):
+        """``_ingest_via_bolt`` must be ``async def`` because ``get_driver()``
+        returns an ``AsyncDriver``. v0.12.0 had this as plain ``def``."""
+        import ast
+        tree, _ = self._parse(generated_project_with_connectors[0])
+        fn = next(
+            (n for n in ast.walk(tree)
+             if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef))
+             and n.name == "_ingest_via_bolt"),
+            None,
+        )
+        assert fn is not None, "_ingest_via_bolt not found"
+        assert isinstance(fn, ast.AsyncFunctionDef), (
+            f"_ingest_via_bolt must be async def (got {type(fn).__name__}); "
+            "AsyncDriver.session() requires async with + await session.run(...)."
+        )
+
+    def test_all_session_run_calls_are_awaited(self, generated_project_with_connectors):
+        """Every ``session.run(...)`` inside ``_ingest_via_bolt`` must be
+        awaited. A bare ``session.run(...)`` on an async session returns a
+        coroutine that the rest of the function will try to iterate
+        synchronously and crash on. AST-walk catches sneaky cases the
+        ``async def`` check above would miss."""
+        import ast
+        tree, _ = self._parse(generated_project_with_connectors[0])
+        fn = next(
+            n for n in ast.walk(tree)
+            if isinstance(n, ast.AsyncFunctionDef) and n.name == "_ingest_via_bolt"
+        )
+        offenders: list[int] = []
+        for node in ast.walk(fn):
+            if isinstance(node, ast.Call):
+                # session.run(...)
+                if (isinstance(node.func, ast.Attribute)
+                        and node.func.attr == "run"
+                        and isinstance(node.func.value, ast.Name)
+                        and node.func.value.id == "session"):
+                    parent_lines = [
+                        a.lineno for a in ast.walk(fn)
+                        if isinstance(a, ast.Await) and isinstance(a.value, ast.Call)
+                        and a.value is node
+                    ]
+                    if not parent_lines:
+                        offenders.append(node.lineno)
+        assert not offenders, (
+            f"Un-awaited session.run(...) calls inside _ingest_via_bolt at "
+            f"lines {offenders}. AsyncDriver requires every session.run to be awaited."
+        )
+
+    def test_both_call_sites_use_asyncio_run(self, generated_project_with_connectors):
+        """``main()`` and ``_retry_deadletter()`` both invoke ``_ingest_via_bolt``;
+        both must wrap with ``asyncio.run(...)``. v0.12.0 had ``main()`` call
+        the function directly, which would have raised ``TypeError: object
+        coroutine can't be used in 'await' expression`` after the async fix
+        if the call site wasn't also updated."""
+        _, source = self._parse(generated_project_with_connectors[0])
+        # Two call sites; both must be wrapped.
+        count = source.count("asyncio.run(_ingest_via_bolt(")
+        assert count == 2, (
+            f"Expected 2 ``asyncio.run(_ingest_via_bolt(...))`` call sites "
+            f"(main + _retry_deadletter), got {count}."
+        )
+
+
 class TestGeneratedFrontendFiles:
     """Frontend files must exist and be valid."""
 
@@ -94,6 +236,11 @@ class TestGeneratedFrontendFiles:
         assert "next" in pkg["dependencies"]
         assert "react" in pkg["dependencies"]
         assert "@neo4j-nvl/react" in pkg["dependencies"]
+        # Both React type packages must be present — React 19's @types/react
+        # used to bundle DOM types, but we declare both explicitly so the
+        # type graph stays stable across future minor releases.
+        assert "@types/react" in pkg["devDependencies"]
+        assert "@types/react-dom" in pkg["devDependencies"]
 
     def test_tsconfig_valid(self, generated_project):
         out, _ = generated_project
@@ -120,6 +267,24 @@ class TestGeneratedFrontendFiles:
         for comp in components:
             assert (out / "frontend" / "components" / comp).exists(), f"Missing: {comp}"
 
+    def test_package_json_pins_safe_lodash_and_postcss(self, generated_project):
+        """npm audit must come back clean on a fresh scaffold.
+
+        @neo4j-nvl pulls in lodash@4.17.23 (vulnerable to CVE GHSA-r5fr-rjxr-66jc)
+        and next@15.5.x bundles postcss@8.4.31 (vulnerable to GHSA-qx2v-qp2m-jg93).
+        We force-upgrade both via the npm `overrides` field. Until upstream ships
+        fixes, removing the overrides re-introduces the vulnerabilities.
+        """
+        out, _ = generated_project
+        pkg = json.loads((out / "frontend" / "package.json").read_text())
+        assert "overrides" in pkg, "Frontend package.json must declare overrides"
+        ov = pkg["overrides"]
+        # ^4.17.24 is unsatisfiable in the 4.17.x line (no 4.17.24 exists);
+        # the rule's job is to push transitive resolutions to 4.18.x, which is
+        # the next safe major. If you change this pin, re-run `npm audit`.
+        assert ov.get("lodash") == "^4.17.24"
+        assert ov.get("postcss") == "^8.5.10"
+
     def test_layout_and_page_exist(self, generated_project):
         out, _ = generated_project
         assert (out / "frontend" / "app" / "layout.tsx").exists()
@@ -129,6 +294,20 @@ class TestGeneratedFrontendFiles:
     def test_theme_exists(self, generated_project):
         out, _ = generated_project
         assert (out / "frontend" / "theme" / "index.ts").exists()
+
+    def test_context_graph_view_ask_about_guard_is_string_typed(self, generated_project):
+        """Regression for TS2322: `unknown` is not assignable to `ReactNode`.
+
+        The "Ask about X" button guard at the bottom of the selected-node panel
+        must narrow `properties.name` to a string before using it in JSX,
+        otherwise `tsc` rejects the whole frontend build (carried from v0.9.0).
+        """
+        out, _ = generated_project
+        src = (out / "frontend" / "components" / "ContextGraphView.tsx").read_text()
+        assert (
+            'typeof (selectedElement.data as GraphNode).properties.name === "string"'
+            in src
+        ), "Ask-about guard must type-narrow properties.name to avoid TS2322"
 
 
 class TestGeneratedEnvExample:
@@ -150,6 +329,28 @@ class TestGeneratedEnvExample:
         content = (out / ".env.example").read_text()
         assert config.neo4j_password not in content
         assert "sk-ant-test-key" not in content
+
+    def test_config_py_does_not_bake_credentials(self, generated_project):
+        """The generated config.py must not embed real Neo4j credentials.
+
+        Defaults live in .env; config.py uses empty-string defaults so that
+        secrets never end up in committed source. The .env file holds the
+        user-provided values, loaded via pydantic-settings.
+        """
+        out, config = generated_project
+        cfg_py = (out / "backend" / "app" / "config.py").read_text()
+        # The user's actual password should not appear in source.
+        assert config.neo4j_password not in cfg_py, (
+            "config.py is leaking the Neo4j password into committed source. "
+            "Defaults must be empty strings — real values belong in .env."
+        )
+        # Sanity-check the fields are present but empty.
+        assert 'neo4j_uri: str = ""' in cfg_py
+        assert 'neo4j_username: str = ""' in cfg_py
+        assert 'neo4j_password: str = ""' in cfg_py
+        # And .env still carries the real values for pydantic-settings to load.
+        env = (out / ".env").read_text()
+        assert config.neo4j_password in env
 
 
 class TestGeneratedEnvFile:
@@ -644,6 +845,113 @@ class TestHealthcareEnumCompilation:
         assert "A_MINUS" in source
 
 
+class TestV0131ModelsPolish:
+    """v0.13.1 — generated Pydantic models use ``Field(...)`` for required
+    fields (idiomatic Pydantic v2) instead of the bare ``...`` Ellipsis literal,
+    and the ``/schema/models`` endpoint exposes their JSON Schemas to make the
+    generated ``app.models`` module load-bearing rather than dead code."""
+
+    def test_required_fields_use_field_factory(self, tmp_path):
+        from create_context_graph.config import ProjectConfig
+
+        config = ProjectConfig(
+            project_name="Field Polish Test",
+            domain="healthcare",
+            framework="pydanticai",
+        )
+        ontology = load_domain("healthcare")
+        out = tmp_path / "field-polish-test"
+        renderer = ProjectRenderer(config, ontology)
+        renderer.render(out)
+
+        models_src = (out / "backend" / "app" / "models.py").read_text()
+        # Idiomatic Pydantic v2: required fields use Field(...) so contributors
+        # can extend with constraints (Field(..., min_length=1)) without churning
+        # the whole declaration shape.
+        assert "Field(...)" in models_src
+        # The legacy bare ``= ...`` Ellipsis literal must be gone.
+        for line in models_src.splitlines():
+            stripped = line.strip()
+            if stripped.startswith("#") or not stripped:
+                continue
+            # The only legitimate trailing ``= ...`` would be inside a Field()
+            # call (e.g. ``Field(..., description="x")``), which we already
+            # match above.  Match ``: <type> = ...`` field declarations.
+            assert not re.search(r":\s*[A-Za-z_][A-Za-z0-9_\[\]\| ]*\s*=\s*\.\.\.\s*$", stripped), (
+                f"Bare ``= ...`` field declaration found — should be ``= Field(...)``: {line!r}"
+            )
+
+    def test_schema_models_endpoint_present(self, tmp_path):
+        from create_context_graph.config import ProjectConfig
+
+        config = ProjectConfig(
+            project_name="Schema Models Endpoint Test",
+            domain="healthcare",
+            framework="pydanticai",
+        )
+        ontology = load_domain("healthcare")
+        out = tmp_path / "schema-models-test"
+        renderer = ProjectRenderer(config, ontology)
+        renderer.render(out)
+
+        routes_src = (out / "backend" / "app" / "routes.py").read_text()
+        assert '@router.get("/schema/models")' in routes_src, (
+            "routes.py must expose /schema/models so the generated models.py is "
+            "load-bearing"
+        )
+        assert "from app import models as entity_models" in routes_src
+        assert "model_json_schema" in routes_src
+
+    def test_schema_models_endpoint_compiles(self, tmp_path):
+        """Compile-check the generated routes.py — catches Jinja2 escaping
+        regressions in the new endpoint."""
+        from create_context_graph.config import ProjectConfig
+
+        config = ProjectConfig(
+            project_name="Routes Compile Test",
+            domain="healthcare",
+            framework="pydanticai",
+        )
+        ontology = load_domain("healthcare")
+        out = tmp_path / "routes-compile-test"
+        renderer = ProjectRenderer(config, ontology)
+        renderer.render(out)
+
+        routes_path = out / "backend" / "app" / "routes.py"
+        compile(routes_path.read_text(), "routes.py", "exec")
+
+
+class TestV0131TemplateIdRemoval:
+    """v0.13.1 — the dead ``template_id`` parameter on ``list_documents_nams``
+    is removed. NAMS routes already raise 501 if template filtering is
+    requested, so the parameter could never reach the function in a way
+    that mattered."""
+
+    def test_list_documents_nams_signature_has_no_template_id(self, tmp_path):
+        from create_context_graph.config import ProjectConfig
+
+        config = ProjectConfig(
+            project_name="Template ID Removal Test",
+            domain="healthcare",
+            framework="pydanticai",
+        )
+        ontology = load_domain("healthcare")
+        out = tmp_path / "template-id-removal-test"
+        renderer = ProjectRenderer(config, ontology)
+        renderer.render(out)
+
+        adapter_src = (out / "backend" / "app" / "memory_adapter.py").read_text()
+        # New signature.
+        assert "async def list_documents_nams(\n    skip: int, limit: int" in adapter_src
+        # Legacy signature must be gone.
+        assert "list_documents_nams(\n    template_id" not in adapter_src
+
+        routes_src = (out / "backend" / "app" / "routes.py").read_text()
+        # Call site updated.
+        assert "list_documents_nams(skip, limit)" in routes_src
+        assert "list_documents_nams(template_id" not in routes_src
+
+
 class TestGISCartographyEnumCompilation:
     """Verify gis-cartography models.py with 3d_model enum compiles."""
 
@@ -671,8 +979,20 @@ class TestGISCartographyEnumCompilation:
 # Streaming SSE support tests
 # ---------------------------------------------------------------------------
 
-STREAMING_FRAMEWORKS = ["pydanticai", "anthropic-tools", "claude-agent-sdk", "openai-agents", "langgraph", "google-adk"]
-NON_STREAMING_FRAMEWORKS = ["crewai", "strands"]
+# All 8 frameworks now ship a streaming handler. Strands uses Agent.stream_async
+# directly; CrewAI subscribes to LLMStreamChunkEvent on the global event bus
+# with stream=True. (See agent.py.j2 in each framework's template.)
+STREAMING_FRAMEWORKS = [
+    "pydanticai",
+    "anthropic-tools",
+    "claude-agent-sdk",
+    "openai-agents",
+    "langgraph",
+    "google-adk",
+    "strands",
+    "crewai",
+]
+NON_STREAMING_FRAMEWORKS: list[str] = []
 
 
 class TestStreamingEndpoint:
@@ -772,6 +1092,42 @@ class TestStreamingAgentTemplates:
         assert "get_collector" in agent_source
         assert "emit_text_delta" in agent_source
         assert "emit_done" in agent_source
+
+    def test_strands_streaming_uses_stream_async(self, tmp_path):
+        """Strands streaming must use Agent.stream_async (token-level deltas)."""
+        config = ProjectConfig(
+            project_name="Strands Stream",
+            domain="financial-services",
+            framework="strands",
+        )
+        out = tmp_path / "strands-stream"
+        ProjectRenderer(config, load_domain("financial-services")).render(out)
+        src = (out / "backend" / "app" / "agent.py").read_text()
+        assert "agent.stream_async" in src
+        # `data` field is what Strands events expose for text deltas
+        assert 'event.get("data")' in src
+        # Loop must be captured before streaming so sync @tool fallbacks work
+        assert "_capture_loop()" in src
+
+    def test_crewai_streaming_uses_event_bus(self, tmp_path):
+        """CrewAI streaming must subscribe to LLMStreamChunkEvent on the bus."""
+        config = ProjectConfig(
+            project_name="CrewAI Stream",
+            domain="financial-services",
+            framework="crewai",
+        )
+        out = tmp_path / "crewai-stream"
+        ProjectRenderer(config, load_domain("financial-services")).render(out)
+        src = (out / "backend" / "app" / "agent.py").read_text()
+        # Stream chunks ride the global event bus, not a callback kwarg
+        assert "crewai_event_bus" in src
+        assert "LLMStreamChunkEvent" in src
+        assert "register_handler" in src
+        # Crew must be in stream mode for chunks to actually fire
+        assert "stream=True" in src
+        # And the handler must be detached after the kickoff so subsequent
+        # requests don't double-emit (memory leak / mis-routed deltas).
+        assert ".off(" in src
 
 
 class TestStreamingFrontend:
@@ -1713,6 +2069,24 @@ class TestV060ChatInterfaceUI:
         out, _ = generated_project
         chat = (out / "frontend" / "components" / "ChatInterface.tsx").read_text()
         assert "Running tool" in chat, "Should show running tool count"
+
+    def test_e2e_demo_prompt_text_matches_chat_interface(self, generated_project):
+        """E2E test expectations must match the actual UI text.
+
+        Regression guard for the v0.11.2 mismatch where app.spec.ts looked for
+        "try a demo scenario" but ChatInterface had been refactored to render
+        "Try these". The two strings must agree, otherwise the Playwright
+        suite fails out of the box on every scaffold.
+        """
+        out, _ = generated_project
+        chat = (out / "frontend" / "components" / "ChatInterface.tsx").read_text()
+        spec = (out / "frontend" / "e2e" / "app.spec.ts").read_text()
+
+        # Whatever header text the UI uses, the E2E spec must look for it.
+        assert ">Try these<" in chat, "ChatInterface should render the 'Try these' header"
+        assert "/try these/i" in spec, "E2E spec must search for the same header text"
+        # And the obsolete string must not have crept back in.
+        assert "try a demo scenario" not in spec
 
 
 class TestV061DataQuality:

@@ -14,4 +14,4 @@
 
 """Create Context Graph - Interactive CLI scaffolding tool for domain-specific context graph applications."""
 
-__version__ = "0.9.2"
+__version__ = "0.13.1"

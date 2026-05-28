@@ -14,8 +14,8 @@
 
 """Unit tests for the config module."""
 
+
 from create_context_graph.config import (
-    FRAMEWORK_ALIASES,
     FRAMEWORK_DEPENDENCIES,
     FRAMEWORK_DISPLAY_NAMES,
     SUPPORTED_FRAMEWORKS,
@@ -135,49 +135,40 @@ class TestProjectConfig:
         assert config.neo4j_type == "local"
 
 
-class TestFrameworkAliases:
-    def test_maf_alias_exists(self):
-        assert "maf" in FRAMEWORK_ALIASES
-        assert FRAMEWORK_ALIASES["maf"] == "anthropic-tools"
-
-    def test_resolved_framework_with_alias(self):
-        config = ProjectConfig(
-            project_name="Test",
-            domain="healthcare",
-            framework="maf",
-        )
-        assert config.resolved_framework == "anthropic-tools"
-
-    def test_resolved_framework_without_alias(self):
-        config = ProjectConfig(
-            project_name="Test",
-            domain="healthcare",
-            framework="pydanticai",
-        )
-        assert config.resolved_framework == "pydanticai"
-
-    def test_alias_display_name(self):
-        config = ProjectConfig(
-            project_name="Test",
-            domain="healthcare",
-            framework="maf",
-        )
-        assert "Anthropic Tools" in config.framework_display_name
-
-    def test_alias_deps(self):
-        config = ProjectConfig(
-            project_name="Test",
-            domain="healthcare",
-            framework="maf",
-        )
-        assert len(config.framework_deps) > 0
-        assert any("anthropic" in dep for dep in config.framework_deps)
+class TestFrameworkAliasRemoval:
+    """The 'maf' alias was removed; verify the surface is clean."""
 
     def test_anthropic_tools_in_supported(self):
         assert "anthropic-tools" in SUPPORTED_FRAMEWORKS
 
     def test_maf_not_in_supported(self):
         assert "maf" not in SUPPORTED_FRAMEWORKS
+
+    def test_no_framework_aliases_export(self):
+        # Importing FRAMEWORK_ALIASES used to work; the attribute is now gone.
+        import create_context_graph.config as cfg
+        assert not hasattr(cfg, "FRAMEWORK_ALIASES")
+
+    def test_no_resolved_framework_property(self):
+        config = ProjectConfig(
+            project_name="Test",
+            domain="healthcare",
+            framework="anthropic-tools",
+        )
+        assert not hasattr(config, "resolved_framework")
+
+    def test_maf_framework_rejected_by_validation(self):
+        # ProjectConfig accepts arbitrary strings, but rendering blows up.
+        # The wizard / Click choice will reject 'maf' before it gets here.
+        config = ProjectConfig(
+            project_name="Test",
+            domain="healthcare",
+            framework="maf",
+        )
+        # No alias resolution — display name falls back to the raw key.
+        assert config.framework_display_name == "maf"
+        # No dependencies registered for 'maf'.
+        assert config.framework_deps == []
 
 
 class TestGoogleApiKey:

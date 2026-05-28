@@ -38,6 +38,45 @@ from create_context_graph.ontology import (
 
 console = Console()
 
+# Output budget for ontology generation. Real domain YAMLs run 15–25 KB
+# (roughly 5–8k tokens of YAML text), so the generator-wide 4096 default
+# truncated full ontologies — leaving system_prompt / visualization /
+# agent_tools missing while still parsing as valid (default-empty) YAML.
+_ONTOLOGY_MAX_TOKENS = 16384
+
+
+class _TruncatedOntologyError(ValueError):
+    """Raised when the LLM hits the max_tokens cap before finishing the YAML."""
+
+
+class _IncompleteOntologyError(ValueError):
+    """Raised when a parsed ontology is missing required sections."""
+
+
+def _validate_ontology_completeness(ontology: DomainOntology) -> list[str]:
+    """Return a list of human-readable problems with a parsed ontology.
+
+    The Pydantic schema accepts default-empty values for every optional
+    section, so a truncated YAML happily round-trips into a "valid" but
+    skeletal ontology. Use this check after schema validation to ensure
+    the LLM actually generated a usable scaffold.
+    """
+    problems: list[str] = []
+    if not ontology.system_prompt or not ontology.system_prompt.strip():
+        problems.append("system_prompt is missing or empty")
+    if not ontology.visualization.node_colors:
+        problems.append("visualization.node_colors is empty")
+    if len(ontology.agent_tools) < 3:
+        problems.append(
+            f"agent_tools must have at least 3 entries (got {len(ontology.agent_tools)})"
+        )
+    if len(ontology.entity_types) < 3:
+        problems.append(
+            f"entity_types must have at least 3 domain-specific entries "
+            f"(got {len(ontology.entity_types)})"
+        )
+    return problems
+
 
 # ---------------------------------------------------------------------------
 # Prompt construction
@@ -220,7 +259,13 @@ def generate_custom_domain(
     client, resolved_provider = _get_llm_client(api_key, provider)
     if client is None:
         raise ValueError(
-            "Could not initialize LLM client. Install 'anthropic' or 'openai' package."
+            "Could not initialize LLM client — the 'anthropic' or 'openai' "
+            "package is not installed.\n"
+            "  • pip install:  pip install 'create-context-graph[generate]'\n"
+            "  • uvx invocation: uvx --with anthropic create-context-graph "
+            "--custom-domain '...' --anthropic-api-key sk-ant-...\n"
+            "  • or: uvx --with openai create-context-graph --custom-domain "
+            "'...' --openai-api-key sk-..."
         )
 
     base_yaml, examples = _load_example_yamls()
@@ -232,27 +277,69 @@ def generate_custom_domain(
         "syntactically valid YAML that passes strict Pydantic validation."
     )
 
-    last_error = None
+    last_error: Exception | None = None
     raw_yaml = ""
 
     for attempt in range(max_retries):
         if attempt == 0:
-            raw_yaml = _llm_generate(client, resolved_provider, prompt, system)
+            call_prompt = prompt
         else:
-            retry_prompt = _build_retry_prompt(description, raw_yaml, str(last_error))
-            raw_yaml = _llm_generate(client, resolved_provider, retry_prompt, system)
+            call_prompt = _build_retry_prompt(description, raw_yaml, str(last_error))
 
+        raw_yaml, stop_reason = _llm_generate(
+            client,
+            resolved_provider,
+            call_prompt,
+            system,
+            max_tokens=_ONTOLOGY_MAX_TOKENS,
+            return_stop_reason=True,
+        )
         raw_yaml = _strip_yaml_fences(raw_yaml)
 
+        # Step 1: detect cap-truncation before even trying to parse — the
+        # tail of a truncated YAML is often a half-formed key that breaks
+        # the parser, but sometimes parses to a no-op default. Either way
+        # the output isn't usable.
+        truncated = stop_reason in ("max_tokens", "length")
+        if truncated:
+            last_error = _TruncatedOntologyError(
+                f"LLM hit max_tokens={_ONTOLOGY_MAX_TOKENS} (stop_reason={stop_reason}); "
+                "the YAML is incomplete. Asking the LLM to be more concise on retry."
+            )
+            if attempt < max_retries - 1:
+                console.print(
+                    f"[yellow]Truncated output (attempt {attempt + 1}/{max_retries}), retrying...[/yellow]"
+                )
+            continue
+
+        # Step 2: schema-validate (catches malformed YAML and Pydantic errors)
         try:
             ontology = load_domain_from_yaml_string(raw_yaml)
-            return ontology, raw_yaml
         except (ValidationError, ValueError, yaml.YAMLError) as e:
             last_error = e
             if attempt < max_retries - 1:
                 console.print(
                     f"[yellow]Validation failed (attempt {attempt + 1}/{max_retries}), retrying...[/yellow]"
                 )
+            continue
+
+        # Step 3: completeness check (catches truncations that still parse —
+        # DomainOntology has default-empty fields, so a YAML missing
+        # system_prompt / visualization / agent_tools round-trips silently).
+        problems = _validate_ontology_completeness(ontology)
+        if problems:
+            last_error = _IncompleteOntologyError(
+                "Generated ontology is missing required sections: "
+                + "; ".join(problems)
+            )
+            if attempt < max_retries - 1:
+                console.print(
+                    f"[yellow]Incomplete ontology (attempt {attempt + 1}/{max_retries}): "
+                    f"{', '.join(problems)} — retrying...[/yellow]"
+                )
+            continue
+
+        return ontology, raw_yaml
 
     raise ValueError(
         f"Failed to generate valid domain after {max_retries} attempts. "

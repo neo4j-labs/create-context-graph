@@ -28,7 +28,7 @@ test.describe("{{ domain.name }} Context Graph", () => {
 
   test("demo scenario badges are visible", async ({ page }) => {
     // Should show demo scenario section
-    await expect(page.getByText(/try a demo scenario/i)).toBeVisible();
+    await expect(page.getByText(/try these/i)).toBeVisible();
 
     // Should have clickable badges
     const badges = page.locator("[role='group'] span[data-scope='badge'], .chakra-badge").filter({ hasText: /.{10,}/ });
@@ -182,7 +182,7 @@ test.describe("{{ domain.name }} Context Graph", () => {
     await page.getByRole("button", { name: /new/i }).click();
 
     // Demo scenarios should be visible again
-    await expect(page.getByText(/try a demo scenario/i)).toBeVisible();
+    await expect(page.getByText(/try these/i)).toBeVisible();
   });
 
   // --------------------------------------------------------------------------
@@ -212,6 +212,136 @@ test.describe("{{ domain.name }} Context Graph", () => {
 
     // Traces/Documents tabs should be visible
     await expect(page.getByText(/traces/i).first()).toBeVisible();
+  });
+
+  // --------------------------------------------------------------------------
+  // Decision trace panel (right side, "Traces" tab)
+  // --------------------------------------------------------------------------
+
+  test("decision traces panel loads and shows demo traces", async ({ page }) => {
+    // The /traces endpoint should return at least one trace from the demo
+    // fixture. The panel may be behind a tab on smaller viewports.
+    const tracesTab = page.getByRole("tab", { name: /traces/i }).first();
+    if (await tracesTab.count() > 0) {
+      await tracesTab.click().catch(() => { /* may already be active */ });
+    }
+
+    // Wait for the panel header — it identifies the panel even when empty.
+    await expect(page.getByText(/decision traces/i).first()).toBeVisible({ timeout: 10_000 });
+
+    // Either the empty-state message appears, or at least one trace card.
+    const emptyState = page.getByText(/no decision traces yet/i);
+    const traceCards = page.locator("[role='button']").filter({ hasText: /step/i });
+    const emptyVisible = await emptyState.isVisible().catch(() => false);
+    if (!emptyVisible) {
+      const count = await traceCards.count();
+      expect(count).toBeGreaterThan(0);
+
+      // Click the first trace card and verify the step detail panel opens.
+      await traceCards.first().click();
+      // Detail panel should render thought/action labels.
+      await expect(page.getByText(/outcome/i).first()).toBeVisible({ timeout: 5_000 });
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // Document browser (right side, "Documents" tab)
+  // --------------------------------------------------------------------------
+
+  test("document browser loads and renders a document detail view", async ({ page }) => {
+    const docsTab = page.getByRole("tab", { name: /documents/i }).first();
+    if (await docsTab.count() > 0) {
+      await docsTab.click();
+    }
+
+    await expect(page.getByText(/^documents$/i).first()).toBeVisible({ timeout: 10_000 });
+
+    // Either empty state or a populated list — demo data should populate it.
+    const emptyState = page.getByText(/no documents/i);
+    const emptyVisible = await emptyState.isVisible().catch(() => false);
+    if (!emptyVisible) {
+      // Click the first document card.
+      const firstDoc = page.locator("[role='button']").filter({ hasText: /\w+/ }).first();
+      await firstDoc.click({ trial: false });
+      // ReactMarkdown rendering produces semantic markdown — at least one
+      // paragraph or heading should be visible.
+      await expect(page.locator("p, h1, h2, h3").first()).toBeVisible({ timeout: 5_000 });
+    }
+  });
+
+  // --------------------------------------------------------------------------
+  // Regression tests for v0.12.0 / v0.13.0 frontend bug fixes
+  // --------------------------------------------------------------------------
+
+  test("composite keys do not trigger React duplicate-key warnings across renders", async ({ page }) => {
+    // Send a few prompts in sequence. React logs a console.error if entity,
+    // preference, or tool-call badges collide on a non-unique key — pre-v0.13.0
+    // they used `key={i}` (the array index), which would fire here.
+    const keyWarnings: string[] = [];
+    page.on("console", (msg) => {
+      if (msg.type() === "warning" || msg.type() === "error") {
+        const text = msg.text();
+        if (
+          text.includes("Encountered two children with the same key") ||
+          text.includes("Each child in a list should have a unique") ||
+          text.includes("key prop")
+        ) {
+          keyWarnings.push(text);
+        }
+      }
+    });
+
+    const input = page.locator("textarea, input[type='text']").first();
+    if (await input.count() === 0) test.skip(true, "no chat input found");
+
+    for (const prompt of [
+      "Tell me about the data",
+      "What entities exist here?",
+      "Show me a summary of recent activity",
+    ]) {
+      await input.fill(prompt);
+      await page.keyboard.press("Enter");
+      // Allow streaming + tool-call badges to flush before sending the next.
+      await page.waitForTimeout(3000);
+    }
+    expect(keyWarnings).toEqual([]);
+  });
+
+  test("decision trace panel step list renders without runtime errors", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+
+    const tracesTab = page.getByRole("tab", { name: /traces/i }).first();
+    if (await tracesTab.count() > 0) {
+      await tracesTab.click().catch(() => { /* may already be active */ });
+    }
+
+    const traceCards = page.locator("[role='button']").filter({ hasText: /step/i });
+    if (await traceCards.count() === 0) {
+      test.skip(true, "no demo traces — fixture may be empty");
+    }
+
+    await traceCards.first().click();
+    await page.waitForTimeout(500);
+    // No uncaught exceptions from rendering the step list.
+    expect(pageErrors).toEqual([]);
+  });
+
+  test("document browser entity badges render without runtime errors", async ({ page }) => {
+    const pageErrors: string[] = [];
+    page.on("pageerror", (err) => pageErrors.push(err.message));
+
+    const docsTab = page.getByRole("tab", { name: /documents/i }).first();
+    if (await docsTab.count() > 0) await docsTab.click();
+
+    const firstDoc = page.locator("[role='button']").filter({ hasText: /\w+/ }).first();
+    if (await firstDoc.count() === 0) {
+      test.skip(true, "no demo documents — fixture may be empty");
+    }
+
+    await firstDoc.click({ trial: false });
+    await page.waitForTimeout(500);
+    expect(pageErrors).toEqual([]);
   });
 
   // --------------------------------------------------------------------------

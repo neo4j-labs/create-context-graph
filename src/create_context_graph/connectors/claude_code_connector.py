@@ -65,6 +65,8 @@ class ClaudeCodeConnector(BaseConnector):
     )
     requires_oauth = False
 
+    BODY_FIELDS = {"Message": "content"}
+
     def __init__(self) -> None:
         self._base_path: Path | None = None
         self._scope: str = "current"

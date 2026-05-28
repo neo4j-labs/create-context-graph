@@ -39,7 +39,7 @@ TOOLS = [
                 },
 {% endfor %}
             },
-            "required": [{% for param in tool.parameters %}{% if param.default is none %}"{{ param.name }}"{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}],
+            "required": [{% for param in tool.parameters %}{% if (param.default is not defined or param.default is none) %}"{{ param.name }}"{% if not loop.last %}, {% endif %}{% endif %}{% endfor %}],
         },
     },
 {% endfor %}

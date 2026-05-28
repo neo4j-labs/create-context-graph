@@ -5,12 +5,36 @@
 # WARNING: Change all default credentials before deploying to any
 # network-accessible environment. Never commit real credentials to git.
 
-# Neo4j Connection
+# Memory backend: 'nams' (default — hosted) or 'bolt' (self-hosted Neo4j)
+MEMORY_BACKEND={{ memory_backend }}
+
+{% if is_nams %}
+# Neo4j Agent Memory Service (NAMS) — hosted memory backend
+# Obtain an API key at https://memory.neo4jlabs.com
+MEMORY_API_KEY=your-nams-api-key-here
+# MEMORY_NAMS_ENDPOINT={{ nams_endpoint }}  # Override only if pointing at a self-hosted NAMS gateway
+{% else %}
+# Self-hosted Neo4j (Bolt)
 NEO4J_URI=neo4j://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your-password-here
+{% endif %}
 
-# LLM API Keys
+# Memory layer LLM + embedding provider (LiteLLM-style strings, optional).
+# Native providers are resolved first; everything else routes through LiteLLM.
+#
+# Examples (uncomment one):
+# MEMORY_LLM=anthropic/claude-haiku-4-5             # Anthropic native
+# MEMORY_LLM=openai/gpt-4o-mini                     # OpenAI native
+# MEMORY_LLM=bedrock/anthropic.claude-3-haiku-20240307-v1:0  # AWS Bedrock via LiteLLM
+# MEMORY_LLM=vertex_ai/gemini-1.5-flash             # Google Vertex AI via LiteLLM
+# MEMORY_LLM=ollama/llama3                          # Local Ollama via LiteLLM
+MEMORY_LLM=
+# MEMORY_EMBEDDING=sentence-transformers/all-MiniLM-L6-v2   # Local (default fallback)
+# MEMORY_EMBEDDING=openai/text-embedding-3-small            # OpenAI native
+MEMORY_EMBEDDING=
+
+# LLM API Keys (for the agent — set the one your selected framework needs)
 ANTHROPIC_API_KEY=your-anthropic-key-here
 OPENAI_API_KEY=  # Optional: enables OpenAI embeddings for conversation memory (local sentence-transformers used by default)
 GOOGLE_API_KEY=your-google-api-key-here  # Required for google-adk framework

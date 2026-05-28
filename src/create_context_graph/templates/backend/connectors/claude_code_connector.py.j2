@@ -129,6 +129,7 @@ class ClaudeCodeConnector:
 
     service_name = "Claude Code"
     service_description = "Import AI coding session history from local Claude Code JSONL files"
+    BODY_FIELDS = {"Message": "content"}
 
     def __init__(self) -> None:
         self._base_path: Path | None = None

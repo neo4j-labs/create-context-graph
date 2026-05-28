@@ -192,17 +192,29 @@ async def load_decision_traces(data: dict):
 
 async def main():
     print("Seeding {{ domain.name }} context graph...")
-    await connect_neo4j()
-
 {% raw %}
-    # Load fixture data
     fixture_path = DATA_DIR / "fixtures.json"
     if not fixture_path.exists():
         print("No fixture data found. Create data/fixtures.json to seed data.")
-        await close_neo4j()
+        return
+    data = json.loads(fixture_path.read_text())
+
+    if settings.memory_backend == "nams":
+        # NAMS path — connect memory client, delegate to memory_adapter.
+        from app.memory import close_memory, connect_memory
+        from app.memory_adapter import ingest_fixtures_nams
+
+        print("  Backend: NAMS (relationships and entity properties not yet supported)")
+        await connect_memory()
+        try:
+            await ingest_fixtures_nams(data, settings.domain_id)
+        finally:
+            await close_memory()
+        print("\nDone! Your context graph is ready.")
         return
 
-    data = json.loads(fixture_path.read_text())
+    # Bolt path — connect Neo4j, apply schema, load data.
+    await connect_neo4j()
 {% endraw %}
 
     print("\n[1/4] Applying schema...")

@@ -1,3 +1,23 @@
+{% if is_nams %}
+{
+  "mcpServers": {
+    "{{ project_slug }}-memory": {
+      "command": "uv",
+      "args": [
+        "run",
+        "--directory", "./backend",
+        "python", "-m", "neo4j_agent_memory.mcp.server",
+        "--backend", "nams",
+        "--profile", "{{ mcp_profile }}"
+      ],
+      "env": {
+        "MEMORY_API_KEY": "${MEMORY_API_KEY}",
+        "MEMORY_NAMS_ENDPOINT": "{{ nams_endpoint }}"
+      }
+    }
+  }
+}
+{% else %}
 {
   "mcpServers": {
     "{{ project_slug }}-memory": {
@@ -13,3 +33,4 @@
     }
   }
 }
+{% endif %}

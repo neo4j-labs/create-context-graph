@@ -1,0 +1,1491 @@
+{
+  "domain": "education",
+  "entities": {
+    "Person": [
+      {
+        "name": "Sarah Chen",
+        "email": "sarah.chen@acme.co",
+        "role": "Senior Analyst",
+        "description": "Sarah Chen, senior analyst specializing in education."
+      },
+      {
+        "name": "James Morrison",
+        "email": "james.morrison@acme.co",
+        "role": "Project Manager",
+        "description": "Project Manager James Morrison \u2014 active in the education sector with relevant domain expertise."
+      },
+      {
+        "name": "Maria Rodriguez",
+        "email": "maria.rodriguez@corp.net",
+        "role": "Technical Lead",
+        "description": "Maria Rodriguez serves as technical lead, contributing to education initiatives and operations."
+      },
+      {
+        "name": "David Park",
+        "email": "david.park@corp.net",
+        "role": "Research Director",
+        "description": "David Park, research director specializing in education."
+      },
+      {
+        "name": "Elena Volkov",
+        "email": "elena.volkov@corp.net",
+        "role": "Operations Manager",
+        "description": "Operations Manager Elena Volkov \u2014 active in the education sector with relevant domain expertise."
+      }
+    ],
+    "Organization": [
+      {
+        "name": "Meridian Consulting Group",
+        "description": "Meridian Consulting Group is a technology organization operating in the education space.",
+        "industry": "Technology"
+      },
+      {
+        "name": "Pacific Northwest Industries",
+        "description": "Healthcare entity Pacific Northwest Industries, providing services and resources for education operations.",
+        "industry": "Healthcare"
+      },
+      {
+        "name": "Apex Financial Partners",
+        "description": "Apex Financial Partners \u2014 a financial services institution active in education.",
+        "industry": "Financial Services"
+      },
+      {
+        "name": "Greenleaf Technologies",
+        "description": "Greenleaf Technologies is a manufacturing organization operating in the education space.",
+        "industry": "Manufacturing"
+      },
+      {
+        "name": "Summit Healthcare Systems",
+        "description": "Energy entity Summit Healthcare Systems, providing services and resources for education operations.",
+        "industry": "Energy"
+      }
+    ],
+    "Location": [
+      {
+        "name": "Downtown Medical Center",
+        "address": "654 Cedar Lane, Miami, FL 33101",
+        "latitude": 26.88,
+        "longitude": -91.27
+      },
+      {
+        "name": "Westside Corporate Campus",
+        "address": "123 Main Street, Boston, MA 02101",
+        "latitude": 40.68,
+        "longitude": -89.25
+      },
+      {
+        "name": "Harbor View Complex",
+        "address": "147 Birch Road, Chicago, IL 60601",
+        "latitude": 28.35,
+        "longitude": -102.62
+      },
+      {
+        "name": "Mountain Ridge Facility",
+        "address": "741 Chestnut Terrace, Denver, CO 80202",
+        "latitude": 33.35,
+        "longitude": -84.0
+      },
+      {
+        "name": "Riverside Research Park",
+        "address": "741 Chestnut Terrace, San Francisco, CA 94105",
+        "latitude": 29.83,
+        "longitude": -103.15
+      }
+    ],
+    "Event": [
+      {
+        "name": "Q4 Strategy Review",
+        "date": "2025-01-08T09:15:00",
+        "description": "Q4 Strategy Review, a event event recorded in the education timeline."
+      },
+      {
+        "name": "Annual Compliance Audit",
+        "date": "2026-02-01T16:30:00",
+        "description": "Event Annual Compliance Audit \u2014 occurred as part of education activities."
+      },
+      {
+        "name": "Emergency Response Drill",
+        "date": "2026-01-04T09:00:00",
+        "description": "Recorded event: Emergency Response Drill, relevant to education workflows."
+      },
+      {
+        "name": "Product Launch Summit",
+        "date": "2026-04-30T08:00:00",
+        "description": "Product Launch Summit, a event event recorded in the education timeline."
+      },
+      {
+        "name": "Board of Directors Meeting",
+        "date": "2025-09-23T09:30:00",
+        "description": "Event Board of Directors Meeting \u2014 occurred as part of education activities."
+      }
+    ],
+    "Object": [
+      {
+        "name": "Primary Analysis Report",
+        "description": "Primary Analysis Report, a object used in education workflows."
+      },
+      {
+        "name": "Standard Operating Procedure",
+        "description": "Object Standard Operating Procedure \u2014 cataloged for education operations."
+      },
+      {
+        "name": "Quarterly Assessment Document",
+        "description": "Quarterly Assessment Document is a object supporting education processes."
+      },
+      {
+        "name": "Technical Specification",
+        "description": "Technical Specification, a object used in education workflows."
+      },
+      {
+        "name": "Compliance Certificate",
+        "description": "Object Compliance Certificate \u2014 cataloged for education operations."
+      }
+    ],
+    "Student": [
+      {
+        "name": "Sarah Chen",
+        "student_id": "STU-2025-0000",
+        "grade_level": "elementary",
+        "enrollment_status": "active",
+        "email": "sarah.chen@company.org"
+      },
+      {
+        "name": "James Morrison",
+        "student_id": "STU-2024-0001",
+        "grade_level": "middle_school",
+        "enrollment_status": "on_leave",
+        "email": "james.morrison@corp.net"
+      },
+      {
+        "name": "Maria Rodriguez",
+        "student_id": "STU-2025-0002",
+        "grade_level": "high_school",
+        "enrollment_status": "graduated",
+        "email": "maria.rodriguez@company.org"
+      },
+      {
+        "name": "David Park",
+        "student_id": "STU-2025-0003",
+        "grade_level": "undergraduate",
+        "enrollment_status": "withdrawn",
+        "email": "david.park@acme.co"
+      },
+      {
+        "name": "Elena Volkov",
+        "student_id": "STU-2026-0004",
+        "grade_level": "graduate",
+        "enrollment_status": "deferred",
+        "email": "elena.volkov@acme.co"
+      }
+    ],
+    "Instructor": [
+      {
+        "name": "Sarah Chen",
+        "role": "professor",
+        "department": "Sarah Chen - Department",
+        "email": "sarah.chen@corp.net"
+      },
+      {
+        "name": "James Morrison",
+        "role": "lecturer",
+        "department": "James Morrison - Department",
+        "email": "james.morrison@acme.co"
+      },
+      {
+        "name": "Maria Rodriguez",
+        "role": "teaching_assistant",
+        "department": "Maria Rodriguez - Department",
+        "email": "maria.rodriguez@example.com"
+      },
+      {
+        "name": "David Park",
+        "role": "advisor",
+        "department": "David Park - Department",
+        "email": "david.park@corp.net"
+      },
+      {
+        "name": "Elena Volkov",
+        "role": "instructor",
+        "department": "Elena Volkov - Department",
+        "email": "elena.volkov@acme.co"
+      }
+    ],
+    "Course": [
+      {
+        "name": "Augusta National Golf Club",
+        "course_code": "COU-2025-0000",
+        "subject": "math",
+        "credits": 1913,
+        "level": "introductory",
+        "description": "Augusta National Golf Club, a course in the education region."
+      },
+      {
+        "name": "Pebble Beach Golf Links",
+        "course_code": "COU-2025-0001",
+        "subject": "science",
+        "credits": 7611,
+        "level": "intermediate",
+        "description": "Course Pebble Beach Golf Links \u2014 a key site for education activities."
+      },
+      {
+        "name": "St Andrews Old Course",
+        "course_code": "COU-2024-0002",
+        "subject": "history",
+        "credits": 7770,
+        "level": "advanced",
+        "description": "St Andrews Old Course serves as an important course within education operations."
+      },
+      {
+        "name": "Pine Valley Golf Club",
+        "course_code": "COU-2026-0003",
+        "subject": "language",
+        "credits": 9590,
+        "level": "graduate",
+        "description": "Pine Valley Golf Club, a course in the education region."
+      },
+      {
+        "name": "Cypress Point Club",
+        "course_code": "COU-2024-0004",
+        "subject": "art",
+        "credits": 383,
+        "level": "introductory",
+        "description": "Course Cypress Point Club \u2014 a key site for education activities."
+      }
+    ],
+    "Term": [
+      {
+        "name": "Q4 Strategy Review",
+        "term_id": "TER-2026-0000",
+        "term_type": "fall",
+        "start_date": "2026-12-13",
+        "end_date": "2026-10-24"
+      },
+      {
+        "name": "Annual Compliance Audit",
+        "term_id": "TER-2025-0001",
+        "term_type": "winter",
+        "start_date": "2026-01-09",
+        "end_date": "2024-09-20"
+      },
+      {
+        "name": "Emergency Response Drill",
+        "term_id": "TER-2026-0002",
+        "term_type": "spring",
+        "start_date": "2026-01-17",
+        "end_date": "2026-05-09"
+      },
+      {
+        "name": "Product Launch Summit",
+        "term_id": "TER-2026-0003",
+        "term_type": "summer",
+        "start_date": "2024-01-29",
+        "end_date": "2026-03-12"
+      },
+      {
+        "name": "Board of Directors Meeting",
+        "term_id": "TER-2026-0004",
+        "term_type": "year_round",
+        "start_date": "2024-03-08",
+        "end_date": "2026-05-11"
+      }
+    ],
+    "Enrollment": [
+      {
+        "name": "Q4 Strategy Review",
+        "enrollment_id": "ENR-2024-0000",
+        "status": "enrolled",
+        "final_grade": "Q4 Strategy Review - Final Grade",
+        "enrolled_date": "2026-07-09"
+      },
+      {
+        "name": "Annual Compliance Audit",
+        "enrollment_id": "ENR-2026-0001",
+        "status": "dropped",
+        "final_grade": "Annual Compliance Audit - Final Grade",
+        "enrolled_date": "2025-01-22"
+      },
+      {
+        "name": "Emergency Response Drill",
+        "enrollment_id": "ENR-2026-0002",
+        "status": "completed",
+        "final_grade": "Emergency Response Drill - Final Grade",
+        "enrolled_date": "2025-07-21"
+      },
+      {
+        "name": "Product Launch Summit",
+        "enrollment_id": "ENR-2025-0003",
+        "status": "incomplete",
+        "final_grade": "Product Launch Summit - Final Grade",
+        "enrolled_date": "2025-12-30"
+      },
+      {
+        "name": "Board of Directors Meeting",
+        "enrollment_id": "ENR-2026-0004",
+        "status": "audit",
+        "final_grade": "Board of Directors Meeting - Final Grade",
+        "enrolled_date": "2026-09-16"
+      }
+    ],
+    "Assessment": [
+      {
+        "name": "Q4 Strategy Review",
+        "assessment_id": "ASS-2024-0000",
+        "assessment_type": "quiz",
+        "due_date": "2026-03-27T10:15:00",
+        "max_score": 0.94,
+        "weight": 60.03
+      },
+      {
+        "name": "Annual Compliance Audit",
+        "assessment_id": "ASS-2025-0001",
+        "assessment_type": "exam",
+        "due_date": "2024-09-06T15:45:00",
+        "max_score": 0.66,
+        "weight": 209.1
+      },
+      {
+        "name": "Emergency Response Drill",
+        "assessment_id": "ASS-2026-0002",
+        "assessment_type": "paper",
+        "due_date": "2026-06-01T08:30:00",
+        "max_score": 0.63,
+        "weight": 123.43
+      },
+      {
+        "name": "Product Launch Summit",
+        "assessment_id": "ASS-2025-0003",
+        "assessment_type": "project",
+        "due_date": "2026-08-30T17:15:00",
+        "max_score": 0.95,
+        "weight": 271.51
+      },
+      {
+        "name": "Board of Directors Meeting",
+        "assessment_id": "ASS-2026-0004",
+        "assessment_type": "presentation",
+        "due_date": "2024-12-27T08:30:00",
+        "max_score": 0.65,
+        "weight": 97.03
+      }
+    ],
+    "Submission": [
+      {
+        "name": "Q4 Strategy Review",
+        "submission_id": "SUB-2026-0000",
+        "status": "submitted",
+        "score": 0.57,
+        "submitted_at": "2025-09-30T15:15:00"
+      },
+      {
+        "name": "Annual Compliance Audit",
+        "submission_id": "SUB-2026-0001",
+        "status": "late",
+        "score": 0.93,
+        "submitted_at": "2024-04-08T09:30:00"
+      },
+      {
+        "name": "Emergency Response Drill",
+        "submission_id": "SUB-2024-0002",
+        "status": "missing",
+        "score": 0.87,
+        "submitted_at": "2024-12-13T13:15:00"
+      },
+      {
+        "name": "Product Launch Summit",
+        "submission_id": "SUB-2024-0003",
+        "status": "graded",
+        "score": 0.98,
+        "submitted_at": "2026-07-23T15:30:00"
+      },
+      {
+        "name": "Board of Directors Meeting",
+        "submission_id": "SUB-2025-0004",
+        "status": "returned",
+        "score": 0.6,
+        "submitted_at": "2024-07-14T10:45:00"
+      }
+    ]
+  },
+  "relationships": [
+    {
+      "type": "WORKS_FOR",
+      "source_label": "Person",
+      "source_name": "Sarah Chen",
+      "target_label": "Organization",
+      "target_name": "Pacific Northwest Industries"
+    },
+    {
+      "type": "WORKS_FOR",
+      "source_label": "Person",
+      "source_name": "James Morrison",
+      "target_label": "Organization",
+      "target_name": "Pacific Northwest Industries"
+    },
+    {
+      "type": "WORKS_FOR",
+      "source_label": "Person",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Organization",
+      "target_name": "Summit Healthcare Systems"
+    },
+    {
+      "type": "WORKS_FOR",
+      "source_label": "Person",
+      "source_name": "David Park",
+      "target_label": "Organization",
+      "target_name": "Pacific Northwest Industries"
+    },
+    {
+      "type": "WORKS_FOR",
+      "source_label": "Person",
+      "source_name": "David Park",
+      "target_label": "Organization",
+      "target_name": "Meridian Consulting Group"
+    },
+    {
+      "type": "WORKS_FOR",
+      "source_label": "Person",
+      "source_name": "Elena Volkov",
+      "target_label": "Organization",
+      "target_name": "Summit Healthcare Systems"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Meridian Consulting Group",
+      "target_label": "Location",
+      "target_name": "Mountain Ridge Facility"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Meridian Consulting Group",
+      "target_label": "Location",
+      "target_name": "Downtown Medical Center"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Pacific Northwest Industries",
+      "target_label": "Location",
+      "target_name": "Mountain Ridge Facility"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Pacific Northwest Industries",
+      "target_label": "Location",
+      "target_name": "Westside Corporate Campus"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Apex Financial Partners",
+      "target_label": "Location",
+      "target_name": "Riverside Research Park"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Greenleaf Technologies",
+      "target_label": "Location",
+      "target_name": "Downtown Medical Center"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Summit Healthcare Systems",
+      "target_label": "Location",
+      "target_name": "Mountain Ridge Facility"
+    },
+    {
+      "type": "LOCATED_AT",
+      "source_label": "Organization",
+      "source_name": "Summit Healthcare Systems",
+      "target_label": "Location",
+      "target_name": "Westside Corporate Campus"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "Sarah Chen",
+      "target_label": "Event",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "Sarah Chen",
+      "target_label": "Event",
+      "target_name": "Board of Directors Meeting"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "James Morrison",
+      "target_label": "Event",
+      "target_name": "Annual Compliance Audit"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Event",
+      "target_name": "Q4 Strategy Review"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Event",
+      "target_name": "Board of Directors Meeting"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "David Park",
+      "target_label": "Event",
+      "target_name": "Annual Compliance Audit"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "David Park",
+      "target_label": "Event",
+      "target_name": "Product Launch Summit"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "Elena Volkov",
+      "target_label": "Event",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "PARTICIPATED_IN",
+      "source_label": "Person",
+      "source_name": "Elena Volkov",
+      "target_label": "Event",
+      "target_name": "Product Launch Summit"
+    },
+    {
+      "type": "TEACHES",
+      "source_label": "Instructor",
+      "source_name": "Sarah Chen",
+      "target_label": "Course",
+      "target_name": "St Andrews Old Course"
+    },
+    {
+      "type": "TEACHES",
+      "source_label": "Instructor",
+      "source_name": "James Morrison",
+      "target_label": "Course",
+      "target_name": "Pine Valley Golf Club"
+    },
+    {
+      "type": "TEACHES",
+      "source_label": "Instructor",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Course",
+      "target_name": "Augusta National Golf Club"
+    },
+    {
+      "type": "TEACHES",
+      "source_label": "Instructor",
+      "source_name": "David Park",
+      "target_label": "Course",
+      "target_name": "Pebble Beach Golf Links"
+    },
+    {
+      "type": "TEACHES",
+      "source_label": "Instructor",
+      "source_name": "Elena Volkov",
+      "target_label": "Course",
+      "target_name": "Pebble Beach Golf Links"
+    },
+    {
+      "type": "TEACHES",
+      "source_label": "Instructor",
+      "source_name": "Elena Volkov",
+      "target_label": "Course",
+      "target_name": "Pine Valley Golf Club"
+    },
+    {
+      "type": "ADVISES",
+      "source_label": "Instructor",
+      "source_name": "Sarah Chen",
+      "target_label": "Student",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "ADVISES",
+      "source_label": "Instructor",
+      "source_name": "James Morrison",
+      "target_label": "Student",
+      "target_name": "Elena Volkov"
+    },
+    {
+      "type": "ADVISES",
+      "source_label": "Instructor",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Student",
+      "target_name": "David Park"
+    },
+    {
+      "type": "ADVISES",
+      "source_label": "Instructor",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Student",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "ADVISES",
+      "source_label": "Instructor",
+      "source_name": "David Park",
+      "target_label": "Student",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "ADVISES",
+      "source_label": "Instructor",
+      "source_name": "Elena Volkov",
+      "target_label": "Student",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "ENROLLED_IN",
+      "source_label": "Student",
+      "source_name": "Sarah Chen",
+      "target_label": "Course",
+      "target_name": "Pebble Beach Golf Links"
+    },
+    {
+      "type": "ENROLLED_IN",
+      "source_label": "Student",
+      "source_name": "James Morrison",
+      "target_label": "Course",
+      "target_name": "Pine Valley Golf Club"
+    },
+    {
+      "type": "ENROLLED_IN",
+      "source_label": "Student",
+      "source_name": "James Morrison",
+      "target_label": "Course",
+      "target_name": "Augusta National Golf Club"
+    },
+    {
+      "type": "ENROLLED_IN",
+      "source_label": "Student",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Course",
+      "target_name": "Pine Valley Golf Club"
+    },
+    {
+      "type": "ENROLLED_IN",
+      "source_label": "Student",
+      "source_name": "David Park",
+      "target_label": "Course",
+      "target_name": "St Andrews Old Course"
+    },
+    {
+      "type": "ENROLLED_IN",
+      "source_label": "Student",
+      "source_name": "Elena Volkov",
+      "target_label": "Course",
+      "target_name": "Cypress Point Club"
+    },
+    {
+      "type": "ENROLLMENT_OF",
+      "source_label": "Enrollment",
+      "source_name": "Q4 Strategy Review",
+      "target_label": "Student",
+      "target_name": "David Park"
+    },
+    {
+      "type": "ENROLLMENT_OF",
+      "source_label": "Enrollment",
+      "source_name": "Annual Compliance Audit",
+      "target_label": "Student",
+      "target_name": "Maria Rodriguez"
+    },
+    {
+      "type": "ENROLLMENT_OF",
+      "source_label": "Enrollment",
+      "source_name": "Emergency Response Drill",
+      "target_label": "Student",
+      "target_name": "Elena Volkov"
+    },
+    {
+      "type": "ENROLLMENT_OF",
+      "source_label": "Enrollment",
+      "source_name": "Emergency Response Drill",
+      "target_label": "Student",
+      "target_name": "Sarah Chen"
+    },
+    {
+      "type": "ENROLLMENT_OF",
+      "source_label": "Enrollment",
+      "source_name": "Product Launch Summit",
+      "target_label": "Student",
+      "target_name": "Sarah Chen"
+    },
+    {
+      "type": "ENROLLMENT_OF",
+      "source_label": "Enrollment",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Student",
+      "target_name": "Maria Rodriguez"
+    },
+    {
+      "type": "ENROLLMENT_OF",
+      "source_label": "Enrollment",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Student",
+      "target_name": "Sarah Chen"
+    },
+    {
+      "type": "FOR_COURSE",
+      "source_label": "Enrollment",
+      "source_name": "Q4 Strategy Review",
+      "target_label": "Course",
+      "target_name": "Pebble Beach Golf Links"
+    },
+    {
+      "type": "FOR_COURSE",
+      "source_label": "Enrollment",
+      "source_name": "Q4 Strategy Review",
+      "target_label": "Course",
+      "target_name": "St Andrews Old Course"
+    },
+    {
+      "type": "FOR_COURSE",
+      "source_label": "Enrollment",
+      "source_name": "Annual Compliance Audit",
+      "target_label": "Course",
+      "target_name": "Pine Valley Golf Club"
+    },
+    {
+      "type": "FOR_COURSE",
+      "source_label": "Enrollment",
+      "source_name": "Emergency Response Drill",
+      "target_label": "Course",
+      "target_name": "Augusta National Golf Club"
+    },
+    {
+      "type": "FOR_COURSE",
+      "source_label": "Enrollment",
+      "source_name": "Product Launch Summit",
+      "target_label": "Course",
+      "target_name": "St Andrews Old Course"
+    },
+    {
+      "type": "FOR_COURSE",
+      "source_label": "Enrollment",
+      "source_name": "Product Launch Summit",
+      "target_label": "Course",
+      "target_name": "Pine Valley Golf Club"
+    },
+    {
+      "type": "FOR_COURSE",
+      "source_label": "Enrollment",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Course",
+      "target_name": "St Andrews Old Course"
+    },
+    {
+      "type": "FOR_COURSE",
+      "source_label": "Enrollment",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Course",
+      "target_name": "Pebble Beach Golf Links"
+    },
+    {
+      "type": "OFFERED_IN",
+      "source_label": "Course",
+      "source_name": "Augusta National Golf Club",
+      "target_label": "Term",
+      "target_name": "Q4 Strategy Review"
+    },
+    {
+      "type": "OFFERED_IN",
+      "source_label": "Course",
+      "source_name": "Augusta National Golf Club",
+      "target_label": "Term",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "OFFERED_IN",
+      "source_label": "Course",
+      "source_name": "Pebble Beach Golf Links",
+      "target_label": "Term",
+      "target_name": "Q4 Strategy Review"
+    },
+    {
+      "type": "OFFERED_IN",
+      "source_label": "Course",
+      "source_name": "Pebble Beach Golf Links",
+      "target_label": "Term",
+      "target_name": "Annual Compliance Audit"
+    },
+    {
+      "type": "OFFERED_IN",
+      "source_label": "Course",
+      "source_name": "St Andrews Old Course",
+      "target_label": "Term",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "OFFERED_IN",
+      "source_label": "Course",
+      "source_name": "St Andrews Old Course",
+      "target_label": "Term",
+      "target_name": "Annual Compliance Audit"
+    },
+    {
+      "type": "OFFERED_IN",
+      "source_label": "Course",
+      "source_name": "Pine Valley Golf Club",
+      "target_label": "Term",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "OFFERED_IN",
+      "source_label": "Course",
+      "source_name": "Cypress Point Club",
+      "target_label": "Term",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "OFFERED_IN",
+      "source_label": "Course",
+      "source_name": "Cypress Point Club",
+      "target_label": "Term",
+      "target_name": "Annual Compliance Audit"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Course",
+      "source_name": "Augusta National Golf Club",
+      "target_label": "Organization",
+      "target_name": "Meridian Consulting Group"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Course",
+      "source_name": "Augusta National Golf Club",
+      "target_label": "Organization",
+      "target_name": "Greenleaf Technologies"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Course",
+      "source_name": "Pebble Beach Golf Links",
+      "target_label": "Organization",
+      "target_name": "Meridian Consulting Group"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Course",
+      "source_name": "St Andrews Old Course",
+      "target_label": "Organization",
+      "target_name": "Meridian Consulting Group"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Course",
+      "source_name": "Pine Valley Golf Club",
+      "target_label": "Organization",
+      "target_name": "Summit Healthcare Systems"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Course",
+      "source_name": "Pine Valley Golf Club",
+      "target_label": "Organization",
+      "target_name": "Greenleaf Technologies"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Course",
+      "source_name": "Cypress Point Club",
+      "target_label": "Organization",
+      "target_name": "Pacific Northwest Industries"
+    },
+    {
+      "type": "BELONGS_TO",
+      "source_label": "Course",
+      "source_name": "Cypress Point Club",
+      "target_label": "Organization",
+      "target_name": "Greenleaf Technologies"
+    },
+    {
+      "type": "PREREQUISITE_OF",
+      "source_label": "Course",
+      "source_name": "Pine Valley Golf Club",
+      "target_label": "Course",
+      "target_name": "St Andrews Old Course"
+    },
+    {
+      "type": "PART_OF",
+      "source_label": "Assessment",
+      "source_name": "Q4 Strategy Review",
+      "target_label": "Course",
+      "target_name": "Pebble Beach Golf Links"
+    },
+    {
+      "type": "PART_OF",
+      "source_label": "Assessment",
+      "source_name": "Q4 Strategy Review",
+      "target_label": "Course",
+      "target_name": "Pine Valley Golf Club"
+    },
+    {
+      "type": "PART_OF",
+      "source_label": "Assessment",
+      "source_name": "Annual Compliance Audit",
+      "target_label": "Course",
+      "target_name": "St Andrews Old Course"
+    },
+    {
+      "type": "PART_OF",
+      "source_label": "Assessment",
+      "source_name": "Annual Compliance Audit",
+      "target_label": "Course",
+      "target_name": "Cypress Point Club"
+    },
+    {
+      "type": "PART_OF",
+      "source_label": "Assessment",
+      "source_name": "Emergency Response Drill",
+      "target_label": "Course",
+      "target_name": "Pine Valley Golf Club"
+    },
+    {
+      "type": "PART_OF",
+      "source_label": "Assessment",
+      "source_name": "Product Launch Summit",
+      "target_label": "Course",
+      "target_name": "Augusta National Golf Club"
+    },
+    {
+      "type": "PART_OF",
+      "source_label": "Assessment",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Course",
+      "target_name": "Augusta National Golf Club"
+    },
+    {
+      "type": "PART_OF",
+      "source_label": "Assessment",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Course",
+      "target_name": "Pebble Beach Golf Links"
+    },
+    {
+      "type": "SUBMITTED_BY",
+      "source_label": "Submission",
+      "source_name": "Q4 Strategy Review",
+      "target_label": "Student",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "SUBMITTED_BY",
+      "source_label": "Submission",
+      "source_name": "Annual Compliance Audit",
+      "target_label": "Student",
+      "target_name": "David Park"
+    },
+    {
+      "type": "SUBMITTED_BY",
+      "source_label": "Submission",
+      "source_name": "Emergency Response Drill",
+      "target_label": "Student",
+      "target_name": "Maria Rodriguez"
+    },
+    {
+      "type": "SUBMITTED_BY",
+      "source_label": "Submission",
+      "source_name": "Emergency Response Drill",
+      "target_label": "Student",
+      "target_name": "Sarah Chen"
+    },
+    {
+      "type": "SUBMITTED_BY",
+      "source_label": "Submission",
+      "source_name": "Product Launch Summit",
+      "target_label": "Student",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "SUBMITTED_BY",
+      "source_label": "Submission",
+      "source_name": "Product Launch Summit",
+      "target_label": "Student",
+      "target_name": "Maria Rodriguez"
+    },
+    {
+      "type": "SUBMITTED_BY",
+      "source_label": "Submission",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Student",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "SUBMITTED_BY",
+      "source_label": "Submission",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Student",
+      "target_name": "Sarah Chen"
+    },
+    {
+      "type": "SUBMITTED_FOR",
+      "source_label": "Submission",
+      "source_name": "Q4 Strategy Review",
+      "target_label": "Assessment",
+      "target_name": "Board of Directors Meeting"
+    },
+    {
+      "type": "SUBMITTED_FOR",
+      "source_label": "Submission",
+      "source_name": "Annual Compliance Audit",
+      "target_label": "Assessment",
+      "target_name": "Product Launch Summit"
+    },
+    {
+      "type": "SUBMITTED_FOR",
+      "source_label": "Submission",
+      "source_name": "Emergency Response Drill",
+      "target_label": "Assessment",
+      "target_name": "Q4 Strategy Review"
+    },
+    {
+      "type": "SUBMITTED_FOR",
+      "source_label": "Submission",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Assessment",
+      "target_name": "Emergency Response Drill"
+    },
+    {
+      "type": "SUBMITTED_FOR",
+      "source_label": "Submission",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Assessment",
+      "target_name": "Q4 Strategy Review"
+    },
+    {
+      "type": "GRADED_BY",
+      "source_label": "Submission",
+      "source_name": "Q4 Strategy Review",
+      "target_label": "Instructor",
+      "target_name": "Maria Rodriguez"
+    },
+    {
+      "type": "GRADED_BY",
+      "source_label": "Submission",
+      "source_name": "Annual Compliance Audit",
+      "target_label": "Instructor",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "GRADED_BY",
+      "source_label": "Submission",
+      "source_name": "Emergency Response Drill",
+      "target_label": "Instructor",
+      "target_name": "Elena Volkov"
+    },
+    {
+      "type": "GRADED_BY",
+      "source_label": "Submission",
+      "source_name": "Emergency Response Drill",
+      "target_label": "Instructor",
+      "target_name": "James Morrison"
+    },
+    {
+      "type": "GRADED_BY",
+      "source_label": "Submission",
+      "source_name": "Product Launch Summit",
+      "target_label": "Instructor",
+      "target_name": "David Park"
+    },
+    {
+      "type": "GRADED_BY",
+      "source_label": "Submission",
+      "source_name": "Product Launch Summit",
+      "target_label": "Instructor",
+      "target_name": "Maria Rodriguez"
+    },
+    {
+      "type": "GRADED_BY",
+      "source_label": "Submission",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Instructor",
+      "target_name": "Maria Rodriguez"
+    },
+    {
+      "type": "GRADED_BY",
+      "source_label": "Submission",
+      "source_name": "Board of Directors Meeting",
+      "target_label": "Instructor",
+      "target_name": "David Park"
+    },
+    {
+      "type": "HELD_AT",
+      "source_label": "Course",
+      "source_name": "Augusta National Golf Club",
+      "target_label": "Location",
+      "target_name": "Mountain Ridge Facility"
+    },
+    {
+      "type": "HELD_AT",
+      "source_label": "Course",
+      "source_name": "Augusta National Golf Club",
+      "target_label": "Location",
+      "target_name": "Westside Corporate Campus"
+    },
+    {
+      "type": "HELD_AT",
+      "source_label": "Course",
+      "source_name": "Pebble Beach Golf Links",
+      "target_label": "Location",
+      "target_name": "Harbor View Complex"
+    },
+    {
+      "type": "HELD_AT",
+      "source_label": "Course",
+      "source_name": "Pebble Beach Golf Links",
+      "target_label": "Location",
+      "target_name": "Riverside Research Park"
+    },
+    {
+      "type": "HELD_AT",
+      "source_label": "Course",
+      "source_name": "St Andrews Old Course",
+      "target_label": "Location",
+      "target_name": "Mountain Ridge Facility"
+    },
+    {
+      "type": "HELD_AT",
+      "source_label": "Course",
+      "source_name": "St Andrews Old Course",
+      "target_label": "Location",
+      "target_name": "Downtown Medical Center"
+    },
+    {
+      "type": "HELD_AT",
+      "source_label": "Course",
+      "source_name": "Pine Valley Golf Club",
+      "target_label": "Location",
+      "target_name": "Mountain Ridge Facility"
+    },
+    {
+      "type": "HELD_AT",
+      "source_label": "Course",
+      "source_name": "Cypress Point Club",
+      "target_label": "Location",
+      "target_name": "Downtown Medical Center"
+    },
+    {
+      "type": "HELD_AT",
+      "source_label": "Course",
+      "source_name": "Cypress Point Club",
+      "target_label": "Location",
+      "target_name": "Westside Corporate Campus"
+    },
+    {
+      "type": "ATTENDED",
+      "source_label": "Student",
+      "source_name": "Sarah Chen",
+      "target_label": "Event",
+      "target_name": "Annual Compliance Audit"
+    },
+    {
+      "type": "ATTENDED",
+      "source_label": "Student",
+      "source_name": "James Morrison",
+      "target_label": "Event",
+      "target_name": "Q4 Strategy Review"
+    },
+    {
+      "type": "ATTENDED",
+      "source_label": "Student",
+      "source_name": "Maria Rodriguez",
+      "target_label": "Event",
+      "target_name": "Annual Compliance Audit"
+    },
+    {
+      "type": "ATTENDED",
+      "source_label": "Student",
+      "source_name": "David Park",
+      "target_label": "Event",
+      "target_name": "Annual Compliance Audit"
+    },
+    {
+      "type": "ATTENDED",
+      "source_label": "Student",
+      "source_name": "David Park",
+      "target_label": "Event",
+      "target_name": "Q4 Strategy Review"
+    },
+    {
+      "type": "ATTENDED",
+      "source_label": "Student",
+      "source_name": "Elena Volkov",
+      "target_label": "Event",
+      "target_name": "Annual Compliance Audit"
+    },
+    {
+      "type": "ATTENDED",
+      "source_label": "Student",
+      "source_name": "Elena Volkov",
+      "target_label": "Event",
+      "target_name": "Product Launch Summit"
+    }
+  ],
+  "documents": [
+    {
+      "template_id": "syllabus",
+      "template_name": "Course Syllabus",
+      "title": "Course Syllabus: Augusta National Golf Club",
+      "content": "# Course Syllabus\n\n**Date:** 2025-09-22  \n**Domain:** Education  \n**Reference:** Course: Augusta National Golf Club, Instructor: Sarah Chen, Term: Q4 Strategy Review\n\n## Summary\n\nThis course syllabus documents course syllabus with policies and schedule. It pertains to Course: Augusta National Golf Club, Instructor: Sarah Chen, Term: Q4 Strategy Review and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Course: Augusta National Golf Club, Instructor: Sarah Chen, Term: Q4 Strategy Review are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Course: Augusta National Golf Club, Instructor: Sarah Chen, Term: Q4 Strategy Review, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior course syllabus records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "syllabus",
+      "template_name": "Course Syllabus",
+      "title": "Course Syllabus: Pebble Beach Golf Links",
+      "content": "# Course Syllabus\n\n**Date:** 2024-10-22  \n**Domain:** Education  \n**Reference:** Course: Pebble Beach Golf Links, Instructor: James Morrison, Term: Annual Compliance Audit\n\n## Summary\n\nThis course syllabus documents course syllabus with policies and schedule. It pertains to Course: Pebble Beach Golf Links, Instructor: James Morrison, Term: Annual Compliance Audit and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Course: Pebble Beach Golf Links, Instructor: James Morrison, Term: Annual Compliance Audit are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Course: Pebble Beach Golf Links, Instructor: James Morrison, Term: Annual Compliance Audit, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior course syllabus records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "syllabus",
+      "template_name": "Course Syllabus",
+      "title": "Course Syllabus: St Andrews Old Course",
+      "content": "# Course Syllabus\n\n**Date:** 2026-12-08  \n**Domain:** Education  \n**Reference:** Course: St Andrews Old Course, Instructor: Maria Rodriguez, Term: Emergency Response Drill\n\n## Summary\n\nThis course syllabus documents course syllabus with policies and schedule. It pertains to Course: St Andrews Old Course, Instructor: Maria Rodriguez, Term: Emergency Response Drill and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Course: St Andrews Old Course, Instructor: Maria Rodriguez, Term: Emergency Response Drill are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Course: St Andrews Old Course, Instructor: Maria Rodriguez, Term: Emergency Response Drill, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior course syllabus records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "syllabus",
+      "template_name": "Course Syllabus",
+      "title": "Course Syllabus: Pine Valley Golf Club",
+      "content": "# Course Syllabus\n\n**Date:** 2024-10-11  \n**Domain:** Education  \n**Reference:** Course: Pine Valley Golf Club, Instructor: David Park, Term: Product Launch Summit\n\n## Summary\n\nThis course syllabus documents course syllabus with policies and schedule. It pertains to Course: Pine Valley Golf Club, Instructor: David Park, Term: Product Launch Summit and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Course: Pine Valley Golf Club, Instructor: David Park, Term: Product Launch Summit are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Course: Pine Valley Golf Club, Instructor: David Park, Term: Product Launch Summit, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior course syllabus records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "syllabus",
+      "template_name": "Course Syllabus",
+      "title": "Course Syllabus: Cypress Point Club",
+      "content": "# Course Syllabus\n\n**Date:** 2024-01-29  \n**Domain:** Education  \n**Reference:** Course: Cypress Point Club, Instructor: Elena Volkov, Term: Board of Directors Meeting\n\n## Summary\n\nThis course syllabus documents course syllabus with policies and schedule. It pertains to Course: Cypress Point Club, Instructor: Elena Volkov, Term: Board of Directors Meeting and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Course: Cypress Point Club, Instructor: Elena Volkov, Term: Board of Directors Meeting are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Course: Cypress Point Club, Instructor: Elena Volkov, Term: Board of Directors Meeting, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior course syllabus records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "assignment_brief",
+      "template_name": "Assignment Brief",
+      "title": "Assignment Brief: Q4 Strategy Review",
+      "content": "# Assignment Brief\n\n**Date:** 2026-09-14  \n**Domain:** Education  \n**Reference:** Assessment: Q4 Strategy Review, Course: Augusta National Golf Club, Instructor: Sarah Chen\n\n## Summary\n\nThis assignment brief documents detailed assignment description with rubric. It pertains to Assessment: Q4 Strategy Review, Course: Augusta National Golf Club, Instructor: Sarah Chen and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Assessment: Q4 Strategy Review, Course: Augusta National Golf Club, Instructor: Sarah Chen are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Assessment: Q4 Strategy Review, Course: Augusta National Golf Club, Instructor: Sarah Chen, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior assignment brief records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "assignment_brief",
+      "template_name": "Assignment Brief",
+      "title": "Assignment Brief: Annual Compliance Audit",
+      "content": "# Assignment Brief\n\n**Date:** 2025-02-02  \n**Domain:** Education  \n**Reference:** Assessment: Annual Compliance Audit, Course: Pebble Beach Golf Links, Instructor: James Morrison\n\n## Summary\n\nThis assignment brief documents detailed assignment description with rubric. It pertains to Assessment: Annual Compliance Audit, Course: Pebble Beach Golf Links, Instructor: James Morrison and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Assessment: Annual Compliance Audit, Course: Pebble Beach Golf Links, Instructor: James Morrison are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Assessment: Annual Compliance Audit, Course: Pebble Beach Golf Links, Instructor: James Morrison, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior assignment brief records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "assignment_brief",
+      "template_name": "Assignment Brief",
+      "title": "Assignment Brief: Emergency Response Drill",
+      "content": "# Assignment Brief\n\n**Date:** 2025-01-16  \n**Domain:** Education  \n**Reference:** Assessment: Emergency Response Drill, Course: St Andrews Old Course, Instructor: Maria Rodriguez\n\n## Summary\n\nThis assignment brief documents detailed assignment description with rubric. It pertains to Assessment: Emergency Response Drill, Course: St Andrews Old Course, Instructor: Maria Rodriguez and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Assessment: Emergency Response Drill, Course: St Andrews Old Course, Instructor: Maria Rodriguez are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Assessment: Emergency Response Drill, Course: St Andrews Old Course, Instructor: Maria Rodriguez, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior assignment brief records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "assignment_brief",
+      "template_name": "Assignment Brief",
+      "title": "Assignment Brief: Product Launch Summit",
+      "content": "# Assignment Brief\n\n**Date:** 2024-09-08  \n**Domain:** Education  \n**Reference:** Assessment: Product Launch Summit, Course: Pine Valley Golf Club, Instructor: David Park\n\n## Summary\n\nThis assignment brief documents detailed assignment description with rubric. It pertains to Assessment: Product Launch Summit, Course: Pine Valley Golf Club, Instructor: David Park and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Assessment: Product Launch Summit, Course: Pine Valley Golf Club, Instructor: David Park are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Assessment: Product Launch Summit, Course: Pine Valley Golf Club, Instructor: David Park, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior assignment brief records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "assignment_brief",
+      "template_name": "Assignment Brief",
+      "title": "Assignment Brief: Board of Directors Meeting",
+      "content": "# Assignment Brief\n\n**Date:** 2024-05-22  \n**Domain:** Education  \n**Reference:** Assessment: Board of Directors Meeting, Course: Cypress Point Club, Instructor: Elena Volkov\n\n## Summary\n\nThis assignment brief documents detailed assignment description with rubric. It pertains to Assessment: Board of Directors Meeting, Course: Cypress Point Club, Instructor: Elena Volkov and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Assessment: Board of Directors Meeting, Course: Cypress Point Club, Instructor: Elena Volkov are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Assessment: Board of Directors Meeting, Course: Cypress Point Club, Instructor: Elena Volkov, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior assignment brief records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "progress_report",
+      "template_name": "Student Progress Report",
+      "title": "Student Progress Report: Sarah Chen",
+      "content": "# Student Progress Report\n\n**Date:** 2025-08-29  \n**Domain:** Education  \n**Reference:** Student: Sarah Chen, Course: Augusta National Golf Club, Instructor: Sarah Chen\n\n## Summary\n\nThis student progress report documents individual student progress summaries. It pertains to Student: Sarah Chen, Course: Augusta National Golf Club, Instructor: Sarah Chen and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Student: Sarah Chen, Course: Augusta National Golf Club, Instructor: Sarah Chen are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Student: Sarah Chen, Course: Augusta National Golf Club, Instructor: Sarah Chen, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior student progress report records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "progress_report",
+      "template_name": "Student Progress Report",
+      "title": "Student Progress Report: James Morrison",
+      "content": "# Student Progress Report\n\n**Date:** 2024-12-05  \n**Domain:** Education  \n**Reference:** Student: James Morrison, Course: Pebble Beach Golf Links, Instructor: James Morrison\n\n## Summary\n\nThis student progress report documents individual student progress summaries. It pertains to Student: James Morrison, Course: Pebble Beach Golf Links, Instructor: James Morrison and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Student: James Morrison, Course: Pebble Beach Golf Links, Instructor: James Morrison are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Student: James Morrison, Course: Pebble Beach Golf Links, Instructor: James Morrison, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior student progress report records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "progress_report",
+      "template_name": "Student Progress Report",
+      "title": "Student Progress Report: Maria Rodriguez",
+      "content": "# Student Progress Report\n\n**Date:** 2025-12-18  \n**Domain:** Education  \n**Reference:** Student: Maria Rodriguez, Course: St Andrews Old Course, Instructor: Maria Rodriguez\n\n## Summary\n\nThis student progress report documents individual student progress summaries. It pertains to Student: Maria Rodriguez, Course: St Andrews Old Course, Instructor: Maria Rodriguez and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Student: Maria Rodriguez, Course: St Andrews Old Course, Instructor: Maria Rodriguez are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Student: Maria Rodriguez, Course: St Andrews Old Course, Instructor: Maria Rodriguez, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior student progress report records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "progress_report",
+      "template_name": "Student Progress Report",
+      "title": "Student Progress Report: David Park",
+      "content": "# Student Progress Report\n\n**Date:** 2025-01-09  \n**Domain:** Education  \n**Reference:** Student: David Park, Course: Pine Valley Golf Club, Instructor: David Park\n\n## Summary\n\nThis student progress report documents individual student progress summaries. It pertains to Student: David Park, Course: Pine Valley Golf Club, Instructor: David Park and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Student: David Park, Course: Pine Valley Golf Club, Instructor: David Park are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Student: David Park, Course: Pine Valley Golf Club, Instructor: David Park, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior student progress report records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "progress_report",
+      "template_name": "Student Progress Report",
+      "title": "Student Progress Report: Elena Volkov",
+      "content": "# Student Progress Report\n\n**Date:** 2026-08-01  \n**Domain:** Education  \n**Reference:** Student: Elena Volkov, Course: Cypress Point Club, Instructor: Elena Volkov\n\n## Summary\n\nThis student progress report documents individual student progress summaries. It pertains to Student: Elena Volkov, Course: Cypress Point Club, Instructor: Elena Volkov and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Student: Elena Volkov, Course: Cypress Point Club, Instructor: Elena Volkov are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Student: Elena Volkov, Course: Cypress Point Club, Instructor: Elena Volkov, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior student progress report records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "lesson_plan",
+      "template_name": "Lesson Plan",
+      "title": "Lesson Plan: Augusta National Golf Club",
+      "content": "# Lesson Plan\n\n**Date:** 2024-06-26  \n**Domain:** Education  \n**Reference:** Course: Augusta National Golf Club, Instructor: Sarah Chen\n\n## Summary\n\nThis lesson plan documents detailed lesson plan for a single class session. It pertains to Course: Augusta National Golf Club, Instructor: Sarah Chen and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Course: Augusta National Golf Club, Instructor: Sarah Chen are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Course: Augusta National Golf Club, Instructor: Sarah Chen, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior lesson plan records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "lesson_plan",
+      "template_name": "Lesson Plan",
+      "title": "Lesson Plan: Pebble Beach Golf Links",
+      "content": "# Lesson Plan\n\n**Date:** 2024-01-01  \n**Domain:** Education  \n**Reference:** Course: Pebble Beach Golf Links, Instructor: James Morrison\n\n## Summary\n\nThis lesson plan documents detailed lesson plan for a single class session. It pertains to Course: Pebble Beach Golf Links, Instructor: James Morrison and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Course: Pebble Beach Golf Links, Instructor: James Morrison are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Course: Pebble Beach Golf Links, Instructor: James Morrison, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior lesson plan records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "lesson_plan",
+      "template_name": "Lesson Plan",
+      "title": "Lesson Plan: St Andrews Old Course",
+      "content": "# Lesson Plan\n\n**Date:** 2026-04-24  \n**Domain:** Education  \n**Reference:** Course: St Andrews Old Course, Instructor: Maria Rodriguez\n\n## Summary\n\nThis lesson plan documents detailed lesson plan for a single class session. It pertains to Course: St Andrews Old Course, Instructor: Maria Rodriguez and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Course: St Andrews Old Course, Instructor: Maria Rodriguez are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Course: St Andrews Old Course, Instructor: Maria Rodriguez, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior lesson plan records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "lesson_plan",
+      "template_name": "Lesson Plan",
+      "title": "Lesson Plan: Pine Valley Golf Club",
+      "content": "# Lesson Plan\n\n**Date:** 2026-12-26  \n**Domain:** Education  \n**Reference:** Course: Pine Valley Golf Club, Instructor: David Park\n\n## Summary\n\nThis lesson plan documents detailed lesson plan for a single class session. It pertains to Course: Pine Valley Golf Club, Instructor: David Park and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Course: Pine Valley Golf Club, Instructor: David Park are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Course: Pine Valley Golf Club, Instructor: David Park, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior lesson plan records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "lesson_plan",
+      "template_name": "Lesson Plan",
+      "title": "Lesson Plan: Cypress Point Club",
+      "content": "# Lesson Plan\n\n**Date:** 2024-03-10  \n**Domain:** Education  \n**Reference:** Course: Cypress Point Club, Instructor: Elena Volkov\n\n## Summary\n\nThis lesson plan documents detailed lesson plan for a single class session. It pertains to Course: Cypress Point Club, Instructor: Elena Volkov and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Course: Cypress Point Club, Instructor: Elena Volkov are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Course: Cypress Point Club, Instructor: Elena Volkov, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior lesson plan records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "parent_email",
+      "template_name": "Parent Communication",
+      "title": "Parent Communication: Sarah Chen",
+      "content": "# Parent Communication\n\n**Date:** 2026-05-25  \n**Domain:** Education  \n**Reference:** Instructor: Sarah Chen, Student: Sarah Chen, Course: Augusta National Golf Club\n\n## Summary\n\nThis parent communication documents email to a parent about student progress or behavior. It pertains to Instructor: Sarah Chen, Student: Sarah Chen, Course: Augusta National Golf Club and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Instructor: Sarah Chen, Student: Sarah Chen, Course: Augusta National Golf Club are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Instructor: Sarah Chen, Student: Sarah Chen, Course: Augusta National Golf Club, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior parent communication records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "parent_email",
+      "template_name": "Parent Communication",
+      "title": "Parent Communication: James Morrison",
+      "content": "# Parent Communication\n\n**Date:** 2026-11-28  \n**Domain:** Education  \n**Reference:** Instructor: James Morrison, Student: James Morrison, Course: Pebble Beach Golf Links\n\n## Summary\n\nThis parent communication documents email to a parent about student progress or behavior. It pertains to Instructor: James Morrison, Student: James Morrison, Course: Pebble Beach Golf Links and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Instructor: James Morrison, Student: James Morrison, Course: Pebble Beach Golf Links are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Instructor: James Morrison, Student: James Morrison, Course: Pebble Beach Golf Links, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior parent communication records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "parent_email",
+      "template_name": "Parent Communication",
+      "title": "Parent Communication: Maria Rodriguez",
+      "content": "# Parent Communication\n\n**Date:** 2024-11-21  \n**Domain:** Education  \n**Reference:** Instructor: Maria Rodriguez, Student: Maria Rodriguez, Course: St Andrews Old Course\n\n## Summary\n\nThis parent communication documents email to a parent about student progress or behavior. It pertains to Instructor: Maria Rodriguez, Student: Maria Rodriguez, Course: St Andrews Old Course and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Instructor: Maria Rodriguez, Student: Maria Rodriguez, Course: St Andrews Old Course are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Instructor: Maria Rodriguez, Student: Maria Rodriguez, Course: St Andrews Old Course, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior parent communication records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "parent_email",
+      "template_name": "Parent Communication",
+      "title": "Parent Communication: David Park",
+      "content": "# Parent Communication\n\n**Date:** 2024-01-04  \n**Domain:** Education  \n**Reference:** Instructor: David Park, Student: David Park, Course: Pine Valley Golf Club\n\n## Summary\n\nThis parent communication documents email to a parent about student progress or behavior. It pertains to Instructor: David Park, Student: David Park, Course: Pine Valley Golf Club and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Instructor: David Park, Student: David Park, Course: Pine Valley Golf Club are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Instructor: David Park, Student: David Park, Course: Pine Valley Golf Club, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior parent communication records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    },
+    {
+      "template_id": "parent_email",
+      "template_name": "Parent Communication",
+      "title": "Parent Communication: Elena Volkov",
+      "content": "# Parent Communication\n\n**Date:** 2025-09-05  \n**Domain:** Education  \n**Reference:** Instructor: Elena Volkov, Student: Elena Volkov, Course: Cypress Point Club\n\n## Summary\n\nThis parent communication documents email to a parent about student progress or behavior. It pertains to Instructor: Elena Volkov, Student: Elena Volkov, Course: Cypress Point Club and was prepared as part of standard education operations.\n\n## Details\n\nThe following information has been compiled based on available records and observations. All referenced entities have been verified against the current knowledge graph.\n\nKey findings and observations related to Instructor: Elena Volkov, Student: Elena Volkov, Course: Cypress Point Club are documented below. This record should be reviewed in conjunction with related documents and entity records for complete context.\n\n## Recommendations\n\nBased on the analysis of Instructor: Elena Volkov, Student: Elena Volkov, Course: Cypress Point Club, the following actions are recommended for continued monitoring and follow-up. Please refer to the relevant entity profiles and prior parent communication records for historical context and trend analysis.\n\n---\n\n*Document generated for Education context graph application.*"
+    }
+  ],
+  "traces": [
+    {
+      "id": "academic_intervention",
+      "task": "Decide on academic intervention for Elena Volkov in Augusta National Golf Club",
+      "steps": [
+        {
+          "thought": "Assess the student's current performance trajectory",
+          "action": "Review submissions, scores, and attendance patterns this term",
+          "observation": "Review of Westside Corporate Campus completed. Identified 4 key factors relevant to the current decision context."
+        },
+        {
+          "thought": "Identify possible root causes",
+          "action": "Compare against the student's performance in other courses and prior terms",
+          "observation": "Action completed for Summit Healthcare Systems. Results consistent with expected education domain patterns."
+        },
+        {
+          "thought": "Consider available support resources",
+          "action": "Check tutoring availability, advisor schedule, and prior intervention outcomes",
+          "observation": "Verified Augusta National Golf Club against education standards. All 7 checked parameters within acceptable thresholds."
+        },
+        {
+          "thought": "Choose the least disruptive effective intervention",
+          "action": "Match intervention severity to gap size and time remaining in term",
+          "observation": "Action completed for Annual Compliance Audit. Results consistent with expected education domain patterns."
+        }
+      ],
+      "outcome": "Intervention: the assessed criteria. Owner: the assessed criteria. Review date: the assessed criteria"
+    },
+    {
+      "id": "course_scheduling",
+      "task": "Schedule a new section of St Andrews Old Course for Q4 Strategy Review",
+      "steps": [
+        {
+          "thought": "Check instructor availability and load",
+          "action": "Query instructor course loads and prior teaching of this course",
+          "observation": "Found 12 relevant records in the education knowledge graph. Top result: Maria Rodriguez with 4 connected entities."
+        },
+        {
+          "thought": "Estimate demand from prerequisite enrollments",
+          "action": "Count students who completed prerequisite courses",
+          "observation": "Action completed for Harbor View Complex. Results consistent with expected education domain patterns."
+        },
+        {
+          "thought": "Avoid time conflicts with required co-courses",
+          "action": "Check the schedule of courses commonly taken together",
+          "observation": "Verified Annual Compliance Audit against education standards. All 7 checked parameters within acceptable thresholds."
+        }
+      ],
+      "outcome": "Section: the assessed criteria. Instructor: the assessed criteria. Capacity: the assessed criteria"
+    },
+    {
+      "id": "grade_appeal",
+      "task": "Evaluate grade appeal for James Morrison on Board of Directors Meeting",
+      "steps": [
+        {
+          "thought": "Reconstruct the original grading",
+          "action": "Pull the submission, rubric, and graded score",
+          "observation": "Action completed for Riverside Research Park. Results consistent with expected education domain patterns."
+        },
+        {
+          "thought": "Compare against peer submissions for consistency",
+          "action": "Sample other submissions for the same assessment",
+          "observation": "Action completed for James Morrison. Results consistent with expected education domain patterns."
+        },
+        {
+          "thought": "Check policy compliance",
+          "action": "Verify late, attendance, and academic-honesty policies",
+          "observation": "Verified David Park against education standards. All 5 checked parameters within acceptable thresholds."
+        }
+      ],
+      "outcome": "Decision: Approve. Original: the assessed criteria. Revised: the assessed criteria"
+    },
+    {
+      "id": "program_review",
+      "task": "Review effectiveness of Augusta National Golf Club curriculum",
+      "steps": [
+        {
+          "thought": "Aggregate outcomes from recent terms",
+          "action": "Compute completion rate, average final grade, and DFW rate per term",
+          "observation": "Analysis of Q4 Strategy Review complete. Key metrics computed and compared against historical baselines \u2014 3 indicators flagged for review."
+        },
+        {
+          "thought": "Identify assessments where students cluster low",
+          "action": "Find assessments with low average scores across cohorts",
+          "observation": "Action completed for Emergency Response Drill. Results consistent with expected education domain patterns."
+        },
+        {
+          "thought": "Compare against peer courses or program goals",
+          "action": "Find similar courses in the same subject and compare outcomes",
+          "observation": "Action completed for Q4 Strategy Review. Results consistent with expected education domain patterns."
+        }
+      ],
+      "outcome": "Findings: the assessed criteria. Recommended changes: the assessed criteria"
+    }
+  ]
+}

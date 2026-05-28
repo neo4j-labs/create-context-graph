@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "create-context-graph"
-version = "0.9.5"
+version = "0.13.1"
 description = "Interactive CLI scaffolding tool for domain-specific context graph applications"
 readme = "README.md"
 license = "Apache-2.0"
@@ -63,6 +63,11 @@ dev = [
     "pytest>=8.0",
     "pytest-cov>=5.0",
     "pytest-asyncio>=0.24",
+    # Runtime deps the generated project uses — required for route integration tests
+    # (tests/test_routes_integration.py mounts the generated FastAPI app).
+    "fastapi>=0.115",
+    "httpx>=0.27",
+    "pydantic-settings>=2.0",
 ]
 all = [
     "create-context-graph[generate,ingest,connectors]",

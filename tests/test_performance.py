@@ -19,15 +19,13 @@ from __future__ import annotations
 import time
 
 import pytest
-from click.testing import CliRunner
 
 from create_context_graph.cli import main
 from create_context_graph.ontology import list_available_domains
 
-
-@pytest.fixture
-def runner():
-    return CliRunner()
+# ``runner`` fixture is provided by tests/conftest.py and auto-injects
+# ``--self-hosted`` so these performance tests exercise the bolt path
+# without each test needing to pass the flag explicitly.
 
 
 def _all_domain_ids():

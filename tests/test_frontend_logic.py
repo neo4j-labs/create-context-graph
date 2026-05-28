@@ -17,6 +17,8 @@ TEMPLATES_BASE = Path(__file__).resolve().parent.parent / "src" / "create_contex
 ROUTES_TEMPLATE = TEMPLATES_BASE / "backend" / "shared" / "routes.py.j2"
 CHAT_TEMPLATE = TEMPLATES_BASE / "frontend" / "components" / "ChatInterface.tsx.j2"
 GRAPH_VIEW_TEMPLATE = TEMPLATES_BASE / "frontend" / "components" / "ContextGraphView.tsx.j2"
+DOC_BROWSER_TEMPLATE = TEMPLATES_BASE / "frontend" / "components" / "DocumentBrowser.tsx.j2"
+DECISION_TRACE_TEMPLATE = TEMPLATES_BASE / "frontend" / "components" / "DecisionTracePanel.tsx.j2"
 
 
 # ---------------------------------------------------------------------------
@@ -364,3 +366,157 @@ class TestGeneratedFrontendStructure:
         src = CHAT_TEMPLATE.read_text()
         assert "AbortController" in src, "ChatInterface missing AbortController for timeout handling"
         assert "controller.abort" in src or "abort()" in src, "ChatInterface does not call abort()"
+
+
+class TestStreamingRefAccumulation:
+    """v0.12.0 regression test — the ``done`` SSE handler must read the
+    streaming entities/preferences from refs, not from useState. The bug
+    was that the handler captured ``streamingEntities``/``streamingPreferences``
+    via closure on the message-pump async loop, so values accumulated by
+    ``setStreamingEntities(prev => ...)`` in earlier events could be one
+    render behind when ``done`` fires. Refs read synchronously."""
+
+    def test_done_handler_does_not_read_streaming_state_directly(self):
+        """The ``done`` branch must NOT contain bare ``streamingEntities`` /
+        ``streamingPreferences`` reads — only ``.current`` reads via refs."""
+        src = CHAT_TEMPLATE.read_text()
+        # Locate the case "done" block precisely.
+        done_idx = src.index('case "done"')
+        error_idx = src.index('case "error"', done_idx)
+        done_block = src[done_idx:error_idx]
+
+        # No bare reads — must be via refs. Catch the legacy ``streamingEntities.length``
+        # / ``[...streamingEntities]`` shapes the v0.12.0 done handler used.
+        assert ".length" not in done_block.split("streamingEntities")[1].split("\n")[0] \
+            if "streamingEntities" in done_block else True, \
+            "done handler appears to read streamingEntities directly — use streamingEntitiesRef.current"
+
+        # Stronger: explicit ref reads should appear.
+        assert "streamingEntitiesRef.current" in done_block, (
+            "done handler must read accumulated entities from streamingEntitiesRef.current"
+        )
+        assert "streamingPreferencesRef.current" in done_block, (
+            "done handler must read accumulated preferences from streamingPreferencesRef.current"
+        )
+
+    def test_refs_are_declared_alongside_state(self):
+        src = CHAT_TEMPLATE.read_text()
+        assert "streamingEntitiesRef = useRef" in src, (
+            "streamingEntitiesRef must be declared with useRef so the done handler "
+            "can read synchronously."
+        )
+        assert "streamingPreferencesRef = useRef" in src, (
+            "streamingPreferencesRef must be declared with useRef."
+        )
+
+    def test_refs_updated_in_extraction_handlers(self):
+        """Each extraction event must push into the ref AND keep the state in
+        sync so the display badges still re-render during streaming."""
+        src = CHAT_TEMPLATE.read_text()
+        # Inside entities_extracted handler, both ref and state should be updated.
+        entities_idx = src.index('case "entities_extracted"')
+        prefs_idx = src.index('case "preferences_detected"', entities_idx)
+        entities_block = src[entities_idx:prefs_idx]
+        assert "streamingEntitiesRef.current" in entities_block
+        assert "setStreamingEntities" in entities_block
+
+        # Same for preferences.
+        text_delta_idx = src.index('case "text_delta"', prefs_idx) if 'case "text_delta"' in src[prefs_idx:] else len(src)
+        done_idx = src.index('case "done"', prefs_idx)
+        prefs_block = src[prefs_idx:min(text_delta_idx, done_idx)]
+        assert "streamingPreferencesRef.current" in prefs_block
+        assert "setStreamingPreferences" in prefs_block
+
+    def test_refs_reset_on_done_and_error_and_send(self):
+        """Refs must be cleared in: the ``done`` handler (next turn starts
+        clean), the error/catch path (cancelled request doesn't leak entities
+        into the next message), the start of ``sendMessage`` (defensive),
+        and ``startNewConversation`` (full reset)."""
+        src = CHAT_TEMPLATE.read_text()
+        # Expect at least 4 reset sites for each ref.
+        assert src.count("streamingEntitiesRef.current = []") >= 4, (
+            "Need ref resets in done, error, sendMessage start, and startNewConversation"
+        )
+        assert src.count("streamingPreferencesRef.current = []") >= 4
+
+    def test_done_handler_uses_single_setMessages_call(self):
+        """The two-step setMessages pattern (append, then re-update with
+        entities/preferences) is the smell that produced the closure bug.
+        Consolidating into a single setMessages call that pulls from refs
+        is the fix."""
+        src = CHAT_TEMPLATE.read_text()
+        done_idx = src.index('case "done"')
+        error_idx = src.index('case "error"', done_idx)
+        done_block = src[done_idx:error_idx]
+        assert done_block.count("setMessages") == 1, (
+            f"done handler should have exactly 1 setMessages call (single-shot "
+            f"with refs); found {done_block.count('setMessages')}."
+        )
+
+    def test_loading_in_external_input_effect_deps(self):
+        """v0.12.0 regression — the externalInput useEffect read `loading`
+        but didn't list it as a dep, so clicks landing mid-stream were
+        silently dropped. Adding `loading` to the deps fires the effect
+        once the stream completes."""
+        src = CHAT_TEMPLATE.read_text()
+        # The effect block lives between the "externalInput" comment-tag and
+        # the next useEffect. Match the deps array of the effect that calls
+        # sendMessage(externalInput).
+        m = re.search(
+            r"if \(externalInput && !loading\)[^}]+\}\s*[^}]*\}\s*,\s*\[([^\]]+)\]",
+            src,
+        )
+        assert m is not None, "Could not locate externalInput useEffect"
+        deps = m.group(1)
+        assert "externalInput" in deps
+        assert "loading" in deps, (
+            f"externalInput useEffect must depend on `loading` to re-fire after a "
+            f"mid-stream click; current deps: [{deps}]"
+        )
+
+
+class TestCompositeKeyRegressions:
+    """v0.13.0 / v0.13.1 — every list rendered from streaming data must use a
+    composite key derived from stable item properties. The pre-v0.13.0 bug was
+    bare ``key={i}`` (array index), which makes React reuse DOM across reorders
+    and stomp on the wrong message's content."""
+
+    def test_chat_interface_entity_badge_key_is_composite(self):
+        src = CHAT_TEMPLATE.read_text()
+        assert "key={`${e.type}-${e.name}-${i}`}" in src, (
+            "entity badge key must be `${e.type}-${e.name}-${i}` — index alone "
+            "is unsafe across re-renders"
+        )
+
+    def test_chat_interface_preference_badge_key_is_composite(self):
+        src = CHAT_TEMPLATE.read_text()
+        assert "key={`${p.category}-${p.preference}-${i}`}" in src, (
+            "preference badge key must be `${p.category}-${p.preference}-${i}`"
+        )
+
+    def test_chat_interface_tool_call_key_is_composite(self):
+        src = CHAT_TEMPLATE.read_text()
+        assert "key={`${tc.name}-${j}`}" in src, (
+            "tool call timeline key must be `${tc.name}-${j}`"
+        )
+
+    def test_decision_trace_step_key_is_composite(self):
+        src = DECISION_TRACE_TEMPLATE.read_text()
+        assert 'key={`step-${i}-${(step.action || "").slice(0, 32)}`}' in src, (
+            "trace step key must include the action prefix, not just the index"
+        )
+
+    def test_document_browser_entity_key_uses_document_title(self):
+        """v0.13.1 fix — the entity badge key in the document detail view used
+        to be `${e.name}-${i}`. That collides if the user navigates back to
+        the same document repeatedly (React reuses the prior badge nodes).
+        The fix scopes the key by the document title so it's unique across
+        document switches."""
+        src = DOC_BROWSER_TEMPLATE.read_text()
+        assert "key={`${selectedDoc.document.title}-${e.name}`}" in src, (
+            "DocumentBrowser entity badge key must include the document title"
+        )
+        # The old, weaker pattern must be gone.
+        assert "key={`${e.name}-${i}`}" not in src, (
+            "DocumentBrowser still uses the legacy index-tainted key"
+        )

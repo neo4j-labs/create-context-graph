@@ -17,14 +17,12 @@
 import json
 
 import pytest
-from click.testing import CliRunner
 
 from create_context_graph.cli import main
 
 
-@pytest.fixture
-def runner():
-    return CliRunner()
+# The ``runner`` and ``nams_runner`` fixtures live in tests/conftest.py so they
+# can be shared with test_matrix.py, test_performance.py, and others.
 
 
 class TestListDomains:
@@ -147,8 +145,8 @@ class TestNeo4jAuraEnv:
         assert "neo4j-start:" in makefile
         assert not (out / "docker-compose.yml").exists()
 
-    def test_maf_alias_still_works(self, runner, tmp_path):
-        """Verify deprecated 'maf' alias resolves to anthropic-tools."""
+    def test_maf_alias_no_longer_accepted(self, runner, tmp_path):
+        """The 'maf' alias was removed in v0.13; Click must reject it."""
         out = tmp_path / "maf-app"
         result = runner.invoke(main, [
             "maf-app",
@@ -156,9 +154,9 @@ class TestNeo4jAuraEnv:
             "--framework", "maf",
             "--output-dir", str(out),
         ])
-        assert result.exit_code == 0, result.output
-        agent = (out / "backend" / "app" / "agent.py").read_text()
-        assert "Anthropic Tools" in agent
+        assert result.exit_code != 0
+        # Click emits a standard "Invalid value for '--framework'" error.
+        assert "Invalid value for '--framework'" in result.output or "invalid choice" in result.output.lower()
 
 
 class TestMultipleDomainScaffolds:
@@ -173,6 +171,11 @@ class TestMultipleDomainScaffolds:
         ("manufacturing", "strands"),
         ("digital-twin", "google-adk"),
         ("retail-ecommerce", "anthropic-tools"),
+        # Restored domains (v0.13.0)
+        ("legal", "pydanticai"),
+        ("education", "strands"),
+        ("cybersecurity", "anthropic-tools"),
+        ("government", "claude-agent-sdk"),
     ])
     def test_domain_framework_combo(self, runner, tmp_path, domain_id, framework):
         out = tmp_path / f"test-{domain_id}"
@@ -234,6 +237,35 @@ class TestCLIValidation:
             "--verbose",
         ])
         assert result.exit_code == 0
+
+
+class TestFrameworkAliasRemoval:
+    """The ``maf`` alias was removed in v0.13; Click now rejects it outright."""
+
+    def test_maf_alias_rejected(self, runner, tmp_path):
+        out = tmp_path / "maf-rejected"
+        result = runner.invoke(main, [
+            "maf-rejected",
+            "--domain", "healthcare",
+            "--framework", "maf",
+            "--output-dir", str(out),
+            "--dry-run",
+        ])
+        assert result.exit_code != 0
+        assert "Invalid value for '--framework'" in result.output or "invalid choice" in result.output.lower()
+        assert not out.exists()
+
+    def test_anthropic_tools_replacement_works(self, runner, tmp_path):
+        """The replacement framework key still scaffolds cleanly."""
+        out = tmp_path / "anthropic-tools-ok"
+        result = runner.invoke(main, [
+            "anthropic-tools-ok",
+            "--domain", "healthcare",
+            "--framework", "anthropic-tools",
+            "--output-dir", str(out),
+            "--dry-run",
+        ])
+        assert result.exit_code == 0, result.output
 
 
 class TestV060CLIFlags:
@@ -761,7 +793,8 @@ class TestClaudeCodeConnectorCLI:
         assert "claude_code_base_path" in config_py
 
     def test_claude_code_import_data_dict_access(self, runner, tmp_path):
-        """Generated import_data.py should use dict access, not attribute access."""
+        """Generated import_data.py should treat connector output as a dict
+        (NormalizedData is coerced via ``_normalized_to_dict``)."""
         out = tmp_path / "cc-dict"
         result = runner.invoke(main, [
             "cc-dict",
@@ -772,8 +805,10 @@ class TestClaudeCodeConnectorCLI:
         ])
         assert result.exit_code == 0, result.output
         import_data = (out / "backend" / "scripts" / "import_data.py").read_text()
-        assert 'data["entities"]' in import_data
+        # New shape: connector return is dict-coerced then accessed via .get
+        assert 'data.get("entities"' in import_data
         assert "data.entities" not in import_data
+        assert "_normalized_to_dict" in import_data
 
     def test_claude_code_connector_entity_types(self, runner, tmp_path):
         """Generated connector should extract all entity types including Decision/Preference."""

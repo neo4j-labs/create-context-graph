@@ -83,6 +83,13 @@ class BaseConnector(ABC):
     service_description: str = ""
     requires_oauth: bool = False
 
+    # Per-entity-type mapping declaring which property carries the prose body
+    # for an entity. The ingestor reads this to decide which entities should
+    # also flow through ``short_term.add_message`` so NAMS-side entity
+    # extraction can mine the body for additional structure. Pure-metadata
+    # entities (Person, Project, Label) omit themselves from this dict.
+    BODY_FIELDS: dict[str, str] = {}
+
     @abstractmethod
     def authenticate(self, credentials: dict[str, str]) -> None:
         """Authenticate with the service using provided credentials."""

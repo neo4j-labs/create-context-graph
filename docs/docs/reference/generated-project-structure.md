@@ -126,7 +126,7 @@ async def handle_message(
     """Returns {"response": str, "session_id": str, "graph_data": dict | None}"""
 ```
 
-For frameworks that support text streaming (PydanticAI, Anthropic Tools, Claude Agent SDK, OpenAI Agents, LangGraph, Google ADK), the agent also exports:
+All 8 frameworks also export a streaming variant for the `/chat/stream` SSE endpoint:
 
 ```python
 async def handle_message_stream(

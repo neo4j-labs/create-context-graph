@@ -21,16 +21,13 @@ every scaffold generates successfully. Marked as slow — run with --slow.
 from __future__ import annotations
 
 import pytest
-from click.testing import CliRunner
 
 from create_context_graph.cli import main
 from create_context_graph.config import SUPPORTED_FRAMEWORKS
 from create_context_graph.ontology import list_available_domains
 
-
-@pytest.fixture
-def runner():
-    return CliRunner()
+# ``runner`` fixture comes from tests/conftest.py and auto-injects
+# ``--self-hosted`` so the matrix exercises the bolt path uniformly.
 
 
 def _all_domain_ids():

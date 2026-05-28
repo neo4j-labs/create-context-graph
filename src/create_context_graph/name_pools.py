@@ -961,9 +961,21 @@ DOMAIN_INDUSTRY_POOL: dict[str, list[str]] = {
         "Options Trading", "Derivatives Analysis", "Market Microstructure",
         "Volatility Research", "Dealer Positioning", "Gamma Exposure Analytics",
     ],
-    "product-discovery": [
-        "Developer Tools", "SaaS", "Consumer Apps",
-        "Open Source", "Product Analytics", "Community Intelligence",
+    "legal": [
+        "Litigation", "Corporate Law", "Intellectual Property", "Employment Law",
+        "Regulatory Compliance", "Mergers & Acquisitions",
+    ],
+    "education": [
+        "Higher Education", "K-12 Schools", "Online Learning", "Educational Technology",
+        "Curriculum Development", "Educational Research",
+    ],
+    "cybersecurity": [
+        "Security Operations", "Threat Intelligence", "Incident Response",
+        "Vulnerability Management", "Identity Access Management", "Security Engineering",
+    ],
+    "government": [
+        "Public Administration", "Civic Services", "Regulatory Affairs",
+        "Public Policy", "Public Health", "Public Safety",
     ],
 }
 
