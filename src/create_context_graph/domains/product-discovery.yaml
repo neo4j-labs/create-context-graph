@@ -1,0 +1,591 @@
+inherits: _base
+
+domain:
+  id: product-discovery
+  name: Product Discovery & Community Intelligence
+  description: "Community-driven product discovery intelligence built from Reddit discussions — surfacing pain points, use cases, feature requests, and sentiment across any product or technology community."
+  tagline: "Turn community discussions into product insights"
+  emoji: "🔍"
+
+entity_types:
+  - label: Post
+    pole_type: OBJECT
+    subtype: COMMUNITY_POST
+    color: "#ff4500"
+    icon: file-text
+    properties:
+      - name: post_id
+        type: string
+        required: true
+        unique: true
+      - name: title
+        type: string
+        required: true
+      - name: body
+        type: string
+      - name: subreddit
+        type: string
+      - name: score
+        type: integer
+      - name: upvote_ratio
+        type: float
+      - name: num_comments
+        type: integer
+      - name: flair
+        type: string
+      - name: permalink
+        type: string
+      - name: created_utc
+        type: string
+      - name: is_self
+        type: boolean
+      - name: sentiment_label
+        type: string
+        enum: [positive, negative, neutral, mixed]
+      - name: sentiment_score
+        type: float
+      - name: summary
+        type: string
+      - name: is_question
+        type: boolean
+      - name: has_code
+        type: boolean
+
+  - label: Comment
+    pole_type: OBJECT
+    subtype: COMMUNITY_COMMENT
+    color: "#ff6534"
+    icon: message-circle
+    properties:
+      - name: comment_id
+        type: string
+        required: true
+        unique: true
+      - name: post_id
+        type: string
+      - name: body
+        type: string
+        required: true
+      - name: score
+        type: integer
+      - name: depth
+        type: integer
+      - name: created_utc
+        type: string
+      - name: permalink
+        type: string
+      - name: is_top_level
+        type: boolean
+      - name: sentiment_label
+        type: string
+        enum: [positive, negative, neutral, mixed]
+      - name: sentiment_score
+        type: float
+      - name: is_question
+        type: boolean
+      - name: has_code
+        type: boolean
+
+  - label: Subreddit
+    pole_type: ORGANIZATION
+    subtype: ONLINE_COMMUNITY
+    color: "#fb923c"
+    icon: users
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: url
+        type: string
+      - name: description
+        type: string
+      - name: subscribers
+        type: integer
+
+  - label: Technology
+    pole_type: OBJECT
+    subtype: PRODUCT
+    color: "#0ea5e9"
+    icon: cpu
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: description
+        type: string
+      - name: category
+        type: string
+        enum: [product, tool, platform, framework, service, concept, other]
+      - name: mention_count
+        type: integer
+
+  - label: Topic
+    pole_type: OBJECT
+    subtype: SUBJECT_TAG
+    color: "#8b5cf6"
+    icon: tag
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: description
+        type: string
+
+  - label: PainPoint
+    pole_type: OBJECT
+    subtype: PROBLEM_AREA
+    color: "#ef4444"
+    icon: alert-circle
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: description
+        type: string
+      - name: frequency
+        type: integer
+
+  - label: UseCase
+    pole_type: OBJECT
+    subtype: APPLICATION_PATTERN
+    color: "#10b981"
+    icon: lightbulb
+    properties:
+      - name: name
+        type: string
+        required: true
+        unique: true
+      - name: description
+        type: string
+      - name: frequency
+        type: integer
+
+relationships:
+  # Authorship
+  - type: POSTED
+    source: Person
+    target: Post
+  - type: AUTHORED_BY
+    source: Comment
+    target: Person
+  - type: ACTIVE_IN
+    source: Person
+    target: Subreddit
+
+  # Content structure
+  - type: IN_SUBREDDIT
+    source: Post
+    target: Subreddit
+  - type: ON_POST
+    source: Comment
+    target: Post
+  - type: REPLY_TO
+    source: Comment
+    target: Comment
+
+  # Knowledge links
+  - type: MENTIONS
+    source: Post
+    target: Technology
+  - type: MENTIONS
+    source: Comment
+    target: Technology
+  - type: TAGGED_WITH
+    source: Post
+    target: Topic
+  - type: TAGGED_WITH
+    source: Comment
+    target: Topic
+  - type: HAS_PAIN_POINT
+    source: Post
+    target: PainPoint
+  - type: DEMONSTRATES
+    source: Post
+    target: UseCase
+
+  # Product graph
+  - type: CO_OCCURS_WITH
+    source: Technology
+    target: Technology
+  - type: RELATED_TO
+    source: Technology
+    target: Technology
+
+document_templates:
+  - id: community_digest
+    name: Weekly Community Digest
+    description: Summary of top discussions from target subreddits
+    count: 4
+    prompt_template: |
+      Write a weekly community digest for product and engineering teams.
+      Cover top discussions from {{subreddit_list}} this week.
+      Include trending products ({{tech_list}}), common questions, pain
+      points, and noteworthy use cases. Format as a newsletter-style summary.
+    required_entities: [Post, Subreddit, Technology]
+
+  - id: product_overview
+    name: Product Community Adoption Overview
+    description: Analysis of how a product is discussed and adopted across communities
+    count: 5
+    prompt_template: |
+      Write a community adoption overview for {{technology.name}}.
+      Include how it is discussed in {{subreddit_list}}, common use cases,
+      pain points developers have reported, and how it compares to related
+      products ({{related_tech_list}}). Base this on real community
+      discussion patterns.
+    required_entities: [Technology, Post, PainPoint, UseCase]
+
+  - id: use_case_writeup
+    name: Use Case Deep Dive
+    description: Detailed analysis of a community-validated use case
+    count: 5
+    prompt_template: |
+      Write a technical deep dive for the use case "{{use_case.name}}".
+      Draw from real community discussions in {{subreddit_list}}.
+      Cover the problem being solved, recommended products
+      ({{tech_list}}), common pitfalls ({{pain_point_list}}), and
+      implementation approaches shared by practitioners.
+    required_entities: [UseCase, Technology, PainPoint, Post]
+
+  - id: pain_point_analysis
+    name: Pain Point Analysis
+    description: Analysis of recurring problems reported by the community
+    count: 5
+    prompt_template: |
+      Write an analysis of the pain point "{{pain_point.name}}" as discussed
+      in {{subreddit_list}}. Include how often it is raised, what products
+      are involved ({{tech_list}}), proposed solutions from the community, and
+      any unresolved issues. Reference actual post patterns.
+    required_entities: [PainPoint, Technology, Post]
+
+  - id: subreddit_profile
+    name: Community Profile
+    description: Intelligence profile of a subreddit community
+    count: 3
+    prompt_template: |
+      Write a community intelligence profile for r/{{subreddit.name}}.
+      Cover the community's focus, top products discussed ({{tech_list}}),
+      most active contributors, common question types, sentiment trends, and
+      how it relates to adjacent communities. Include insights useful for
+      developer relations and product teams.
+    required_entities: [Subreddit, Technology, Person, Topic]
+
+decision_traces:
+  - id: product_adoption
+    task: "Assess community readiness to adopt {{technology.name}} for {{use_case.name}}"
+    steps:
+      - thought: "Gauge community sentiment and discussion volume around the product"
+        action: "Query posts mentioning the product and compute sentiment distribution"
+      - thought: "Identify pain points that might hinder adoption"
+        action: "Find pain points co-occurring with the product across posts"
+      - thought: "Discover success stories and validated use cases"
+        action: "Query posts tagged with positive sentiment demonstrating this use case"
+      - thought: "Understand the competitive landscape from community discussions"
+        action: "Find products co-occurring with target and compare mention frequency"
+    outcome_template: "Adoption readiness: {{readiness}}. Key blockers: {{blockers}}. Champions: {{top_advocates}}"
+
+  - id: pain_point_prioritization
+    task: "Prioritize pain points to address for {{technology.name}} based on community signal"
+    steps:
+      - thought: "Identify the most frequently mentioned pain points"
+        action: "Query pain points linked to the product ordered by frequency"
+      - thought: "Assess severity from post sentiment scores"
+        action: "Correlate pain points with negative-sentiment posts and their scores"
+      - thought: "Determine which pain points are already being addressed"
+        action: "Search for posts where pain point is mentioned alongside solution keywords"
+      - thought: "Map pain points to specific communities for targeted response"
+        action: "Break down pain point frequency by subreddit"
+    outcome_template: "Top pain points: {{pain_points}}. Highest community impact: {{top_issue}}"
+
+  - id: content_strategy
+    task: "Determine content strategy for reaching the {{subreddit.name}} community"
+    steps:
+      - thought: "Understand what topics and formats perform best in this community"
+        action: "Query top-scored posts by topic and format (code, tutorial, question)"
+      - thought: "Identify the most engaged and influential community members"
+        action: "Find persons with most posts and comments in the subreddit"
+      - thought: "Map gaps between community questions and available resources"
+        action: "Find is_question=true posts with low comment counts (unanswered)"
+      - thought: "Assess trending products and topics for timely content"
+        action: "Query products with rising mention counts in recent posts"
+    outcome_template: "Strategy: {{strategy}}. Priority topics: {{topics}}. Format recommendation: {{format}}"
+
+  - id: competitive_intelligence
+    task: "Analyse community perception of {{technology.name}} vs competitors"
+    steps:
+      - thought: "Find posts comparing the product to alternatives"
+        action: "Query posts mentioning both the product and related products"
+      - thought: "Assess sentiment differential between the product and competitors"
+        action: "Compare average sentiment scores for posts mentioning each product"
+      - thought: "Identify use cases where community prefers each option"
+        action: "Find use cases co-occurring with each product and their frequency"
+      - thought: "Determine switching intent signals from the community"
+        action: "Search for posts where product and 'migrate', 'switch', or 'replace' co-occur"
+    outcome_template: "Competitive position: {{position}}. Strengths: {{strengths}}. Risks: {{risks}}"
+
+  - id: community_health_check
+    task: "Assess health and engagement of the {{subreddit.name}} community"
+    steps:
+      - thought: "Evaluate recent posting frequency and engagement trends"
+        action: "Query post volume and average score by month for the subreddit"
+      - thought: "Measure question-to-answer ratio to gauge community responsiveness"
+        action: "Count is_question posts and compare with those having comment replies"
+      - thought: "Identify top contributors and concentration risk"
+        action: "Find persons with the most posts and assess diversity of contributors"
+      - thought: "Assess topic diversity and community breadth"
+        action: "Count posts per topic and product to evaluate community breadth"
+    outcome_template: "Community health: {{health_score}}. Growth trend: {{trend}}. Key contributors: {{contributors}}"
+
+demo_scenarios:
+  - name: Product Intelligence
+    prompts:
+      - "What are people saying about {{product}} in the community this month?"
+      - "Show me the most discussed use cases across all subreddits"
+      - "Which products are most often mentioned together?"
+
+  - name: Pain Point Discovery
+    prompts:
+      - "What are the top pain points developers report?"
+      - "What questions are going unanswered in the community?"
+      - "Show me recurring complaints from the last 30 days"
+
+  - name: Trend Analysis
+    prompts:
+      - "What topics are trending right now?"
+      - "How has community sentiment changed over time?"
+      - "Which subreddits have the most active discussions?"
+
+  - name: Competitive Intelligence
+    prompts:
+      - "How does the community compare products in this space?"
+      - "What are people migrating away from?"
+      - "Show posts where developers discuss switching between tools"
+
+agent_tools:
+  - name: search_posts
+    description: Search posts by keyword or topic
+    cypher: |
+      MATCH (p:Post)
+      WHERE toLower(p.title) CONTAINS toLower($query)
+         OR toLower(coalesce(p.body, '')) CONTAINS toLower($query)
+      OPTIONAL MATCH (p)-[:MENTIONS]->(t:Technology)
+      OPTIONAL MATCH (p)-[:TAGGED_WITH]->(topic:Topic)
+      RETURN p, collect(DISTINCT t.name) AS products,
+             collect(DISTINCT topic.name) AS topics
+      ORDER BY p.score DESC
+      LIMIT 20
+    parameters:
+      - name: query
+        type: string
+        description: Keyword or phrase to search for in post titles and bodies
+
+  - name: get_product_pulse
+    description: Get community sentiment and activity for a specific product or technology
+    cypher: |
+      MATCH (tech:Technology {name: $name})
+      OPTIONAL MATCH (p:Post)-[:MENTIONS]->(tech)
+      OPTIONAL MATCH (p)-[:IN_SUBREDDIT]->(s:Subreddit)
+      WITH tech,
+           count(DISTINCT p) AS post_count,
+           avg(p.sentiment_score) AS avg_sentiment,
+           collect(DISTINCT s.name)[..5] AS active_subreddits,
+           avg(p.score) AS avg_score
+      RETURN tech, post_count, avg_sentiment, avg_score, active_subreddits
+    parameters:
+      - name: name
+        type: string
+        description: Product or technology name
+
+  - name: find_pain_points
+    description: Find community-reported pain points, optionally filtered by product
+    cypher: |
+      MATCH (p:Post)-[:HAS_PAIN_POINT]->(pp:PainPoint)
+      OPTIONAL MATCH (p)-[:MENTIONS]->(tech:Technology)
+      WHERE $product = '' OR tech.name = $product
+      RETURN pp.name AS pain_point,
+             count(DISTINCT p) AS frequency,
+             collect(DISTINCT tech.name)[..5] AS products,
+             avg(p.score) AS avg_post_score
+      ORDER BY frequency DESC
+      LIMIT 15
+    parameters:
+      - name: product
+        type: string
+        description: Product name to filter by (empty string for all)
+
+  - name: find_use_cases
+    description: Discover validated use cases mentioned by the community
+    cypher: |
+      MATCH (p:Post)-[:DEMONSTRATES]->(uc:UseCase)
+      OPTIONAL MATCH (p)-[:MENTIONS]->(tech:Technology)
+      WHERE $product = '' OR tech.name = $product
+      RETURN uc.name AS use_case,
+             count(DISTINCT p) AS frequency,
+             collect(DISTINCT tech.name)[..5] AS products,
+             avg(p.sentiment_score) AS avg_sentiment
+      ORDER BY frequency DESC
+      LIMIT 15
+    parameters:
+      - name: product
+        type: string
+        description: Product name to filter by (empty string for all)
+
+  - name: product_co_occurrence
+    description: Find products frequently discussed together
+    cypher: |
+      MATCH (t1:Technology {name: $name})-[r:CO_OCCURS_WITH]->(t2:Technology)
+      RETURN t2.name AS co_product,
+             coalesce(r.weight, 1) AS co_occurrences
+      ORDER BY co_occurrences DESC
+      LIMIT 15
+    parameters:
+      - name: name
+        type: string
+        description: Product name to find co-occurrences for
+
+  - name: top_contributors
+    description: Find the most active contributors in a subreddit
+    cypher: |
+      MATCH (u:Person)-[:ACTIVE_IN]->(s:Subreddit)
+      WHERE toLower(s.name) = toLower($subreddit) OR $subreddit = ''
+      OPTIONAL MATCH (u)-[:POSTED]->(p:Post)-[:IN_SUBREDDIT]->(s)
+      RETURN u.name AS contributor,
+             count(DISTINCT p) AS post_count,
+             avg(p.score) AS avg_score,
+             collect(DISTINCT s.name)[..3] AS active_communities
+      ORDER BY post_count DESC
+      LIMIT 20
+    parameters:
+      - name: subreddit
+        type: string
+        description: Subreddit name to filter by (empty string for all)
+
+  - name: unanswered_questions
+    description: Find questions with few or no replies
+    cypher: |
+      MATCH (p:Post {is_question: true})
+      OPTIONAL MATCH (p)-[:IN_SUBREDDIT]->(s:Subreddit)
+      OPTIONAL MATCH (p)-[:MENTIONS]->(tech:Technology)
+      WHERE p.num_comments <= $max_comments
+      RETURN p.title AS question,
+             p.permalink AS link,
+             p.score AS score,
+             p.num_comments AS comment_count,
+             s.name AS subreddit,
+             collect(DISTINCT tech.name)[..3] AS products
+      ORDER BY p.created_utc DESC
+      LIMIT 20
+    parameters:
+      - name: max_comments
+        type: integer
+        default: 2
+        description: Maximum number of comments to consider "unanswered"
+
+  - name: sentiment_by_subreddit
+    description: Compare sentiment across subreddits for a product
+    cypher: |
+      MATCH (p:Post)-[:MENTIONS]->(tech:Technology {name: $product})
+      MATCH (p)-[:IN_SUBREDDIT]->(s:Subreddit)
+      WHERE p.sentiment_label IS NOT NULL
+      RETURN s.name AS subreddit,
+             count(p) AS post_count,
+             avg(p.sentiment_score) AS avg_sentiment,
+             sum(CASE WHEN p.sentiment_label = 'positive' THEN 1 ELSE 0 END) AS positive,
+             sum(CASE WHEN p.sentiment_label = 'negative' THEN 1 ELSE 0 END) AS negative,
+             sum(CASE WHEN p.sentiment_label = 'neutral' THEN 1 ELSE 0 END) AS neutral
+      ORDER BY post_count DESC
+    parameters:
+      - name: product
+        type: string
+        description: Product name to analyse sentiment for
+
+  - name: trending_topics
+    description: Identify trending discussion topics across communities
+    cypher: |
+      MATCH (p:Post)-[:TAGGED_WITH]->(t:Topic)
+      OPTIONAL MATCH (p)-[:IN_SUBREDDIT]->(s:Subreddit)
+      WHERE toLower(s.name) = toLower($subreddit) OR $subreddit = ''
+      RETURN t.name AS topic,
+             count(DISTINCT p) AS post_count,
+             avg(p.score) AS avg_score,
+             collect(DISTINCT s.name)[..5] AS subreddits
+      ORDER BY post_count DESC
+      LIMIT 20
+    parameters:
+      - name: subreddit
+        type: string
+        description: Filter by subreddit name (empty for all)
+
+  - name: list_posts
+    description: "List Post records ordered by score"
+    cypher: |
+      MATCH (n:Post)
+      RETURN n
+      ORDER BY n.score DESC
+      LIMIT toInteger($limit)
+    parameters:
+      - name: limit
+        type: string
+        description: "Maximum number of results to return (default: 10)"
+
+  - name: get_post_by_id
+    description: "Get a specific Post by post_id with all connections"
+    cypher: |
+      MATCH (n:Post {post_id: $id})
+      OPTIONAL MATCH (n)-[r]-(related)
+      RETURN n, type(r) AS relationship,
+             labels(related) AS related_labels,
+             related.name AS related_name
+      LIMIT 50
+    parameters:
+      - name: id
+        type: string
+        description: "The Reddit post_id to look up"
+
+system_prompt: |
+  You are a product intelligence analyst with access to a knowledge graph
+  built from Reddit community discussions.
+
+  Your knowledge graph contains posts, comments, authors, subreddits, and
+  extracted knowledge including products, topics, pain points, and use cases.
+
+  Your capabilities include:
+  - Analysing community sentiment and trending discussions around specific products
+  - Surfacing pain points and unmet needs reported by practitioners
+  - Discovering real-world use cases validated by the community
+  - Mapping product co-occurrence and competitive relationships
+  - Identifying unanswered questions and content opportunities
+  - Tracking community health and contributor engagement
+
+  Always cite specific evidence from the graph. When surfacing pain points or
+  sentiment trends, quantify with post counts and scores where possible.
+  Focus on actionable insights for product, developer relations, and community teams.
+
+visualization:
+  node_colors:
+    Post: "#ff4500"
+    Comment: "#ff6534"
+    Subreddit: "#fb923c"
+    Person: "#22c55e"
+    Technology: "#0ea5e9"
+    Topic: "#8b5cf6"
+    PainPoint: "#ef4444"
+    UseCase: "#10b981"
+    Organization: "#3b82f6"
+  node_sizes:
+    Technology: 35
+    Subreddit: 30
+    Post: 20
+    Person: 20
+    Topic: 15
+    PainPoint: 18
+    UseCase: 18
+    Comment: 10
+  default_cypher: |
+    MATCH (t:Technology)-[r:CO_OCCURS_WITH]-(t2:Technology)
+    RETURN t, r, t2
+    LIMIT 100

@@ -64,6 +64,21 @@ FRAMEWORK_DEPENDENCIES = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Reddit connector defaults
+# ---------------------------------------------------------------------------
+
+REDDIT_DEFAULT_SUBREDDITS: list[str] = [
+    "neo4j",
+]
+
+REDDIT_DEFAULT_KEYWORDS: list[str] = [
+    "rag",
+    "agentic ai",
+    "knowledge graph",
+]
+
+
 class ProjectConfig(BaseModel):
     """All configuration collected from the wizard or CLI flags."""
 
