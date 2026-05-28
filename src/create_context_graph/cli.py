@@ -325,11 +325,9 @@ def main(
         bool(source) for source in (domain, ontology_file, custom_domain)
     )
     if domain_source_count > 1:
-        console.print(
-            "[red]Error:[/red] --domain, --ontology-file, and --custom-domain "
-            "are mutually exclusive."
+        raise click.UsageError(
+            "--domain, --ontology-file, and --custom-domain are mutually exclusive."
         )
-        raise SystemExit(1)
 
     # Handle custom domain generation (non-interactive)
     custom_domain_yaml = None
@@ -341,8 +339,9 @@ def main(
             custom_domain_yaml = ontology_file.read_text()
             custom_ontology = load_domain_from_path(ontology_file)
         except Exception as e:  # noqa: BLE001 — surface YAML/schema errors to the user
-            console.print(f"[red]Error:[/red] Failed to load ontology file: {e}")
-            raise SystemExit(1)
+            raise click.ClickException(
+                f"Failed to load ontology file {ontology_file}: {e}"
+            ) from e
 
         domain = custom_ontology.domain.id
 

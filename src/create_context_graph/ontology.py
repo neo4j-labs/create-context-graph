@@ -17,10 +17,13 @@
 from __future__ import annotations
 
 from importlib.resources import files
+import logging
 from pathlib import Path
 
 import yaml
 from pydantic import BaseModel, Field
+
+logger = logging.getLogger(__name__)
 
 
 # ---------------------------------------------------------------------------
@@ -240,6 +243,7 @@ def load_domain(domain_id: str) -> DomainOntology:
     """Load a domain ontology by ID, merging with base definitions."""
     domains_dir = _get_domains_path()
     domain_path = domains_dir / f"{domain_id}.yaml"
+    data = None
 
     if not domain_path.exists():
         custom_dir = _get_custom_domains_path()
@@ -252,21 +256,24 @@ def load_domain(domain_id: str) -> DomainOntology:
                     continue
                 try:
                     with open(path) as f:
-                        data = yaml.safe_load(f)
-                except Exception:
+                        candidate_data = yaml.safe_load(f)
+                except (OSError, yaml.YAMLError) as exc:
+                    logger.debug("Skipping invalid custom domain YAML %s: %s", path, exc)
                     continue
                 if (
-                    isinstance(data, dict)
-                    and data.get("domain", {}).get("id") == domain_id
+                    isinstance(candidate_data, dict)
+                    and candidate_data.get("domain", {}).get("id") == domain_id
                 ):
                     domain_path = path
+                    data = candidate_data
                     break
 
     if not domain_path.exists():
         raise FileNotFoundError(f"Domain ontology not found: {domain_id}")
 
-    with open(domain_path) as f:
-        data = yaml.safe_load(f)
+    if data is None:
+        with open(domain_path) as f:
+            data = yaml.safe_load(f)
 
     # Merge base if domain declares inheritance
     if data.get("inherits") == "_base" or data.get("domain", {}).get("inherits") == "_base":
