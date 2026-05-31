@@ -236,28 +236,59 @@ def _merge_base(base: dict, domain_data: dict) -> dict:
     return domain_data
 
 
-def load_domain(domain_id: str) -> DomainOntology:
-    """Load a domain ontology by ID, merging with base definitions."""
-    domains_dir = _get_domains_path()
-    domain_path = domains_dir / f"{domain_id}.yaml"
+def _find_domain_path(domain_id: str) -> Path | None:
+    """Locate a domain YAML by id, searching bundled then custom domains.
 
-    if not domain_path.exists():
+    Resolution order mirrors ``list_available_domains()`` so that any domain
+    advertised in the available list can actually be loaded:
+
+      1. Bundled domains directory   (<pkg>/domains/<id>.yaml)
+      2. User custom domains         (~/.create-context-graph/custom-domains/<id>.yaml)
+
+    For custom domains we also fall back to matching the declared
+    ``domain.id`` field, since a saved file's stem can drift from the id it
+    declares internally (and ``list_available_domains`` keys off ``domain.id``).
+
+    Returns the resolved Path, or None if no match is found.
+    """
+    # Fast path: direct filename match in either directory.
+    for domains_dir in (_get_domains_path(), _get_custom_domains_path()):
+        candidate = domains_dir / f"{domain_id}.yaml"
+        if candidate.exists():
+            return candidate
+
+    # Fallback: scan custom domains and match on the declared domain.id.
+    custom_dir = _get_custom_domains_path()
+    if custom_dir.exists():
+        for path in sorted(custom_dir.glob("*.yaml")):
+            if path.stem.startswith("_"):
+                continue
+            try:
+                with open(path) as f:
+                    data = yaml.safe_load(f) or {}
+            except Exception:
+                continue
+            if isinstance(data, dict) and data.get("domain", {}).get("id") == domain_id:
+                return path
+
+    return None
+
+
+def load_domain(domain_id: str) -> DomainOntology:
+    """Load a domain ontology by ID, merging with base definitions.
+
+    Searches both the bundled domains directory and the user-local custom
+    domains directory (``~/.create-context-graph/custom-domains/``), so
+    domains created via the custom-domain wizard resolve the same way the
+    bundled ones do. This keeps loading consistent with
+    ``list_available_domains()``, which already scans both locations.
+    """
+    domain_path = _find_domain_path(domain_id)
+
+    if domain_path is None:
         raise FileNotFoundError(f"Domain ontology not found: {domain_id}")
 
-    with open(domain_path) as f:
-        data = yaml.safe_load(f)
-
-    # Merge base if domain declares inheritance
-    if data.get("inherits") == "_base" or data.get("domain", {}).get("inherits") == "_base":
-        base = _load_base()
-        data = _merge_base(base, data)
-
-    # Remove the inherits key before parsing
-    data.pop("inherits", None)
-    if "domain" in data and isinstance(data["domain"], dict):
-        data["domain"].pop("inherits", None)
-
-    return DomainOntology.model_validate(data)
+    return load_domain_from_path(domain_path)
 
 
 def load_domain_from_yaml_string(yaml_content: str) -> DomainOntology:
