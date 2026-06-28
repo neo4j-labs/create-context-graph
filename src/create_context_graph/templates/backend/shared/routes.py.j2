@@ -47,6 +47,13 @@ def _require_neo4j():
     surface their own errors at the adapter level.
     """
     if _is_nams():
+        from app.memory import get_client
+
+        if get_client() is None:
+            raise HTTPException(
+                status_code=503,
+                detail="NAMS client not connected. Check MEMORY_API_KEY and restart.",
+            )
         return
     if not is_connected():
         raise HTTPException(
@@ -271,20 +278,15 @@ async def cypher(request: CypherRequest):
     On NAMS, only read queries are accepted (server enforces).
     """
     _require_neo4j()
+    params = dict(request.parameters or {})
     if _is_nams():
-        from app.memory import get_client
-        client = get_client()
-        if client is None:
-            raise HTTPException(status_code=503, detail="NAMS client not connected")
         try:
-            params = dict(request.parameters or {})
-            results = await client.query.cypher(request.query, params)
+            results = await execute_cypher(request.query, params, collect=True)
             return {"results": results}
         except Exception as e:
             raise HTTPException(status_code=400, detail=str(e))
+    params.setdefault("domain", settings.domain_id)
     try:
-        params = dict(request.parameters or {})
-        params.setdefault("domain", settings.domain_id)
         results = await execute_cypher(request.query, params)
         return {"results": results}
     except Exception as e:
