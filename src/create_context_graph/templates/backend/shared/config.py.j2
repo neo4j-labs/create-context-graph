@@ -26,6 +26,9 @@ class Settings(BaseSettings):
     neo4j_uri: str = ""
     neo4j_username: str = ""
     neo4j_password: str = ""
+    # "" defers to neo4j-agent-memory's own default ("neo4j"). Override for
+    # instances whose database isn't literally named "neo4j".
+    neo4j_database: str = ""
 
     # LiteLLM provider strings for memory layer (optional — sane defaults applied)
     memory_llm: str = "{{ memory_llm }}"

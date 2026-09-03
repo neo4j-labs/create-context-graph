@@ -192,6 +192,7 @@ class TestSelfHostedPath:
                 "x",                          # project name
                 "neo4j+s://abc.databases.neo4j.io",  # neo4j uri
                 "myuser",                     # username
+                "mydatabase",                 # database name
             ],
             autocomplete=["Software Engineering"],
             select=[
@@ -213,6 +214,7 @@ class TestSelfHostedPath:
         assert cfg.neo4j_uri == "neo4j+s://abc.databases.neo4j.io"
         assert cfg.neo4j_username == "myuser"
         assert cfg.neo4j_password == "secret123"
+        assert cfg.neo4j_database == "mydatabase"
 
 
 class TestQuestionaryConstruction:

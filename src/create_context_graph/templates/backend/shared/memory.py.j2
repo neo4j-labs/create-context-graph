@@ -151,12 +151,16 @@ def _build_memory_settings():
             **common,
         )
 
+    neo4j_config: dict = {
+        "uri": settings.neo4j_uri,
+        "username": settings.neo4j_username,
+        "password": SecretStr(settings.neo4j_password),
+    }
+    if settings.neo4j_database:
+        neo4j_config["database"] = settings.neo4j_database
+
     return MemorySettings(
-        neo4j={
-            "uri": settings.neo4j_uri,
-            "username": settings.neo4j_username,
-            "password": SecretStr(settings.neo4j_password),
-        },
+        neo4j=neo4j_config,
         **common,
     )
 
@@ -281,7 +285,12 @@ async def store_message(session_id: str, role: str, content: str) -> dict | None
     Catches ``NotSupportedError`` for cases where the active backend (e.g. NAMS)
     doesn't expose certain extraction sub-features — extracted entities still
     persist where possible.
+
+    Records failures into the same ``_error_category``/``_error_detail`` state
+    ``connect_memory()`` uses, so ``get_error_category()``/``get_error_message()``
+    reflect live write failures too — not just failures at startup connect time.
     """
+    global _error_category, _error_detail
     if _memory is None:
         return None
     try:
@@ -289,12 +298,16 @@ async def store_message(session_id: str, role: str, content: str) -> dict | None
     except ImportError:
         NotSupportedError = Exception  # type: ignore[assignment, misc]
     try:
-        return await _memory.store_message(role, content, session_id=session_id)
+        result = await _memory.store_message(role, content, session_id=session_id)
+        _error_category = None
+        _error_detail = None
+        return result
     except NotSupportedError as e:
         logger.info("Partial store on %s backend: %s", settings.memory_backend, e)
         return None
     except Exception as e:
-        logger.warning("Failed to store message: %s", e)
+        _error_category, _error_detail = _classify_memory_error(e)
+        logger.warning("Failed to store message [%s/%s]: %s", _error_category, _error_detail, e)
         return None
 
 

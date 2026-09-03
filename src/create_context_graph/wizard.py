@@ -50,8 +50,14 @@ from create_context_graph.ontology import list_available_domains
 console = Console()
 
 
-def _parse_aura_env(env_path: str) -> tuple[str, str, str]:
-    """Parse a Neo4j Aura .env file and return (uri, username, password)."""
+def _parse_aura_env(env_path: str) -> tuple[str, str, str, str]:
+    """Parse a Neo4j Aura .env file and return (uri, username, password, database).
+
+    ``database`` is read from ``NEO4J_DATABASE`` if present, else "" — Aura
+    instances provisioned via the Aura API/CLI commonly name their database
+    after the instance id rather than the literal string "neo4j", so this
+    must be read explicitly rather than assumed.
+    """
     from pathlib import Path
 
     path = Path(env_path).expanduser()
@@ -71,6 +77,7 @@ def _parse_aura_env(env_path: str) -> tuple[str, str, str]:
     uri = values.get("NEO4J_URI", "")
     username = values.get("NEO4J_USERNAME", "neo4j")
     password = values.get("NEO4J_PASSWORD", "")
+    database = values.get("NEO4J_DATABASE", "")
 
     if not uri:
         console.print("[red]Error:[/red] NEO4J_URI not found in .env file")
@@ -80,7 +87,7 @@ def _parse_aura_env(env_path: str) -> tuple[str, str, str]:
         raise SystemExit(1)
 
     console.print(f"  [green]✓[/green] Loaded credentials for {uri}")
-    return uri, username, password
+    return uri, username, password, database
 
 
 def _banner() -> None:
@@ -254,8 +261,8 @@ def _prompt_nams_api_key() -> str:
     return key
 
 
-def _prompt_self_hosted_neo4j() -> tuple[str, str, str, str]:
-    """Returns (uri, username, password, neo4j_type) for the bolt path."""
+def _prompt_self_hosted_neo4j() -> tuple[str, str, str, str, str]:
+    """Returns (uri, username, password, database, neo4j_type) for the bolt path."""
     neo4j_type = _ask_or_abort(
         questionary.select(
             "How would you like to connect to Neo4j?",
@@ -285,15 +292,15 @@ def _prompt_self_hosted_neo4j() -> tuple[str, str, str, str]:
             questionary.path("Path to Neo4j Aura .env file:").ask(),
             "Aura .env",
         )
-        uri, username, password = _parse_aura_env(aura_env_path)
+        uri, username, password, database = _parse_aura_env(aura_env_path)
     elif neo4j_type == "local":
-        uri, username, password = "neo4j://localhost:7687", "neo4j", "password"
+        uri, username, password, database = "neo4j://localhost:7687", "neo4j", "password", ""
         console.print(
             "[dim]Will use [bold]@johnymontana/neo4j-local[/bold] — "
             "run [bold]make neo4j-start[/bold] to launch Neo4j (requires Node.js)[/dim]"
         )
     elif neo4j_type == "docker":
-        uri, username, password = "neo4j://localhost:7687", "neo4j", "password"
+        uri, username, password, database = "neo4j://localhost:7687", "neo4j", "password", ""
     else:
         uri = _ask_or_abort(
             questionary.text("Neo4j URI:", default="neo4j+s://xxxx.databases.neo4j.io").ask(),
@@ -304,8 +311,14 @@ def _prompt_self_hosted_neo4j() -> tuple[str, str, str, str]:
             "neo4j username",
         )
         password = _ask_or_abort(questionary.password("Neo4j Password:").ask(), "neo4j password")
+        database = _ask_or_abort(
+            questionary.text(
+                "Neo4j Database name (leave blank for default 'neo4j'):", default=""
+            ).ask(),
+            "neo4j database",
+        )
 
-    return uri, username, password, neo4j_type
+    return uri, username, password, database, neo4j_type
 
 
 def _prompt_session_strategy() -> str:
@@ -502,9 +515,10 @@ def run_wizard(*, self_hosted: bool = False) -> ProjectConfig:
     neo4j_uri = "neo4j://localhost:7687"
     neo4j_username = "neo4j"
     neo4j_password = "password"
+    neo4j_database = ""
     neo4j_type = "docker"
     if self_hosted:
-        neo4j_uri, neo4j_username, neo4j_password, neo4j_type = (
+        neo4j_uri, neo4j_username, neo4j_password, neo4j_database, neo4j_type = (
             _prompt_self_hosted_neo4j()
         )
     else:
@@ -527,6 +541,7 @@ def run_wizard(*, self_hosted: bool = False) -> ProjectConfig:
         neo4j_uri=neo4j_uri,
         neo4j_username=neo4j_username,
         neo4j_password=neo4j_password,
+        neo4j_database=neo4j_database,
         neo4j_type=neo4j_type,
         anthropic_api_key=advanced["anthropic_api_key"] or custom_anthropic_key,
         openai_api_key=advanced["openai_api_key"],

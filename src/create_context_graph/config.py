@@ -84,6 +84,11 @@ class ProjectConfig(BaseModel):
     neo4j_uri: str = Field(default="neo4j://localhost:7687")
     neo4j_username: str = Field(default="neo4j")
     neo4j_password: str = Field(default="password")
+    # "" defers to neo4j-agent-memory's own default ("neo4j"). Must be set
+    # explicitly for Aura instances whose database isn't named "neo4j" (e.g.
+    # ones provisioned via the Aura API/CLI, which commonly name it after
+    # the instance id).
+    neo4j_database: str = Field(default="")
     neo4j_type: Literal["docker", "existing", "aura", "local"] = Field(default="docker")
 
     anthropic_api_key: str | None = Field(default=None)

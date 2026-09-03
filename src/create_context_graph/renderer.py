@@ -263,6 +263,7 @@ class ProjectRenderer:
             "neo4j_uri": self.config.neo4j_uri,
             "neo4j_username": self.config.neo4j_username,
             "neo4j_password": self.config.neo4j_password,
+            "neo4j_database": self.config.neo4j_database,
             "neo4j_type": self.config.neo4j_type,
             "anthropic_api_key": self.config.anthropic_api_key or "",
             "openai_api_key": self.config.openai_api_key or "",

@@ -148,6 +148,7 @@ def _run_import_preview(
 @click.option("--neo4j-uri", envvar="NEO4J_URI", help="Neo4j connection URI (--self-hosted only)")
 @click.option("--neo4j-username", envvar="NEO4J_USERNAME", default="neo4j")
 @click.option("--neo4j-password", envvar="NEO4J_PASSWORD", default="password")
+@click.option("--neo4j-database", envvar="NEO4J_DATABASE", default="", help="Neo4j database name (--self-hosted only; defaults to 'neo4j' if unset — override for Aura instances whose database isn't named 'neo4j')")
 @click.option("--neo4j-aura-env", type=click.Path(exists=True), help="Path to Neo4j Aura .env file with credentials (--self-hosted only)")
 @click.option("--neo4j-local", is_flag=True, help="Use @johnymontana/neo4j-local for local Neo4j (--self-hosted only)")
 @click.option("--anthropic-api-key", envvar="ANTHROPIC_API_KEY", help="Anthropic API key for LLM generation")
@@ -210,6 +211,7 @@ def main(
     neo4j_uri: str | None,
     neo4j_username: str,
     neo4j_password: str,
+    neo4j_database: str,
     neo4j_aura_env: str | None,
     neo4j_local: bool,
     anthropic_api_key: str | None,
@@ -342,7 +344,9 @@ def main(
     # Handle Neo4j Aura .env import
     if neo4j_aura_env:
         from create_context_graph.wizard import _parse_aura_env
-        neo4j_uri, neo4j_username, neo4j_password = _parse_aura_env(neo4j_aura_env)
+        neo4j_uri, neo4j_username, neo4j_password, aura_database = _parse_aura_env(neo4j_aura_env)
+        # --neo4j-database (if explicitly passed) wins over the aura .env file
+        neo4j_database = neo4j_database or aura_database
 
     # Determine memory backend. Default is NAMS unless --self-hosted is set,
     # any --neo4j-* override is explicitly passed, or NAMS key is absent in
@@ -411,6 +415,7 @@ def main(
             neo4j_uri=neo4j_uri or "neo4j://localhost:7687",
             neo4j_username=neo4j_username,
             neo4j_password=neo4j_password,
+            neo4j_database=neo4j_database,
             neo4j_type=neo4j_type_resolved,
             anthropic_api_key=anthropic_api_key,
             openai_api_key=openai_api_key,
@@ -518,7 +523,8 @@ def main(
         console.print(f"  Framework:  {config.framework}")
         console.print(f"  Backend:    {config.memory_backend}")
         if config.is_self_hosted:
-            console.print(f"  Neo4j:      {config.neo4j_type} ({config.neo4j_uri})")
+            db_suffix = f", database={config.neo4j_database}" if config.neo4j_database else ""
+            console.print(f"  Neo4j:      {config.neo4j_type} ({config.neo4j_uri}{db_suffix})")
         else:
             console.print(f"  NAMS:       {config.nams_endpoint}")
         console.print(f"  Data:       {config.data_source}")
