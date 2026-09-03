@@ -134,6 +134,11 @@ def _run_import_preview(
     help="Domain ID (e.g., financial-services, healthcare, software-engineering)",
 )
 @click.option(
+    "--ontology-file",
+    type=click.Path(exists=True, dir_okay=False),
+    help="Path to a hand-written domain ontology YAML file to use directly (bypasses --domain and --custom-domain)",
+)
+@click.option(
     "--framework",
     type=click.Choice(SUPPORTED_FRAMEWORKS, case_sensitive=False),
     help="Agent framework to use",
@@ -199,6 +204,7 @@ def _run_import_preview(
 def main(
     project_name: str | None,
     domain: str | None,
+    ontology_file: str | None,
     framework: str | None,
     demo_data: bool,
     ingest: bool,
@@ -337,6 +343,15 @@ def main(
             raise SystemExit(1)
 
         display_ontology_summary(custom_ontology, console)
+        domain = custom_ontology.domain.id
+    elif ontology_file:
+        from create_context_graph.ontology import load_domain_from_path
+
+        try:
+            custom_ontology = load_domain_from_path(Path(ontology_file))
+        except Exception as e:
+            console.print(f"[red]Error:[/red] Failed to load ontology file '{ontology_file}': {e}")
+            raise SystemExit(1)
         domain = custom_ontology.domain.id
 
     # Handle Neo4j Aura .env import
