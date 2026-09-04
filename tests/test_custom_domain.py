@@ -32,6 +32,7 @@ from create_context_graph.custom_domain import (
 from create_context_graph.ontology import (
     DomainOntology,
     list_available_domains,
+    load_domain,
     load_domain_from_yaml_string,
 )
 
@@ -479,3 +480,18 @@ class TestDisplayAndSave:
             domains = list_available_domains()
             ids = [d["id"] for d in domains]
             assert "test-domain" in ids
+
+    def test_load_domain_finds_saved_custom_by_domain_id(self, tmp_path):
+        """Saved custom domains can be loaded by the ID declared in YAML."""
+        custom_dir = tmp_path / "custom-domains"
+        custom_dir.mkdir()
+        (custom_dir / "my-custom.yaml").write_text(VALID_DOMAIN_YAML)
+
+        with patch(
+            "create_context_graph.ontology._get_custom_domains_path",
+            return_value=custom_dir,
+        ):
+            ontology = load_domain("test-domain")
+
+        assert ontology.domain.id == "test-domain"
+        assert ontology.domain.name == "Test Domain"

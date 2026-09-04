@@ -303,6 +303,7 @@ Arguments:
 
 Options:
   --domain TEXT             Domain ID (e.g., healthcare, gaming)
+  --ontology-file PATH      Path to a custom domain ontology YAML file
   --framework TEXT          Agent framework (strands [default], pydanticai, claude-agent-sdk, openai-agents, langgraph, crewai, google-adk, anthropic-tools)
   --self-hosted             Use self-hosted Neo4j (bolt) instead of NAMS hosted memory
   --nams-api-key TEXT       NAMS API key [env: MEMORY_API_KEY] — obtain at https://memory.neo4jlabs.com
