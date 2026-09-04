@@ -273,7 +273,7 @@ async def execute_cypher(
     driver = get_driver()
     if tool_name and collect:
         _collector.emit_tool_start(tool_name, parameters or {})
-    async with driver.session() as session:
+    async with driver.session(database=settings.neo4j_database or None) as session:
         result = await session.run(query, parameters or {}, timeout=timeout)
         records = []
         async for record in result:

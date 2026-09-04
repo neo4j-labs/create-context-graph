@@ -54,8 +54,14 @@ async def lifespan(app: FastAPI):
         try:
             await connect_neo4j()
             _neo4j_available = True
-            _memory_available = True
-            logger.info("Neo4j connected successfully")
+            # connect_neo4j() calls connect_memory() internally, which catches
+            # its own exceptions — check the client rather than assuming success.
+            _memory_available = get_client() is not None
+            if _memory_available:
+                logger.info("Neo4j connected successfully")
+            else:
+                detail = get_error_detail() or "memory integration unavailable"
+                logger.warning("Neo4j connected but memory is degraded: %s", detail)
         except Exception as e:
             _neo4j_available = False
             _memory_available = False
@@ -134,10 +140,20 @@ async def health():
             body["nams_dashboard"] = "https://memory.neo4jlabs.com"
         return body
     neo4j_ok = is_connected()
-    return {
-        "status": "ok" if neo4j_ok else "degraded",
+    # get_error_category() reflects the LATEST failure, including ones
+    # recorded by store_message() after a successful startup connect —
+    # get_memory_status() alone is a stale startup-time snapshot.
+    category = get_error_category()
+    memory_ok = get_memory_status() and category is None
+    body = {
+        "status": "ok" if (neo4j_ok and memory_ok) else "degraded",
         "memory_backend": "bolt",
         "neo4j": neo4j_ok,
+        "memory": memory_ok,
         "domain": "{{ domain.id }}",
         "version": "0.1.0",
     }
+    if neo4j_ok and category:
+        body["memory_error"] = category
+        body["memory_error_detail"] = get_error_detail()
+    return body
