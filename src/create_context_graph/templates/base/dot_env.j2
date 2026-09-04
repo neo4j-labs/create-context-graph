@@ -13,6 +13,10 @@ MEMORY_API_KEY={{ nams_api_key }}
 NEO4J_URI={{ neo4j_uri }}
 NEO4J_USERNAME={{ neo4j_username }}
 NEO4J_PASSWORD={{ neo4j_password }}
+# Database name. Leave blank to use the SDK default ("neo4j") — override this
+# if your instance's database has a different name (e.g. Aura instances
+# provisioned via the Aura API/CLI often name it after the instance id).
+NEO4J_DATABASE={{ neo4j_database }}
 {% endif %}
 
 # Memory layer LLM + embedding provider (LiteLLM-style strings, optional)
