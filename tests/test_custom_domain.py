@@ -32,6 +32,7 @@ from create_context_graph.custom_domain import (
 from create_context_graph.ontology import (
     DomainOntology,
     list_available_domains,
+    load_domain,
     load_domain_from_yaml_string,
 )
 
@@ -479,3 +480,86 @@ class TestDisplayAndSave:
             domains = list_available_domains()
             ids = [d["id"] for d in domains]
             assert "test-domain" in ids
+
+
+class TestLoadCustomDomainResolution:
+    """Regression tests for issue #30.
+
+    Custom domains were saved and shown in ``list_available_domains()`` but
+    ``load_domain()`` only searched the bundled domains directory, so any
+    custom domain failed to resolve with "Domain not found" — even though it
+    appeared in the very "Available domains" list printed alongside the error.
+    """
+
+    def test_load_saved_custom_domain_by_id(self, tmp_path):
+        """A saved custom domain resolves by its id (the core bug)."""
+        custom_dir = tmp_path / "custom-domains"
+        custom_dir.mkdir()
+        (custom_dir / "test-domain.yaml").write_text(VALID_DOMAIN_YAML)
+
+        with patch(
+            "create_context_graph.ontology._get_custom_domains_path",
+            return_value=custom_dir,
+        ):
+            ont = load_domain("test-domain")
+
+        assert isinstance(ont, DomainOntology)
+        assert ont.domain.id == "test-domain"
+
+    def test_every_listed_domain_is_loadable(self, tmp_path):
+        """The exact contradiction from the issue: anything advertised in
+        list_available_domains() must actually load."""
+        custom_dir = tmp_path / "custom-domains"
+        custom_dir.mkdir()
+        (custom_dir / "test-domain.yaml").write_text(VALID_DOMAIN_YAML)
+
+        with patch(
+            "create_context_graph.ontology._get_custom_domains_path",
+            return_value=custom_dir,
+        ):
+            for d in list_available_domains():
+                # Must not raise FileNotFoundError for any advertised domain.
+                ont = load_domain(d["id"])
+                assert ont.domain.id == d["id"]
+
+    def test_load_custom_domain_matches_internal_id_when_stem_differs(self, tmp_path):
+        """Resolution falls back to the declared domain.id when the saved
+        file's stem has drifted from the id it declares."""
+        custom_dir = tmp_path / "custom-domains"
+        custom_dir.mkdir()
+        (custom_dir / "some-other-filename.yaml").write_text(VALID_DOMAIN_YAML)
+
+        with patch(
+            "create_context_graph.ontology._get_custom_domains_path",
+            return_value=custom_dir,
+        ):
+            ont = load_domain("test-domain")
+
+        assert ont.domain.id == "test-domain"
+
+    def test_custom_domain_inherits_base_entities(self, tmp_path):
+        """A loaded custom domain still merges the base POLE+O entities."""
+        custom_dir = tmp_path / "custom-domains"
+        custom_dir.mkdir()
+        (custom_dir / "test-domain.yaml").write_text(VALID_DOMAIN_YAML)
+
+        with patch(
+            "create_context_graph.ontology._get_custom_domains_path",
+            return_value=custom_dir,
+        ):
+            ont = load_domain("test-domain")
+
+        labels = {et.label for et in ont.entity_types}
+        assert "Person" in labels
+
+    def test_missing_domain_still_raises(self, tmp_path):
+        """Genuinely unknown domains still raise FileNotFoundError."""
+        custom_dir = tmp_path / "custom-domains"
+        custom_dir.mkdir()
+
+        with patch(
+            "create_context_graph.ontology._get_custom_domains_path",
+            return_value=custom_dir,
+        ):
+            with pytest.raises(FileNotFoundError):
+                load_domain("does-not-exist-anywhere")
