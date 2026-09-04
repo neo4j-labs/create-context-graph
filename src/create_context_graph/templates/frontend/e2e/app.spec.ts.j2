@@ -135,7 +135,7 @@ test.describe("{{ domain.name }} Context Graph", () => {
 
     // Send a prompt that should trigger tool calls
     const input = page.getByPlaceholder(/ask about/i);
-    await input.fill({{ demo_scenarios[0].prompts[0] | tojson }});
+    await input.fill({{ (demo_scenarios[0].prompts[0] if demo_scenarios else 'Show me the data in the graph') | tojson }});
     await page.getByRole("button", { name: /send/i }).click();
 
     // Wait for at least one tool call badge to appear
@@ -155,7 +155,7 @@ test.describe("{{ domain.name }} Context Graph", () => {
 
     // Send a query that should return graph data
     const input = page.getByPlaceholder(/ask about/i);
-    await input.fill({{ demo_scenarios[0].prompts[0] | tojson }});
+    await input.fill({{ (demo_scenarios[0].prompts[0] if demo_scenarios else 'Show me the data in the graph') | tojson }});
     await page.getByRole("button", { name: /send/i }).click();
 
     // Wait for the graph to switch from schema to data view
