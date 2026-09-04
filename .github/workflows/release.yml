@@ -122,7 +122,7 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Build Node package
         run: npm run build --if-present --prefix npm-wrapper
@@ -155,6 +155,10 @@ jobs:
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          # Re-releases (e.g. a moved tag after a partial failure further
+          # down the pipeline) skip files PyPI already has instead of failing.
+          skip-existing: true
 
   publish-npm:
     name: Publish to npm
@@ -177,11 +181,13 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
           registry-url: https://registry.npmjs.org
 
       - name: Upgrade npm (required for Trusted Publishers)
-        run: npm install -g npm@latest
+        # Pinned major: npm@latest drifted to a release requiring a newer
+        # Node than the job image and broke the v0.14.0 publish mid-release.
+        run: npm install -g npm@12
 
       - name: Download dist
         uses: actions/download-artifact@v4
