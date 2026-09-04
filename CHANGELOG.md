@@ -1,6 +1,6 @@
 # Changelog
 
-## v0.14.0 — community PR hardening: NEO4J_DATABASE, NAMS cypher runtime, --ontology-file (unreleased)
+## v0.14.0 — community PR hardening: NEO4J_DATABASE, NAMS cypher runtime, --ontology-file (2026-09-04)
 
 Integrates five community PRs merged since v0.13.1 (#52, #56, #58, #59, #60), closes the gaps found while reviewing them, and adds test coverage at every level: +105 fast-suite tests, +3 Neo4j integration tests, a new bolt combo in the slow generated-suite runner, and 2 new tests inside every generated project (fast suite now 1,454 passing; the full CI suite with the connectors extra runs 1,866 passing / 1,881 collected). The new integration coverage immediately exposed — and this release fixes — a long-standing schema-DDL splitter bug that had been silently dropping five indexes/constraints from every seeded database.
 
@@ -72,7 +72,7 @@ Verified unchanged live: `client.query.cypher` read queries (the PR #56 dispatch
 - `how-to/add-custom-domain.md` — `--ontology-file` semantics: domain id from the file, `data/ontology.yaml` copy, mutual exclusion with `--custom-domain`.
 - `reference/generated-project-structure.md` — `.env` listing includes `NEO4J_DATABASE`.
 
-## v0.13.1 — v0.13.0 feedback report triage (unreleased)
+## v0.13.1 — v0.13.0 feedback report triage (2026-05-20)
 
 Addresses the May 20, 2026 v0.13.0 feedback report. The report mixed verified issues with claims that don't match the current codebase; each claim was verified before scoping work. This release closes every real issue, makes the generated `app.models` module load-bearing, and adds regression tests so the v0.12.0/v0.13.0 fixes can't silently come back.
 
@@ -102,7 +102,7 @@ The v0.13.0 feedback report flagged several issues that don't reflect the curren
 - **"Restore media / insurance / supply-chain domains" — these never existed.** `git log --all -- src/create_context_graph/domains/*.yaml` shows no history for these labels. v0.13.0's "restored domains" are `legal`, `education`, `cybersecurity`, `government` — total domain count remains 27.
 - **"Unused `i` in `ContextGraphView` line 210" — leave as-is.** The unused index is in a fallback `extractNodesAndRels` parser, not a render hot path, and removing it would churn a path that hasn't drifted in months.
 
-## v0.13.0 — v0.12.0 feedback report fixes (unreleased)
+## v0.13.0 — v0.12.0 feedback report fixes (2026-05-20)
 
 Addresses the May 2026 v0.12.0 feedback report: one runtime bug on the `--self-hosted` ingest path, one React state bug in the streaming chat, four `key={i}` re-render hazards, dead/over-fetching code in the document adapter, four restored domains, and documentation for the `ccg-edges` encoding strategy.
 
