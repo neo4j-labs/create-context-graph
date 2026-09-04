@@ -1009,3 +1009,240 @@ class TestLocalFileConnectorCLI:
             "--output-dir", str(out),
         ])
         assert result.exit_code == 0, result.output
+
+
+class TestNeo4jDatabaseFlag:
+    """v0.14.0: --neo4j-database / NEO4J_DATABASE threading (PR #60)."""
+
+    def test_database_flag_lands_in_env(self, runner, tmp_path):
+        out = tmp_path / "db-app"
+        result = runner.invoke(main, [
+            "db-app",
+            "--domain", "financial-services",
+            "--framework", "pydanticai",
+            "--self-hosted",
+            "--neo4j-database", "clinical-db",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        env = (out / ".env").read_text()
+        assert "NEO4J_DATABASE=clinical-db" in env
+
+    def test_database_defaults_to_blank(self, runner, tmp_path):
+        """Blank defers to the SDK default ("neo4j") — the line must still be
+        present so users discover the knob."""
+        out = tmp_path / "db-default-app"
+        result = runner.invoke(main, [
+            "db-default-app",
+            "--domain", "financial-services",
+            "--framework", "pydanticai",
+            "--self-hosted",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        env = (out / ".env").read_text()
+        assert "NEO4J_DATABASE=\n" in env
+        example = (out / ".env.example").read_text()
+        assert "NEO4J_DATABASE=" in example
+
+    def test_aura_env_database_is_imported(self, runner, tmp_path):
+        """NEO4J_DATABASE in an imported Aura .env file must not be silently
+        discarded (the original bug motivating PR #60)."""
+        aura_env = tmp_path / "aura.env"
+        aura_env.write_text(
+            'NEO4J_URI=neo4j+s://abc123.databases.neo4j.io\n'
+            'NEO4J_USERNAME=neo4j\n'
+            'NEO4J_PASSWORD=super-secret\n'
+            'NEO4J_DATABASE=instance-4f9a\n'
+        )
+        out = tmp_path / "aura-db-app"
+        result = runner.invoke(main, [
+            "aura-db-app",
+            "--domain", "financial-services",
+            "--framework", "pydanticai",
+            "--neo4j-aura-env", str(aura_env),
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        env = (out / ".env").read_text()
+        assert "NEO4J_DATABASE=instance-4f9a" in env
+
+    def test_explicit_flag_wins_over_aura_env(self, runner, tmp_path):
+        aura_env = tmp_path / "aura.env"
+        aura_env.write_text(
+            'NEO4J_URI=neo4j+s://abc123.databases.neo4j.io\n'
+            'NEO4J_PASSWORD=super-secret\n'
+            'NEO4J_DATABASE=from-file\n'
+        )
+        out = tmp_path / "aura-override-app"
+        result = runner.invoke(main, [
+            "aura-override-app",
+            "--domain", "financial-services",
+            "--framework", "pydanticai",
+            "--neo4j-aura-env", str(aura_env),
+            "--neo4j-database", "from-flag",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        env = (out / ".env").read_text()
+        assert "NEO4J_DATABASE=from-flag" in env
+        assert "from-file" not in env
+
+    def test_dry_run_shows_database(self, runner, tmp_path):
+        result = runner.invoke(main, [
+            "dry-db-app",
+            "--domain", "financial-services",
+            "--framework", "pydanticai",
+            "--self-hosted",
+            "--neo4j-database", "clinical-db",
+            "--dry-run",
+            "--output-dir", str(tmp_path / "never-created"),
+        ])
+        assert result.exit_code == 0, result.output
+        assert "database=clinical-db" in result.output
+        assert not (tmp_path / "never-created").exists()
+
+
+class TestOntologyFileFlag:
+    """v0.14.0: --ontology-file scaffolds from a hand-written YAML (PR #58)."""
+
+    @pytest.fixture
+    def ontology_file(self, tmp_path):
+        from tests.test_custom_domain import VALID_DOMAIN_YAML
+
+        path = tmp_path / "my-domain.yaml"
+        path.write_text(VALID_DOMAIN_YAML)
+        return path
+
+    def test_scaffold_from_ontology_file(self, runner, tmp_path, ontology_file):
+        out = tmp_path / "ont-app"
+        result = runner.invoke(main, [
+            "ont-app",
+            "--ontology-file", str(ontology_file),
+            "--framework", "pydanticai",
+            "--self-hosted",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        assert (out / "backend" / "app" / "main.py").exists()
+        # The domain id comes from the YAML, not from --domain
+        env = (out / ".env").read_text()
+        assert "DOMAIN_ID=test-domain" in env
+
+    def test_ontology_yaml_copied_into_scaffold(self, runner, tmp_path, ontology_file):
+        """The docs promise data/ontology.yaml makes each project
+        self-contained; hand-written ontologies must be copied too."""
+        out = tmp_path / "ont-copy-app"
+        result = runner.invoke(main, [
+            "ont-copy-app",
+            "--ontology-file", str(ontology_file),
+            "--framework", "pydanticai",
+            "--self-hosted",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        copied = out / "data" / "ontology.yaml"
+        assert copied.exists(), "data/ontology.yaml missing from scaffold"
+        assert copied.read_text() == ontology_file.read_text()
+        # _base.yaml ships alongside so `inherits: _base` stays resolvable
+        assert (out / "data" / "_base.yaml").exists()
+
+    def test_ontology_file_with_demo_data(self, runner, tmp_path, ontology_file):
+        """--demo-data on a hand-written ontology uses the static fallback
+        generator (no LLM key) and writes fixtures.json."""
+        out = tmp_path / "ont-demo-app"
+        result = runner.invoke(main, [
+            "ont-demo-app",
+            "--ontology-file", str(ontology_file),
+            "--framework", "pydanticai",
+            "--self-hosted",
+            "--demo-data",
+            "--output-dir", str(out),
+        ])
+        assert result.exit_code == 0, result.output
+        fixtures = out / "data" / "fixtures.json"
+        assert fixtures.exists()
+        data = json.loads(fixtures.read_text())
+        assert "Widget" in data["entities"]
+
+    def test_invalid_yaml_fails_cleanly(self, runner, tmp_path):
+        bad = tmp_path / "bad.yaml"
+        bad.write_text("domain:\n  id: bad\n  name: [unmatched bracket\n")
+        result = runner.invoke(main, [
+            "bad-app",
+            "--ontology-file", str(bad),
+            "--framework", "pydanticai",
+            "--self-hosted",
+            "--output-dir", str(tmp_path / "bad-out"),
+        ])
+        assert result.exit_code == 1
+        assert "Failed to load ontology file" in result.output
+
+    def test_missing_file_rejected_by_click(self, runner, tmp_path):
+        result = runner.invoke(main, [
+            "missing-app",
+            "--ontology-file", str(tmp_path / "does-not-exist.yaml"),
+            "--framework", "pydanticai",
+            "--self-hosted",
+        ])
+        assert result.exit_code == 2  # Click's usage error for Path(exists=True)
+
+    def test_conflicts_with_custom_domain(self, runner, tmp_path, ontology_file):
+        result = runner.invoke(main, [
+            "conflict-app",
+            "--ontology-file", str(ontology_file),
+            "--custom-domain", "a bakery domain",
+            "--framework", "pydanticai",
+            "--self-hosted",
+            "--anthropic-api-key", "sk-test",
+        ])
+        assert result.exit_code == 1
+        assert "mutually exclusive" in result.output
+
+    def test_auto_slug_from_ontology_domain_id(self, runner, tmp_path, monkeypatch):
+        """No positional name: the slug derives from the YAML's domain id."""
+        from tests.test_custom_domain import VALID_DOMAIN_YAML
+
+        ontology_path = tmp_path / "slug-domain.yaml"
+        ontology_path.write_text(VALID_DOMAIN_YAML)
+        monkeypatch.chdir(tmp_path)
+        result = runner.invoke(main, [
+            "--ontology-file", str(ontology_path),
+            "--framework", "pydanticai",
+            "--self-hosted",
+        ])
+        assert result.exit_code == 0, result.output
+        assert (tmp_path / "test-domain-pydanticai-app").is_dir()
+
+    def test_wizard_path_adopts_ontology_file(self, tmp_path, monkeypatch, ontology_file):
+        """--ontology-file with no project name launches the wizard for the
+        remaining settings, but the hand-written ontology must win over the
+        wizard's domain pick (and still land in data/ontology.yaml)."""
+        import sys as _sys
+        from types import SimpleNamespace
+
+        from create_context_graph import wizard as wizard_mod
+        from create_context_graph.config import ProjectConfig
+
+        out = tmp_path / "wiz-out"
+        canned = ProjectConfig(
+            project_name="wiz app",
+            domain="healthcare",  # wizard's pick — must be overridden
+            framework="pydanticai",
+            memory_backend="bolt",
+        )
+        monkeypatch.setattr(wizard_mod, "run_wizard", lambda **kw: canned)
+        # Pretend stdin is a TTY so main() reaches the wizard branch
+        monkeypatch.setattr(_sys, "stdin", SimpleNamespace(isatty=lambda: True))
+
+        main.main(
+            [
+                "--ontology-file", str(ontology_file),
+                "--self-hosted",
+                "--output-dir", str(out),
+            ],
+            standalone_mode=False,
+        )
+
+        assert (out / "data" / "ontology.yaml").read_text() == ontology_file.read_text()
+        assert "DOMAIN_ID=test-domain" in (out / ".env").read_text()

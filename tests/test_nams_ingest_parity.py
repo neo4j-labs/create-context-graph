@@ -186,6 +186,7 @@ def _exec_scaffold_template(client: _RecordingClient) -> dict[str, Any]:
         neo4j_uri="neo4j://test:7687",
         neo4j_username="neo4j",
         neo4j_password="testpass",
+        neo4j_database="",
     )
     fake_config_mod = ModuleType("app.config")
     fake_config_mod.settings = fake_settings
@@ -471,7 +472,7 @@ class _AsyncDriverMock:
     async def __aexit__(self, *_):
         return None
 
-    def session(self):
+    def session(self, **kwargs):
         outer = self
 
         class _Ctx:

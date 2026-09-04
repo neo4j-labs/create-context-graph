@@ -427,5 +427,8 @@ class TestResetMemoryStoreDispatch:
         with patch("create_context_graph.ingest.reset_neo4j") as mock_reset:
             reset_memory_store(cfg)
             mock_reset.assert_called_once_with(
-                cfg.neo4j_uri, cfg.neo4j_username, cfg.neo4j_password
+                cfg.neo4j_uri,
+                cfg.neo4j_username,
+                cfg.neo4j_password,
+                cfg.neo4j_database,
             )

@@ -20,13 +20,20 @@ from neo4j import GraphDatabase
 from neo4j.exceptions import ServiceUnavailable, AuthError
 
 
-def validate_connection(uri: str, username: str, password: str) -> tuple[bool, str]:
-    """Test Neo4j connection and return (success, message)."""
+def validate_connection(
+    uri: str, username: str, password: str, database: str = ""
+) -> tuple[bool, str]:
+    """Test Neo4j connection and return (success, message).
+
+    ``database`` of ``""`` runs the test query against the server default
+    database; pass a name to validate a specific database (e.g. Aura
+    instances whose database isn't named "neo4j").
+    """
     try:
         driver = GraphDatabase.driver(uri, auth=(username, password))
         driver.verify_connectivity()
         # Quick test query
-        with driver.session() as session:
+        with driver.session(database=database or None) as session:
             result = session.run("RETURN 1 AS n")
             result.single()
         driver.close()

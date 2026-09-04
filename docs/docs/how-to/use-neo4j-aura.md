@@ -44,9 +44,21 @@ uvx create-context-graph my-app \
 ```
 
 This will:
-- Parse the `.env` file for connection details
+- Parse the `.env` file for connection details (including `NEO4J_DATABASE` when present)
 - Configure the generated project to use your Aura instance
 - Set `neo4j_type` to `aura` automatically
+
+:::caution Database name
+
+Aura instances provisioned through the Aura API or CLI often name their
+database after the instance id rather than the literal string `neo4j`. If your
+`.env` download includes a `NEO4J_DATABASE` line, it is imported automatically;
+otherwise pass `--neo4j-database <name>` explicitly. Without it, the app
+connects fine but every memory write targets a database that doesn't exist —
+the `/health` endpoint will report `"memory": false` with a classified
+`memory_error` when this happens.
+
+:::
 
 ## Step 4: Verify the Connection
 

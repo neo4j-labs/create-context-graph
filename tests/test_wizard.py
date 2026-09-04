@@ -315,3 +315,66 @@ class TestEdgeCases:
 
         with pytest.raises(SystemExit):
             run_wizard(self_hosted=False)
+
+
+class TestParseAuraEnv:
+    """v0.14.0: _parse_aura_env returns (uri, username, password, database)."""
+
+    def _write(self, tmp_path, content):
+        p = tmp_path / "aura.env"
+        p.write_text(content)
+        return str(p)
+
+    def test_four_tuple_with_database(self, tmp_path):
+        from create_context_graph.wizard import _parse_aura_env
+
+        path = self._write(
+            tmp_path,
+            'NEO4J_URI=neo4j+s://abc.databases.neo4j.io\n'
+            'NEO4J_USERNAME=neo4j\n'
+            'NEO4J_PASSWORD=pw\n'
+            'NEO4J_DATABASE=instance-4f9a\n',
+        )
+        uri, username, password, database = _parse_aura_env(path)
+        assert uri == "neo4j+s://abc.databases.neo4j.io"
+        assert username == "neo4j"
+        assert password == "pw"
+        assert database == "instance-4f9a"
+
+    def test_database_defaults_to_empty(self, tmp_path):
+        """Aura downloads without NEO4J_DATABASE must keep deferring to the
+        SDK default rather than crashing or inventing a name."""
+        from create_context_graph.wizard import _parse_aura_env
+
+        path = self._write(
+            tmp_path,
+            'NEO4J_URI=neo4j+s://abc.databases.neo4j.io\nNEO4J_PASSWORD=pw\n',
+        )
+        uri, username, password, database = _parse_aura_env(path)
+        assert database == ""
+        assert username == "neo4j"  # default when absent
+
+    def test_quoted_database_value_is_unwrapped(self, tmp_path):
+        from create_context_graph.wizard import _parse_aura_env
+
+        path = self._write(
+            tmp_path,
+            'NEO4J_URI=neo4j+s://abc.databases.neo4j.io\n'
+            'NEO4J_PASSWORD=pw\n'
+            'NEO4J_DATABASE="quoted-db"\n',
+        )
+        assert _parse_aura_env(path)[3] == "quoted-db"
+
+    def test_missing_uri_aborts(self, tmp_path):
+        from create_context_graph.wizard import _parse_aura_env
+
+        path = self._write(tmp_path, "NEO4J_PASSWORD=pw\n")
+        with pytest.raises(SystemExit):
+            _parse_aura_env(path)
+
+    def test_missing_password_aborts(self, tmp_path):
+        from create_context_graph.wizard import _parse_aura_env
+
+        path = self._write(tmp_path, "NEO4J_URI=neo4j+s://abc.databases.neo4j.io\n")
+        with pytest.raises(SystemExit):
+            _parse_aura_env(path)

@@ -481,3 +481,156 @@ class TestBoltRoutes:
             # Returns 200 with an empty list from our mocked GDS
             assert r.status_code == 200
             assert "communities" in r.json()
+
+
+# ---------------------------------------------------------------------------
+# v0.14.0 — NAMS cypher dispatch + degraded-memory health reporting
+# ---------------------------------------------------------------------------
+
+
+class TestNamsCypherRoute:
+    """PR #56: /cypher on NAMS goes through execute_cypher (which dispatches
+    to the NAMS query API) instead of talking to the client inline."""
+
+    def test_cypher_dispatches_through_execute_cypher(self, tmp_path):
+        from fastapi.testclient import TestClient
+
+        backend_dir = _scaffold(tmp_path, backend="nams")
+        client = _fake_client()
+        app, _, cgc = _import_app(backend_dir, backend="nams", fake_client=client)
+
+        cgc.execute_cypher = AsyncMock(return_value=[{"total": 5}])
+        sys.modules["app.context_graph_client"].execute_cypher = cgc.execute_cypher
+        import app.routes as routes_mod
+        routes_mod.execute_cypher = cgc.execute_cypher
+
+        with TestClient(app) as tc:
+            r = tc.post(
+                "/api/cypher",
+                json={"query": "MATCH (n) RETURN count(n) AS total", "parameters": {}},
+            )
+            assert r.status_code == 200
+            assert r.json() == {"results": [{"total": 5}]}
+
+        cgc.execute_cypher.assert_awaited_once()
+        args, kwargs = cgc.execute_cypher.await_args
+        assert args[0] == "MATCH (n) RETURN count(n) AS total"
+        assert kwargs.get("collect") is True
+
+    def test_cypher_error_maps_to_400(self, tmp_path):
+        from fastapi.testclient import TestClient
+
+        backend_dir = _scaffold(tmp_path, backend="nams")
+        client = _fake_client()
+        app, _, cgc = _import_app(backend_dir, backend="nams", fake_client=client)
+
+        cgc.execute_cypher = AsyncMock(
+            side_effect=RuntimeError("NAMS rejected write query")
+        )
+        sys.modules["app.context_graph_client"].execute_cypher = cgc.execute_cypher
+        import app.routes as routes_mod
+        routes_mod.execute_cypher = cgc.execute_cypher
+
+        with TestClient(app) as tc:
+            r = tc.post("/api/cypher", json={"query": "CREATE (n) RETURN n"})
+            assert r.status_code == 400
+            assert "NAMS rejected" in r.json()["detail"]
+
+    def test_api_routes_return_503_when_client_missing(self, tmp_path):
+        """PR #56: _require_neo4j must fail fast with 503 when the NAMS
+        client never connected, instead of letting each adapter blow up."""
+        from fastapi.testclient import TestClient
+
+        backend_dir = _scaffold(tmp_path, backend="nams")
+        app, _, _ = _import_app(backend_dir, backend="nams", fake_client=None)
+
+        with TestClient(app) as tc:
+            for method, url, payload in [
+                ("get", "/api/documents", None),
+                ("get", "/api/traces", None),
+                ("post", "/api/cypher", {"query": "RETURN 1"}),
+                ("post", "/api/search", {"query": "x"}),
+            ]:
+                r = tc.get(url) if method == "get" else tc.post(url, json=payload)
+                assert r.status_code == 503, f"{url} -> {r.status_code}"
+                assert "NAMS client not connected" in r.json()["detail"]
+
+            # /health never 503s — it reports the degraded state instead
+            r = tc.get("/health")
+            assert r.status_code == 200
+            assert r.json()["status"] == "degraded"
+
+    def test_cypher_on_bolt_still_injects_domain_param(self, tmp_path):
+        """The PR #56 refactor hoisted params handling — the bolt branch must
+        keep defaulting the $domain parameter for domain-scoped queries."""
+        from fastapi.testclient import TestClient
+
+        backend_dir = _scaffold(tmp_path, backend="bolt")
+        client = _fake_client()
+        app, _, cgc = _import_app(backend_dir, backend="bolt", fake_client=client)
+
+        cgc.execute_cypher = AsyncMock(return_value=[])
+        sys.modules["app.context_graph_client"].execute_cypher = cgc.execute_cypher
+        import app.routes as routes_mod
+        routes_mod.execute_cypher = cgc.execute_cypher
+
+        with TestClient(app) as tc:
+            r = tc.post("/api/cypher", json={"query": "MATCH (n) RETURN n"})
+            assert r.status_code == 200
+
+        args, _ = cgc.execute_cypher.await_args
+        assert args[1]["domain"] == "financial-services"
+
+
+class TestBoltHealthMemorySurfacing:
+    """PR #60: live store_message() failures must surface in /health instead
+    of the app reporting "ok" while every memory write silently fails."""
+
+    def test_health_reports_memory_field(self, tmp_path):
+        from fastapi.testclient import TestClient
+
+        backend_dir = _scaffold(tmp_path, backend="bolt")
+        client = _fake_client()
+        app, _, _ = _import_app(backend_dir, backend="bolt", fake_client=client)
+
+        with TestClient(app) as tc:
+            body = tc.get("/health").json()
+            assert body["status"] == "ok"
+            assert body["memory"] is True
+            assert "memory_error" not in body
+
+    def test_store_failure_degrades_health_and_recovery_clears_it(self, tmp_path):
+        import asyncio
+
+        from fastapi.testclient import TestClient
+
+        backend_dir = _scaffold(tmp_path, backend="bolt")
+        client = _fake_client()
+        app, memory_mod, _ = _import_app(backend_dir, backend="bolt", fake_client=client)
+
+        with TestClient(app) as tc:
+            # Simulate a live write failure (e.g. wrong NEO4J_DATABASE name)
+            memory_mod._memory = SimpleNamespace(
+                store_message=AsyncMock(
+                    side_effect=ConnectionError("database 'neo4j' does not exist")
+                )
+            )
+            asyncio.run(memory_mod.store_message("s-1", "user", "hi"))
+
+            body = tc.get("/health").json()
+            assert body["status"] == "degraded"
+            assert body["neo4j"] is True          # bolt itself is fine
+            assert body["memory"] is False
+            assert body["memory_error"] == "network"
+            assert body["memory_error_detail"] == "ConnectionError"
+
+            # A later successful write clears the error state
+            memory_mod._memory = SimpleNamespace(
+                store_message=AsyncMock(return_value={"entities": []})
+            )
+            asyncio.run(memory_mod.store_message("s-1", "user", "hi again"))
+
+            body = tc.get("/health").json()
+            assert body["status"] == "ok"
+            assert body["memory"] is True
+            assert "memory_error" not in body

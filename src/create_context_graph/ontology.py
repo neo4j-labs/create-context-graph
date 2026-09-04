@@ -363,6 +363,34 @@ _NEO4J_TYPE_MAP = {
 }
 
 
+def split_cypher_statements(script: str) -> list[str]:
+    """Split a Cypher script into executable statements.
+
+    Naive ``script.split(";")`` mis-handles the schema scripts this package
+    generates in two ways:
+
+    * A ``;`` inside a ``//`` comment splits mid-comment, so the comment's
+      tail executes as a garbage statement (``CypherSyntaxError``).
+    * A fragment that *starts* with a comment header gets dropped entirely by
+      ``if not stmt.startswith("//")`` checks — silently skipping the real
+      ``CREATE INDEX``/``CREATE CONSTRAINT`` that follows the header.
+
+    This helper removes comment lines first, then splits, so every real
+    statement survives and nothing else does. (Limitation: a ``;`` inside a
+    string literal or a trailing same-line comment would still split —
+    ``generate_cypher_schema`` emits neither.)
+    """
+    code_lines = [
+        line for line in script.splitlines() if not line.strip().startswith("//")
+    ]
+    statements = []
+    for fragment in "\n".join(code_lines).split(";"):
+        stmt = fragment.strip()
+        if stmt:
+            statements.append(stmt)
+    return statements
+
+
 def generate_cypher_schema(ontology: DomainOntology) -> str:
     """Generate Cypher constraints and indexes from the ontology."""
     lines = [
@@ -418,7 +446,7 @@ def generate_cypher_schema(ontology: DomainOntology) -> str:
     lines.append("CREATE FULLTEXT INDEX local_file_fulltext IF NOT EXISTS FOR (n:Document|Section) ON EACH [n.title, n.description];")
     lines.append("")
     lines.append("// Vector index for semantic search with pre-filtering (Neo4j 2026.01+)")
-    lines.append("// Create after embeddings are generated; dimensions must match your embed model.")
+    lines.append("// Create after embeddings are generated — dimensions must match your embed model.")
     lines.append("// CREATE VECTOR INDEX local_file_embedding IF NOT EXISTS")
     lines.append("// FOR (n:Document|Section) ON n.embedding")
     lines.append("// WITH [n.domain, n.fileExtension, n.loadedAt, n.createdAt, n.modifiedAt,")

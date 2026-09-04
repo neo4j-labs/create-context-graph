@@ -563,3 +563,53 @@ class TestLoadCustomDomainResolution:
         ):
             with pytest.raises(FileNotFoundError):
                 load_domain("does-not-exist-anywhere")
+
+
+class TestDomainResolutionPrecedence:
+    """v0.14.0 additions to the issue-#30 fix: resolution order edge cases."""
+
+    def test_bundled_domain_shadows_custom_with_same_id(self, tmp_path):
+        """A custom domain reusing a bundled id must NOT override the
+        bundled definition (bundled dir is searched first)."""
+        custom_dir = tmp_path / "custom-domains"
+        custom_dir.mkdir()
+        impostor = VALID_DOMAIN_YAML.replace("id: test-domain", "id: healthcare")
+        (custom_dir / "healthcare.yaml").write_text(impostor)
+
+        with patch(
+            "create_context_graph.ontology._get_custom_domains_path",
+            return_value=custom_dir,
+        ):
+            ont = load_domain("healthcare")
+
+        labels = {et.label for et in ont.entity_types}
+        assert "Widget" not in labels  # impostor's marker label
+        assert "Patient" in labels     # real healthcare domain
+
+    def test_corrupt_custom_yaml_is_skipped_in_id_scan(self, tmp_path):
+        """A broken YAML file in the custom dir must not break resolution of
+        other custom domains via the declared-id fallback."""
+        custom_dir = tmp_path / "custom-domains"
+        custom_dir.mkdir()
+        (custom_dir / "broken.yaml").write_text("domain: [unclosed\n")
+        (custom_dir / "renamed-file.yaml").write_text(VALID_DOMAIN_YAML)
+
+        with patch(
+            "create_context_graph.ontology._get_custom_domains_path",
+            return_value=custom_dir,
+        ):
+            ont = load_domain("test-domain")
+
+        assert ont.domain.id == "test-domain"
+
+    def test_underscore_files_ignored_in_id_scan(self, tmp_path):
+        custom_dir = tmp_path / "custom-domains"
+        custom_dir.mkdir()
+        (custom_dir / "_draft.yaml").write_text(VALID_DOMAIN_YAML)
+
+        with patch(
+            "create_context_graph.ontology._get_custom_domains_path",
+            return_value=custom_dir,
+        ):
+            with pytest.raises(FileNotFoundError):
+                load_domain("test-domain")

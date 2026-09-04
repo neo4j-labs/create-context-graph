@@ -125,14 +125,32 @@ def wait_for_backend(timeout: int = 60) -> bool:
         try:
             res = requests.get(HEALTH_URL, timeout=5)
             if res.ok:
-                status = res.json().get("status", "unknown")
+                body = res.json()
+                status = body.get("status", "unknown")
                 log(f"Backend ready (status={status})", "OK")
+                _check_health_shape(body)
                 return True
         except requests.ConnectionError:
             pass
         time.sleep(2)
     log("Backend failed to start within timeout", "FAIL")
     return False
+
+
+def _check_health_shape(body: dict) -> None:
+    """Assert the v0.14.0 /health contract (shape only — a degraded memory
+    layer is reported, not failed, since chat still works without it)."""
+    backend = body.get("memory_backend")
+    if backend == "bolt":
+        for key in ("neo4j", "memory"):
+            if key not in body:
+                raise AssertionError(f"/health missing '{key}' field on bolt backend: {body}")
+        if body.get("status") == "degraded":
+            log(f"Memory degraded: {body.get('memory_error')} "
+                f"({body.get('memory_error_detail')})", "WARN")
+    elif backend == "nams":
+        if "nams" not in body:
+            raise AssertionError(f"/health missing 'nams' field on NAMS backend: {body}")
 
 
 def send_prompt(prompt: str, session_id: str | None = None) -> dict:

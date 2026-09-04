@@ -275,8 +275,13 @@ Generated demo data in a structured format:
 NEO4J_URI=neo4j://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
+NEO4J_DATABASE=
 ANTHROPIC_API_KEY=
 ```
+
+`NEO4J_DATABASE` is blank by default (the driver default `neo4j` is used).
+Set it when your instance's database has a different name — the generated
+app's Cypher sessions, memory layer, and `make import` all honor it.
 
 ### `docker-compose.yml`
 

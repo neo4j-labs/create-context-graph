@@ -31,12 +31,15 @@ from create_context_graph.ontology import load_domain
 from create_context_graph.renderer import ProjectRenderer
 
 
-def _scaffold_project(tmp_path, domain="financial-services", framework="pydanticai"):
+def _scaffold_project(
+    tmp_path, domain="financial-services", framework="pydanticai", memory_backend="nams"
+):
     """Scaffold a project and return the output directory."""
     config = ProjectConfig(
         project_name="Generated Test App",
         domain=domain,
         framework=framework,
+        memory_backend=memory_backend,
         neo4j_uri="neo4j://localhost:7687",
         neo4j_username="neo4j",
         neo4j_password="testpass123",
@@ -127,12 +130,25 @@ class TestGeneratedTestExecution:
     """Scaffold projects, install deps, and run the generated test suites."""
 
     @pytest.mark.parametrize(
-        "framework",
-        ["pydanticai", "claude-agent-sdk", "langgraph", "anthropic-tools"],
+        ("framework", "memory_backend"),
+        [
+            ("pydanticai", "nams"),
+            ("claude-agent-sdk", "nams"),
+            ("langgraph", "nams"),
+            ("anthropic-tools", "nams"),
+            # One bolt scaffold so the self-hosted branch of the generated
+            # test file (memory_error surfacing in /health) executes for real.
+            ("pydanticai", "bolt"),
+        ],
     )
-    def test_generated_tests_pass(self, tmp_path, framework):
+    def test_generated_tests_pass(self, tmp_path, framework, memory_backend):
         """Scaffold a project, install deps, and verify generated tests pass."""
-        project_dir = _scaffold_project(tmp_path, domain="financial-services", framework=framework)
+        project_dir = _scaffold_project(
+            tmp_path,
+            domain="financial-services",
+            framework=framework,
+            memory_backend=memory_backend,
+        )
         backend_dir = project_dir / "backend"
 
         # Create an isolated venv
@@ -200,4 +216,14 @@ class TestGeneratedTestExecution:
         )
         assert "test_scenarios" in result.stdout, (
             f"test_scenarios did not appear in test output for {framework}:\n{result.stdout}"
+        )
+        # Backend-specific health tests (v0.14.0) must have run too
+        expected_health_test = (
+            "test_health_degrades_when_nams_client_missing"
+            if memory_backend == "nams"
+            else "test_health_surfaces_live_memory_write_failures"
+        )
+        assert expected_health_test in result.stdout, (
+            f"{expected_health_test} did not run for {framework}/{memory_backend}:\n"
+            f"{result.stdout}"
         )

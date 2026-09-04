@@ -18,6 +18,10 @@ MEMORY_API_KEY=your-nams-api-key-here
 NEO4J_URI=neo4j://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=your-password-here
+# Database name. Leave blank to use the SDK default ("neo4j") — override this
+# if your instance's database has a different name (e.g. Aura instances
+# provisioned via the Aura API/CLI often name it after the instance id).
+NEO4J_DATABASE=
 {% endif %}
 
 # Memory layer LLM + embedding provider (LiteLLM-style strings, optional).

@@ -48,7 +48,11 @@ from typing import TYPE_CHECKING, Any
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from create_context_graph.ontology import DomainOntology, generate_cypher_schema
+from create_context_graph.ontology import (
+    DomainOntology,
+    generate_cypher_schema,
+    split_cypher_statements,
+)
 
 if TYPE_CHECKING:
     from create_context_graph.config import ProjectConfig
@@ -444,18 +448,25 @@ async def _ingest_with_memory_client(
     neo4j_uri: str,
     neo4j_username: str,
     neo4j_password: str,
+    neo4j_database: str = "",
 ) -> None:
-    """Ingest data using neo4j-agent-memory MemoryClient (bolt backend)."""
+    """Ingest data using neo4j-agent-memory MemoryClient (bolt backend).
+
+    ``neo4j_database`` of ``""`` defers to the library default ("neo4j");
+    set it for instances whose database isn't literally named "neo4j".
+    """
     from pydantic import SecretStr
     from neo4j_agent_memory import MemoryClient, MemorySettings
 
-    settings = MemorySettings(
-        neo4j={
-            "uri": neo4j_uri,
-            "username": neo4j_username,
-            "password": SecretStr(neo4j_password),
-        }
-    )
+    neo4j_config: dict = {
+        "uri": neo4j_uri,
+        "username": neo4j_username,
+        "password": SecretStr(neo4j_password),
+    }
+    if neo4j_database:
+        neo4j_config["database"] = neo4j_database
+
+    settings = MemorySettings(neo4j=neo4j_config)
 
     async with MemoryClient(settings) as client:
         with Progress(
@@ -467,14 +478,12 @@ async def _ingest_with_memory_client(
             # Step 1: Apply schema
             task = progress.add_task("[1/4] Applying schema...", total=None)
             cypher_schema = generate_cypher_schema(ontology)
-            for statement in cypher_schema.split(";"):
-                stmt = statement.strip()
-                if stmt and not stmt.startswith("//"):
-                    try:
-                        await client.graph.execute_write(stmt)
-                    except Exception as e:
-                        if "already exists" not in str(e).lower():
-                            console.print(f"  [yellow]Warning:[/yellow] Schema: {e}")
+            for stmt in split_cypher_statements(cypher_schema):
+                try:
+                    await client.graph.execute_write(stmt)
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        console.print(f"  [yellow]Warning:[/yellow] Schema: {e}")
             progress.update(task, description="[1/4] Schema applied")
 
             # Step 2: Ingest entities
@@ -616,6 +625,7 @@ async def _ingest_with_driver(
     neo4j_uri: str,
     neo4j_username: str,
     neo4j_password: str,
+    neo4j_database: str = "",
 ) -> None:
     """Fallback: ingest using neo4j driver directly (no neo4j-agent-memory)."""
     from neo4j import AsyncGraphDatabase
@@ -624,6 +634,8 @@ async def _ingest_with_driver(
         neo4j_uri,
         auth=(neo4j_username, neo4j_password),
     )
+    # None defers to the server default database ("neo4j" unless reconfigured).
+    session_db = neo4j_database or None
 
     try:
         await driver.verify_connectivity()
@@ -639,21 +651,19 @@ async def _ingest_with_driver(
 
         task = progress.add_task("[1/5] Applying schema...", total=None)
         cypher_schema = generate_cypher_schema(ontology)
-        async with driver.session() as session:
-            for statement in cypher_schema.split(";"):
-                stmt = statement.strip()
-                if stmt and not stmt.startswith("//"):
-                    try:
-                        await session.run(stmt)
-                    except Exception as e:
-                        if "already exists" not in str(e).lower():
-                            console.print(f"  [yellow]Warning:[/yellow] Schema: {e}")
+        async with driver.session(database=session_db) as session:
+            for stmt in split_cypher_statements(cypher_schema):
+                try:
+                    await session.run(stmt)
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        console.print(f"  [yellow]Warning:[/yellow] Schema: {e}")
         progress.update(task, description="[1/5] Schema applied")
 
         task = progress.add_task("[2/5] Creating entities...", total=None)
         entity_count = 0
         entities = fixture_data.get("entities", {})
-        async with driver.session() as session:
+        async with driver.session(database=session_db) as session:
             for label, items in entities.items():
                 try:
                     safe_label = _require_safe_cypher_identifier(label, "label")
@@ -674,7 +684,7 @@ async def _ingest_with_driver(
         task = progress.add_task("[3/5] Creating relationships...", total=None)
         rel_count = 0
         relationships = fixture_data.get("relationships", [])
-        async with driver.session() as session:
+        async with driver.session(database=session_db) as session:
             for rel in relationships:
                 try:
                     source_label = _require_safe_cypher_identifier(
@@ -703,7 +713,7 @@ async def _ingest_with_driver(
         task = progress.add_task("[4/5] Creating documents...", total=None)
         doc_count = 0
         documents = fixture_data.get("documents", [])
-        async with driver.session() as session:
+        async with driver.session(database=session_db) as session:
             for doc in documents:
                 try:
                     await session.run(
@@ -741,7 +751,7 @@ async def _ingest_with_driver(
         task = progress.add_task("[5/5] Creating decision traces...", total=None)
         trace_count = 0
         traces = fixture_data.get("traces", [])
-        async with driver.session() as session:
+        async with driver.session(database=session_db) as session:
             for trace_data in traces:
                 try:
                     await session.run(
@@ -785,12 +795,17 @@ async def _ingest_with_driver(
 # ---------------------------------------------------------------------------
 
 
-def reset_neo4j(neo4j_uri: str, neo4j_username: str, neo4j_password: str) -> None:
+def reset_neo4j(
+    neo4j_uri: str,
+    neo4j_username: str,
+    neo4j_password: str,
+    neo4j_database: str = "",
+) -> None:
     """Clear all data from Neo4j (bolt backend)."""
     from neo4j import GraphDatabase
 
     driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
-    with driver.session() as session:
+    with driver.session(database=neo4j_database or None) as session:
         session.run("MATCH (n) DETACH DELETE n")
     driver.close()
 
@@ -838,7 +853,12 @@ def reset_memory_store(config: "ProjectConfig") -> None:
             return
         asyncio.run(_reset_nams(config.nams_api_key, config.nams_endpoint))
     else:
-        reset_neo4j(config.neo4j_uri, config.neo4j_username, config.neo4j_password)
+        reset_neo4j(
+            config.neo4j_uri,
+            config.neo4j_username,
+            config.neo4j_password,
+            config.neo4j_database,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -929,6 +949,7 @@ def ingest_data(
             _ingest_with_memory_client(
                 fixture_data, ontology,
                 config.neo4j_uri, config.neo4j_username, config.neo4j_password,
+                neo4j_database=config.neo4j_database,
             )
         )
     except ImportError:
@@ -937,5 +958,6 @@ def ingest_data(
             _ingest_with_driver(
                 fixture_data, ontology,
                 config.neo4j_uri, config.neo4j_username, config.neo4j_password,
+                neo4j_database=config.neo4j_database,
             )
         )

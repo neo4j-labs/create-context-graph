@@ -363,7 +363,9 @@ async def _ingest_via_bolt(data: dict[str, Any], body_fields: dict[str, str]) ->
         await driver.close()
         raise RuntimeError(f"Failed to connect to Neo4j at {settings.neo4j_uri}: {exc}") from exc
 
-    async with driver, driver.session() as session:
+    # database=None defers to the server default ("neo4j" unless reconfigured);
+    # NEO4J_DATABASE overrides it for instances whose database has another name.
+    async with driver, driver.session(database=settings.neo4j_database or None) as session:
         # Entities — UNWIND batched by label
         for label, items in data.get("entities", {}).items():
             if not items:

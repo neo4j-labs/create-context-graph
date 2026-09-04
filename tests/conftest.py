@@ -57,6 +57,38 @@ class _AutoSelfHostedRunner(CliRunner):
         return super().invoke(cli, args, *a, **kw)
 
 
+@pytest.fixture(scope="session")
+def _isolated_custom_domains_dir(tmp_path_factory) -> Path:
+    """A session-scoped path for custom domains that never exists on disk."""
+    return tmp_path_factory.mktemp("isolated-home") / "custom-domains"
+
+
+@pytest.fixture(autouse=True)
+def _isolate_custom_domains(_isolated_custom_domains_dir, monkeypatch):
+    """Keep the suite hermetic against ~/.create-context-graph/custom-domains/.
+
+    ``list_available_domains()`` and ``load_domain()`` both scan the user-local
+    custom domains directory. Without this fixture, any custom domain a
+    contributor has saved on their machine leaks into every test that iterates
+    the available domains (ontology validation, fixture cross-checks, the
+    domain x framework matrix), producing failures that don't reproduce in CI.
+
+    Tests that need a custom-domains directory patch ``_get_custom_domains_path``
+    themselves (``unittest.mock.patch`` layers cleanly over this fixture).
+    """
+    from create_context_graph import custom_domain as custom_domain_mod
+    from create_context_graph import ontology as ontology_mod
+
+    # Both modules hold their own reference (custom_domain imports it by name).
+    monkeypatch.setattr(
+        ontology_mod, "_get_custom_domains_path", lambda: _isolated_custom_domains_dir
+    )
+    monkeypatch.setattr(
+        custom_domain_mod, "_get_custom_domains_path", lambda: _isolated_custom_domains_dir
+    )
+    yield _isolated_custom_domains_dir
+
+
 @pytest.fixture
 def runner():
     """Pre-bolt-default CLI runner. Auto-adds ``--self-hosted`` to invocations.
