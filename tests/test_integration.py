@@ -23,6 +23,7 @@ from create_context_graph.ontology import (
     DomainOntology,
     generate_cypher_schema,
     load_domain,
+    split_cypher_statements,
 )
 from create_context_graph.ingest import ingest_data
 
@@ -139,14 +140,12 @@ class TestSchemaCreation:
         schema_ddl = generate_cypher_schema(ontology)
 
         # Execute each statement — should not raise
-        for statement in schema_ddl.split(";"):
-            stmt = statement.strip()
-            if stmt and not stmt.startswith("//"):
-                try:
-                    neo4j_session.run(stmt)
-                except Exception as exc:
-                    if "already exists" not in str(exc).lower():
-                        raise
+        for stmt in split_cypher_statements(schema_ddl):
+            try:
+                neo4j_session.run(stmt)
+            except Exception as exc:
+                if "already exists" not in str(exc).lower():
+                    raise
 
         result = neo4j_session.run("SHOW CONSTRAINTS")
         constraints = list(result)
@@ -157,18 +156,20 @@ class TestSchemaCreation:
         ontology = load_domain("financial-services")
         schema_ddl = generate_cypher_schema(ontology)
 
-        for statement in schema_ddl.split(";"):
-            stmt = statement.strip()
-            if stmt and not stmt.startswith("//"):
-                try:
-                    neo4j_session.run(stmt)
-                except Exception as exc:
-                    if "already exists" not in str(exc).lower():
-                        raise
+        for stmt in split_cypher_statements(schema_ddl):
+            try:
+                neo4j_session.run(stmt)
+            except Exception as exc:
+                if "already exists" not in str(exc).lower():
+                    raise
 
         result = neo4j_session.run("SHOW INDEXES")
-        indexes = list(result)
-        assert len(indexes) > 0, "Expected at least one index after schema application"
+        index_names = {record["name"] for record in result}
+        assert len(index_names) > 0, "Expected at least one index after schema application"
+        # These four sat behind comment headers, so the old naive splitter
+        # silently skipped them (v0.14.0 regression guard).
+        for expected in ("person_name", "document_title", "document_domain"):
+            assert expected in index_names, f"index {expected} was not created"
 
 
 # ---------------------------------------------------------------------------
@@ -331,3 +332,83 @@ class TestDomainScoping:
                 f"Found {count} nodes with label '{label}' in domain '{self.DOMAIN_A}' "
                 f"— expected 0 (label is healthcare-only)"
             )
+
+
+# ---------------------------------------------------------------------------
+# TestNeo4jDatabaseThreading (v0.14.0)
+# ---------------------------------------------------------------------------
+
+
+class TestNeo4jDatabaseThreading:
+    """v0.14.0: an explicitly-named database must be honored end-to-end.
+
+    We resolve the server's default database name and pass it EXPLICITLY —
+    equivalent routing, but it exercises the ``neo4j_database`` parameter
+    through ``ProjectConfig`` → ``ingest_data`` → session, on any edition
+    (community has a single database, so an explicit name is the only
+    portable way to test the threading).
+    """
+
+    TEST_DOMAIN = "test-dbthread"
+
+    @pytest.fixture()
+    def default_db_name(self, neo4j_driver) -> str:
+        with neo4j_driver.session() as session:
+            record = session.run("CALL db.info() YIELD name RETURN name").single()
+        return record["name"]
+
+    @pytest.fixture(autouse=True)
+    def _cleanup(self, neo4j_driver):
+        yield
+        with neo4j_driver.session() as session:
+            session.run(
+                "MATCH (n) WHERE n.domain = $domain DETACH DELETE n",
+                {"domain": self.TEST_DOMAIN},
+            )
+
+    def test_ingest_honors_explicit_database(self, neo4j_driver, default_db_name):
+        from create_context_graph.config import ProjectConfig
+
+        ontology = _override_ontology_domain(
+            load_domain("financial-services"), self.TEST_DOMAIN
+        )
+        fixture_path = _rewrite_fixture_domain(
+            _load_fixture("financial-services"), self.TEST_DOMAIN
+        )
+        config = ProjectConfig(
+            project_name="db threading test",
+            domain=self.TEST_DOMAIN,
+            memory_backend="bolt",
+            neo4j_uri=NEO4J_URI,
+            neo4j_username=NEO4J_USERNAME,
+            neo4j_password=NEO4J_PASSWORD,
+            neo4j_database=default_db_name,
+        )
+        try:
+            ingest_data(fixture_path, ontology, config)
+        finally:
+            fixture_path.unlink(missing_ok=True)
+
+        with neo4j_driver.session(database=default_db_name) as session:
+            count = session.run(
+                "MATCH (n) WHERE n.domain = $domain RETURN count(n) AS cnt",
+                {"domain": self.TEST_DOMAIN},
+            ).single()["cnt"]
+        assert count > 0, "explicit-database ingest wrote no nodes"
+
+    def test_validate_connection_with_database(self, default_db_name):
+        from create_context_graph.neo4j_validator import validate_connection
+
+        ok, message = validate_connection(
+            NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD, database=default_db_name
+        )
+        assert ok, message
+
+    def test_validate_connection_rejects_unknown_database(self):
+        from create_context_graph.neo4j_validator import validate_connection
+
+        ok, _ = validate_connection(
+            NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD,
+            database="ccg-no-such-database",
+        )
+        assert not ok

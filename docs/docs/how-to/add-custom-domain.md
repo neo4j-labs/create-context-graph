@@ -44,6 +44,12 @@ Write a domain YAML file from scratch and point the CLI at it:
 create-context-graph my-app --ontology-file ./my-domain.yaml --framework langgraph
 ```
 
+The scaffold uses the domain id declared inside the YAML (overriding any
+`--domain` value), and the file is copied into the project as
+`data/ontology.yaml` alongside `_base.yaml`, so the generated project stays
+self-contained. `--ontology-file` and `--custom-domain` are mutually
+exclusive — pass one or the other.
+
 Your YAML must follow the domain ontology schema. At minimum, include:
 
 ```yaml

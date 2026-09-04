@@ -54,11 +54,29 @@ class _FakeNamsClient:
         )
         self.short_term = SimpleNamespace(
             add_message=AsyncMock(return_value=SimpleNamespace(id="msg-1")),
+            # Live NAMS mints its own conversation ids — the ingestors must
+            # address messages to this returned id, not their session hint.
+            create_conversation=AsyncMock(return_value=SimpleNamespace(id="conv-srv-1")),
         )
         self.reasoning = SimpleNamespace(
             start_trace=AsyncMock(return_value=SimpleNamespace(id="trace-1")),
             add_step=AsyncMock(return_value=SimpleNamespace(id="step-1")),
             complete_trace=AsyncMock(return_value=None),
+        )
+        # Workspace on nams-default with the healthcare domain in the catalog
+        # (mirrors the live service) — the ingest path activates it first.
+        self.ontology = SimpleNamespace(
+            get_active=AsyncMock(return_value=SimpleNamespace(
+                document=SimpleNamespace(domain=SimpleNamespace(id="nams-default"))
+            )),
+            list=AsyncMock(return_value=[
+                SimpleNamespace(id="ont-hc", name="healthcare"),
+            ]),
+            get=AsyncMock(return_value=SimpleNamespace(
+                versions=[SimpleNamespace(id="ov-hc-1", revision=1)]
+            )),
+            activate=AsyncMock(return_value=SimpleNamespace(id="ov-hc-1")),
+            create=AsyncMock(return_value=SimpleNamespace(id="ov-created")),
         )
 
     async def __aenter__(self):
@@ -263,11 +281,16 @@ class TestIngestDataDispatch:
         )
         ingest_data(fixture, healthcare_ontology, cfg)
 
-        # Document message side.
+        # Document message side. Live NAMS rejects custom roles and only
+        # accepts the conversation id it minted at create time (v0.14.0).
+        assert fake_client.short_term.create_conversation.await_count == 1
+        conv_kwargs = fake_client.short_term.create_conversation.await_args.kwargs
+        assert conv_kwargs["session_id"].startswith("docs-")
         assert fake_client.short_term.add_message.await_count == 1
         msg_kwargs = fake_client.short_term.add_message.await_args.kwargs
-        assert msg_kwargs["role"] == "document"
-        assert msg_kwargs["session_id"].startswith("docs-")
+        assert msg_kwargs["role"] == "user"
+        assert msg_kwargs["session_id"] == "conv-srv-1"
+        assert msg_kwargs["metadata"]["kind"] == "document"
         assert msg_kwargs["metadata"]["title"] == "Discharge Note — Bob Singh"
 
         # Document entity side.
@@ -390,14 +413,11 @@ class TestIngestDataDispatch:
 
 
 class TestResetMemoryStoreDispatch:
-    def test_nams_reset_calls_delete_entity_for_each(self, fake_client, fake_nams_module):
-        fake_client.long_term.search_entities = AsyncMock(
-            return_value=[
-                SimpleNamespace(id="e1"),
-                SimpleNamespace(id="e2"),
-                SimpleNamespace(id="e3"),
-            ]
-        )
+    def test_nams_reset_reports_unavailable(self, fake_client, fake_nams_module, capsys):
+        """v0.14.0: NAMS REST / neo4j-agent-memory 0.5.x has no delete API —
+        reset must say so (with the live entity count) instead of silently
+        reporting "0 entities removed" like the old swallow-everything loop."""
+        fake_client.query = SimpleNamespace(cypher=AsyncMock(return_value=[{"n": 3}]))
         cfg = ProjectConfig(
             project_name="x",
             domain="healthcare",
@@ -405,7 +425,16 @@ class TestResetMemoryStoreDispatch:
             nams_api_key="sk-test",
         )
         reset_memory_store(cfg)
-        assert fake_client.long_term.delete_entity.await_count == 3
+        out = capsys.readouterr().out
+        assert "reset is not available" in out
+        assert "3 stored entities" in out
+        # Assert the full sentence, not a bare hostname substring — a
+        # `"host.com" in text` check pattern-matches CodeQL's
+        # incomplete-URL-sanitization rule (py/incomplete-url-substring-sanitization)
+        # even in test assertions.
+        assert "Manage stored data at https://memory.neo4jlabs.com" in out
+        # No deletes attempted — the API doesn't exist upstream.
+        assert fake_client.long_term.delete_entity.await_count == 0
 
     def test_nams_reset_without_api_key_warns(self, capsys):
         cfg = ProjectConfig(
@@ -427,5 +456,101 @@ class TestResetMemoryStoreDispatch:
         with patch("create_context_graph.ingest.reset_neo4j") as mock_reset:
             reset_memory_store(cfg)
             mock_reset.assert_called_once_with(
-                cfg.neo4j_uri, cfg.neo4j_username, cfg.neo4j_password
+                cfg.neo4j_uri,
+                cfg.neo4j_username,
+                cfg.neo4j_password,
+                cfg.neo4j_database,
             )
+
+
+class TestEnsureNamsOntology:
+    """v0.14.0: bind the NAMS workspace to the domain ontology before writes.
+
+    NAMS auto-binds workspaces to nams-default until an explicit ontology is
+    activated; it pre-registers all bundled domains server-side, and every
+    stored entity is stamped with the active ontology version.
+    """
+
+    def _client(self, *, active="nams-default", catalog=("healthcare",)):
+        client = _FakeNamsClient()
+        client.ontology.get_active = AsyncMock(return_value=SimpleNamespace(
+            document=SimpleNamespace(domain=SimpleNamespace(id=active))
+        ))
+        client.ontology.list = AsyncMock(return_value=[
+            SimpleNamespace(id=f"ont-{name}", name=name) for name in catalog
+        ])
+        return client
+
+    async def test_already_active_is_noop(self):
+        from create_context_graph.ingest import ensure_nams_ontology
+
+        client = self._client(active="healthcare")
+        status = await ensure_nams_ontology(client, "healthcare")
+
+        assert status == "already-active"
+        client.ontology.list.assert_not_awaited()
+        client.ontology.activate.assert_not_awaited()
+
+    async def test_catalog_match_activates_latest_version(self):
+        from create_context_graph.ingest import ensure_nams_ontology
+
+        client = self._client()
+        client.ontology.get = AsyncMock(return_value=SimpleNamespace(versions=[
+            SimpleNamespace(id="ov-1", revision=1),
+            SimpleNamespace(id="ov-3", revision=3),
+            SimpleNamespace(id="ov-2", revision=2),
+        ]))
+        status = await ensure_nams_ontology(client, "healthcare")
+
+        assert status == "activated"
+        client.ontology.get.assert_awaited_once_with(ontology_id="ont-healthcare")
+        client.ontology.activate.assert_awaited_once_with(version_id="ov-3")
+        client.ontology.create.assert_not_awaited()
+
+    async def test_missing_domain_creates_from_document(self):
+        from create_context_graph.ingest import ensure_nams_ontology
+
+        client = self._client(catalog=("healthcare",))
+        doc = {"domain": {"id": "bakery"}, "entity_types": [], "relationships": []}
+        status = await ensure_nams_ontology(client, "bakery", doc)
+
+        assert status == "created"
+        client.ontology.create.assert_awaited_once_with(name="bakery", schema=doc)
+        client.ontology.activate.assert_awaited_once_with(version_id="ov-created")
+
+    async def test_missing_domain_without_document_reports_unavailable(self):
+        from create_context_graph.ingest import ensure_nams_ontology
+
+        client = self._client(catalog=())
+        status = await ensure_nams_ontology(client, "bakery")
+
+        assert status == "unavailable"
+        client.ontology.activate.assert_not_awaited()
+
+    async def test_api_failure_is_swallowed(self):
+        from create_context_graph.ingest import ensure_nams_ontology
+
+        client = self._client()
+        client.ontology.get_active = AsyncMock(side_effect=ConnectionError("down"))
+        status = await ensure_nams_ontology(client, "healthcare")
+
+        assert status == "unavailable"
+
+    def test_run_nams_ingest_ensures_ontology_before_writes(
+        self, tmp_path, healthcare_ontology, fake_client, fake_nams_module
+    ):
+        """The ingest pipeline must activate the domain ontology before the
+        first entity write."""
+        fixture = _make_fixture_file(tmp_path)
+        cfg = ProjectConfig(
+            project_name="x",
+            domain="healthcare",
+            framework="strands",
+            nams_api_key="sk-test",
+        )
+        ingest_data(fixture, healthcare_ontology, cfg)
+
+        fake_client.ontology.activate.assert_awaited_once_with(version_id="ov-hc-1")
+        # create not needed — healthcare is in the catalog double, and the
+        # document argument only comes into play for unknown domains.
+        fake_client.ontology.create.assert_not_awaited()

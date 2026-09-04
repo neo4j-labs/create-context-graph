@@ -224,6 +224,7 @@ cp .env.example .env
 | `NEO4J_URI` | Neo4j connection URI |
 | `NEO4J_USERNAME` | Neo4j username |
 | `NEO4J_PASSWORD` | Neo4j password |
+| `NEO4J_DATABASE` | Database name — blank uses the driver default (`neo4j`); set for instances whose database has another name (common on Aura API/CLI-provisioned instances) |
 | `ANTHROPIC_API_KEY` | Anthropic API key for the AI agent |
 | `OPENAI_API_KEY` | OpenAI API key (for embeddings) |
 | `SESSION_STRATEGY` | Memory session strategy (per_conversation, per_day, persistent) |
@@ -237,6 +238,14 @@ cp .env.example .env
 **"Neo4j is unavailable" on all endpoints**
 - Verify your `.env` file has correct `NEO4J_URI`, `NEO4J_USERNAME`, and `NEO4J_PASSWORD`
 - Run `make test-connection` to validate credentials
+
+**`/health` shows `"status": "degraded"` with a `memory_error` while chat still works**
+- The Neo4j connection is fine but memory writes are failing — most often the
+  database name: if your instance's database isn't literally named `neo4j`
+  (common on Aura instances provisioned via the Aura API/CLI), set
+  `NEO4J_DATABASE` in `.env` and restart
+- `memory_error` is the classified category (`auth`/`rate_limit`/`network`/`config`/`unknown`);
+  `memory_error_detail` carries the short technical detail
 {% if neo4j_type == 'aura' %}
 - Ensure your Aura instance is running and the URI starts with `neo4j+s://`
 {% elif neo4j_type == 'docker' %}

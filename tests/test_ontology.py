@@ -374,3 +374,118 @@ class TestCypherQueryValidation:
                     f"Uses deprecated colon syntax in pipe-separated relationship "
                     f"pattern (e.g., ':TYPE1|:TYPE2'). Use 'TYPE1|TYPE2' instead."
                 )
+
+
+class TestSplitCypherStatements:
+    """v0.14.0: the shared DDL splitter must survive comments — the naive
+    ``split(";")`` + ``startswith("//")`` pattern silently skipped real
+    statements behind comment headers and executed comment tails as Cypher."""
+
+    def test_semicolon_inside_comment_does_not_split(self):
+        from create_context_graph.ontology import split_cypher_statements
+
+        script = (
+            "// Create after embeddings are generated; dimensions must match.\n"
+            "CREATE INDEX a IF NOT EXISTS FOR (n:A) ON (n.name);\n"
+        )
+        statements = split_cypher_statements(script)
+        assert statements == ["CREATE INDEX a IF NOT EXISTS FOR (n:A) ON (n.name)"]
+
+    def test_statement_behind_comment_header_is_kept(self):
+        from create_context_graph.ontology import split_cypher_statements
+
+        script = (
+            "CREATE INDEX a IF NOT EXISTS FOR (n:A) ON (n.name);\n"
+            "\n"
+            "// Section header comment\n"
+            "CREATE INDEX b IF NOT EXISTS FOR (n:B) ON (n.name);\n"
+        )
+        statements = split_cypher_statements(script)
+        assert len(statements) == 2
+        assert statements[1].startswith("CREATE INDEX b")
+
+    def test_commented_out_ddl_is_dropped(self):
+        from create_context_graph.ontology import split_cypher_statements
+
+        script = (
+            "// CREATE VECTOR INDEX v IF NOT EXISTS\n"
+            "// OPTIONS { indexConfig: { `vector.dimensions`: 1536 } };\n"
+            "CREATE INDEX real_one IF NOT EXISTS FOR (n:A) ON (n.name);\n"
+        )
+        statements = split_cypher_statements(script)
+        assert statements == [
+            "CREATE INDEX real_one IF NOT EXISTS FOR (n:A) ON (n.name)"
+        ]
+
+    @pytest.mark.parametrize("domain_id", ["financial-services", "healthcare", "software-engineering"])
+    def test_generated_schema_yields_only_executable_statements(self, domain_id):
+        from create_context_graph.ontology import (
+            generate_cypher_schema,
+            split_cypher_statements,
+        )
+
+        schema = generate_cypher_schema(load_domain(domain_id))
+        statements = split_cypher_statements(schema)
+        assert statements, "schema produced no statements"
+        for stmt in statements:
+            first_word = stmt.split(None, 1)[0].upper()
+            assert first_word in {"CREATE", "DROP", "CALL", "SHOW", "MATCH", "MERGE"}, (
+                f"non-executable fragment leaked through: {stmt[:80]!r}"
+            )
+
+    def test_previously_skipped_statements_are_recovered(self):
+        """The old pattern dropped person_name/document_title/document_domain
+        and the fulltext index for every domain. Pin their recovery."""
+        from create_context_graph.ontology import (
+            generate_cypher_schema,
+            split_cypher_statements,
+        )
+
+        schema = generate_cypher_schema(load_domain("financial-services"))
+        statements = split_cypher_statements(schema)
+        joined = "\n".join(statements)
+        for name in ("person_name", "document_title", "document_domain",
+                     "document_name_unique", "local_file_fulltext"):
+            assert name in joined, f"{name} missing from split statements"
+
+        # And prove the OLD pattern really did drop statements (regression doc)
+        old_style = [
+            s.strip() for s in schema.split(";")
+            if s.strip() and not s.strip().startswith("//")
+        ]
+        old_joined = "\n".join(old_style)
+        assert "person_name" not in old_joined
+
+
+class TestCustomDomainIsolation:
+    """The autouse conftest fixture must keep tests hermetic against
+    ~/.create-context-graph/custom-domains/ — a contributor's saved custom
+    domains previously leaked into every domain-iterating test (the
+    "football-intelligence" failure reports against v0.13.x)."""
+
+    def test_custom_domains_path_is_isolated_from_home(self):
+        from pathlib import Path
+
+        from create_context_graph import custom_domain as custom_domain_mod
+        from create_context_graph import ontology as ontology_mod
+
+        home = Path.home()
+        for resolver in (
+            ontology_mod._get_custom_domains_path,
+            custom_domain_mod._get_custom_domains_path,
+        ):
+            resolved = resolver()
+            assert not resolved.is_relative_to(home), (
+                f"tests are reading the real user directory: {resolved}"
+            )
+
+    def test_listed_domains_are_exactly_the_bundled_set(self):
+        """With isolation active, only bundled domains appear."""
+        from create_context_graph.ontology import _get_domains_path
+
+        bundled = {
+            p.stem for p in _get_domains_path().glob("*.yaml")
+            if not p.stem.startswith("_")
+        }
+        listed = {d["id"] for d in list_available_domains()}
+        assert listed == bundled

@@ -41,7 +41,8 @@ my-app/
 │   │   ├── constants.py              # Shared constants (index names, graph projections)
 │   │   ├── context_graph_client.py   # Neo4j read/write client with query timeouts
 │   │   ├── gds_client.py            # Neo4j Graph Data Science client (label-validated)
-│   │   └── vector_client.py         # Vector search client with logging
+│   │   ├── vector_client.py         # Vector search client with logging
+│   │   └── ontology_document.json   # NAMS ontology doc — activated (or created, for custom domains) on connect
 │   ├── tests/
 │   │   ├── __init__.py
 │   │   └── test_routes.py            # Generated test scaffold (health, scenarios)
@@ -275,8 +276,13 @@ Generated demo data in a structured format:
 NEO4J_URI=neo4j://localhost:7687
 NEO4J_USERNAME=neo4j
 NEO4J_PASSWORD=password
+NEO4J_DATABASE=
 ANTHROPIC_API_KEY=
 ```
+
+`NEO4J_DATABASE` is blank by default (the driver default `neo4j` is used).
+Set it when your instance's database has a different name — the generated
+app's Cypher sessions, memory layer, and `make import` all honor it.
 
 ### `docker-compose.yml`
 

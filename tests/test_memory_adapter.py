@@ -438,6 +438,9 @@ class TestIngestFixturesNams:
         adapter, memory_mod = nams_adapter
         client = MagicMock()
         client.long_term.add_entity = AsyncMock(return_value=SimpleNamespace(id="e"))
+        client.short_term.create_conversation = AsyncMock(
+            return_value=SimpleNamespace(id="conv-1")
+        )
         client.short_term.add_message = AsyncMock(return_value=SimpleNamespace(id="m"))
         client.reasoning.start_trace = AsyncMock(return_value=SimpleNamespace(id="t"))
         client.reasoning.add_step = AsyncMock(return_value=SimpleNamespace(id="s"))

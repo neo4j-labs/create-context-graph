@@ -113,7 +113,8 @@ async def ingest_fixtures_nams(fixture_data: dict[str, Any], domain_id: str) -> 
       ``add_relationship``).
     * Documents → dual-tracked: ``add_entity(name=title, type=OBJECT)`` so
       the document is a queryable long-term entity AND
-      ``short_term.add_message(role="document")`` so the NAMS extractor
+      ``short_term.add_message`` (role="user", metadata kind="document",
+      addressed to a server-created conversation) so the NAMS extractor
       sees the prose.
     * Decision traces use the reasoning REST API.
     """
@@ -149,8 +150,15 @@ async def ingest_fixtures_nams(fixture_data: dict[str, Any], domain_id: str) -> 
                 print(f"  [warn] Entity {name}: {e}")
     print(f"  [1/3] Ingested {entity_count} entities ({edges_encoded} with ccg-edges)")
 
-    # Documents → dual-tracked
-    doc_session = f"docs-{domain_id}"
+    # Documents → dual-tracked. NAMS only accepts messages addressed to a
+    # conversation id IT minted — create the channel once and target that id;
+    # role must be user/assistant/system (custom roles are rejected).
+    doc_channel = None
+    try:
+        conv = await client.short_term.create_conversation(session_id=f"docs-{domain_id}")
+        doc_channel = str(getattr(conv, "id", "") or "") or None
+    except Exception as e:
+        print(f"  [warn] docs conversation unavailable ({e}) — storing entities only")
     doc_count = 0
     for doc in fixture_data.get("documents", []):
         title = doc.get("title", "")
@@ -166,17 +174,19 @@ async def ingest_fixtures_nams(fixture_data: dict[str, Any], domain_id: str) -> 
             await client.long_term.add_entity(
                 name=title, entity_type="OBJECT", description=description,
             )
-            await client.short_term.add_message(
-                session_id=doc_session,
-                role="document",
-                content=content,
-                metadata={
-                    "title": title,
-                    "template_id": doc.get("template_id", ""),
-                    "template_name": doc.get("template_name", ""),
-                    "domain": domain_id,
-                },
-            )
+            if doc_channel is not None:
+                await client.short_term.add_message(
+                    session_id=doc_channel,
+                    role="user",
+                    content=content,
+                    metadata={
+                        "kind": "document",
+                        "title": title,
+                        "template_id": doc.get("template_id", ""),
+                        "template_name": doc.get("template_name", ""),
+                        "domain": domain_id,
+                    },
+                )
             doc_count += 1
         except Exception as e:
             print(f"  [warn] Document {title}: {e}")
@@ -212,13 +222,32 @@ async def ingest_fixtures_nams(fixture_data: dict[str, Any], domain_id: str) -> 
 
 # ---------------------------------------------------------------------------
 # Documents — on NAMS, stored as long-term Document entities (queryable).
-# The same content is mirrored into short_term as role="document" messages so
+# The same content is mirrored into short_term as kind="document" messages so
 # the NAMS extractor can mine the prose, but the entity is the source of
 # truth for the document browser (matches the bolt graph shape).
 # ---------------------------------------------------------------------------
 
 
 _DOCUMENT_QUERY_HINT = "Document"
+# Written into every document description by the seed/import pipelines; the
+# service-independent signal that an entity is a document.
+_DOCUMENT_MARKER = "_pole_type: OBJECT_"
+
+
+def _document_record_from_fields(name: str, description: str) -> dict[str, Any] | None:
+    """Build the doc-browser record from raw name/description fields."""
+    content = description
+    if CCG_EDGES_OPEN in content:
+        content = content.split(CCG_EDGES_OPEN, 1)[0].rstrip()
+    if "_pole_type:" in content:
+        content = content.rsplit("_pole_type:", 1)[0].rstrip()
+    if not content.strip():
+        return None
+    return {
+        "title": name,
+        "content": content,
+        "preview": content[:200],
+    }
 
 
 def _document_record_from_entity(entity: Any) -> dict[str, Any] | None:
@@ -250,30 +279,58 @@ async def list_documents_nams(
     client = get_client()
     if client is None:
         return []
+    # Preferred: enumerate via the cypher API using the _pole_type marker —
+    # the live NAMS service coerces unknown entity_type values (like OBJECT)
+    # to "custom", so a server-side type filter finds nothing. The marker is
+    # this scaffold's own write contract and survives that coercion.
     try:
-        # Push the OBJECT filter to the server so the (skip + limit + 50)
-        # buffer isn't eaten by unrelated PERSON/ORGANIZATION/LOCATION/EVENT
-        # entities — that used to cause documents to be silently dropped on
-        # busy NAMS instances.
-        entities = await client.long_term.search_entities(
-            query=_DOCUMENT_QUERY_HINT, entity_type="OBJECT", limit=skip + limit + 50,
+        rows = await client.query.cypher(
+            "MATCH (n) WHERE n.description CONTAINS $marker "
+            "RETURN n.name AS name, n.description AS description "
+            "ORDER BY n.name SKIP $skip LIMIT $limit",
+            {"marker": _DOCUMENT_MARKER, "skip": skip, "limit": limit},
         )
+        docs = []
+        for row in rows or []:
+            if not isinstance(row, dict) or not row.get("name"):
+                continue
+            rec = _document_record_from_fields(row["name"], row.get("description") or "")
+            if rec is None:
+                continue
+            rec["template_id"] = ""
+            rec["template_name"] = ""
+            rec["mentioned_entities"] = []
+            docs.append(rec)
+        return docs
     except Exception as e:
-        logger.info("list_documents_nams: search_entities failed: %s", e)
-        return []
+        logger.info("list_documents_nams: cypher path failed (%s) — using search", e)
 
-    docs: list[dict[str, Any]] = []
+    # Fallback: search API. Try the server-side OBJECT filter first (honored
+    # by older services), then unfiltered with client-side marker matching.
+    entities = []
+    for kwargs in ({"entity_type": "OBJECT"}, {}):
+        try:
+            entities = await client.long_term.search_entities(
+                query=_DOCUMENT_QUERY_HINT, limit=skip + limit + 50, **kwargs,
+            )
+        except Exception as e:
+            logger.info("list_documents_nams: search_entities failed: %s", e)
+            entities = []
+        if entities:
+            break
+
+    docs = []
     for ent in entities:
         ent_type = getattr(ent, "entity_type", None) or getattr(ent, "type", None)
-        # NAMS doesn't have a Document label; we stored docs as type=OBJECT
-        # with the doc title as the entity name. Filter by description shape
-        # — anything without prose is not a document.
+        description = getattr(ent, "description", "") or ""
+        # Accept anything carrying our document marker; keep the legacy
+        # type-based acceptance for pre-marker data.
+        is_marked = _DOCUMENT_MARKER in description
+        is_legacy_typed = bool(ent_type) and ent_type.upper() in {"OBJECT", "DOCUMENT"}
+        if not (is_marked or is_legacy_typed):
+            continue
         rec = _document_record_from_entity(ent)
         if rec is None:
-            continue
-        # Belt-and-suspenders client-side filter — server already restricted
-        # to OBJECT, but legacy data may use the older DOCUMENT label.
-        if ent_type and ent_type.upper() not in {"OBJECT", "DOCUMENT"}:
             continue
         rec["template_id"] = ""
         rec["template_name"] = ""
@@ -368,6 +425,59 @@ async def expand_node_nams(element_id: str) -> dict[str, Any]:
     client = get_client()
     if client is None:
         return {"nodes": [], "relationships": []}
+
+    # Preferred: the cypher API. neo4j-agent-memory 0.5.x has no
+    # ``long_term.get_entity(id)`` — id-addressed lookups only exist through
+    # cypher, which also returns the server-side relationships (e.g. the
+    # SAME_AS edges NAMS entity resolution creates).
+    try:
+        rows = await client.query.cypher(
+            "MATCH (n) WHERE n.id = $id "
+            "OPTIONAL MATCH (n)-[r]-(m) "
+            "RETURN n.id AS id, n.name AS name, n.type AS type, "
+            "n.description AS description, type(r) AS rel_type, "
+            "m.id AS other_id, m.name AS other_name, m.type AS other_type, "
+            "m.description AS other_description, "
+            "CASE WHEN r IS NULL THEN NULL WHEN startNode(r).id = n.id THEN true ELSE false END AS outgoing",
+            {"id": element_id},
+        )
+        if rows:
+            nodes: dict[str, dict[str, Any]] = {}
+            rels: list[dict[str, Any]] = []
+            for row in rows:
+                if not isinstance(row, dict) or not row.get("id"):
+                    continue
+                nodes.setdefault(str(row["id"]), {
+                    "elementId": str(row["id"]),
+                    "labels": [row.get("type") or "Entity"],
+                    "name": row.get("name") or "",
+                    "description": row.get("description") or "",
+                })
+                other_id = row.get("other_id")
+                if not other_id or not row.get("rel_type"):
+                    continue
+                nodes.setdefault(str(other_id), {
+                    "elementId": str(other_id),
+                    "labels": [row.get("other_type") or "Entity"],
+                    "name": row.get("other_name") or "",
+                    "description": row.get("other_description") or "",
+                })
+                start, end = (
+                    (str(row["id"]), str(other_id))
+                    if row.get("outgoing") in (True, None)
+                    else (str(other_id), str(row["id"]))
+                )
+                rels.append({
+                    "elementId": f"{start}-{row['rel_type']}-{end}",
+                    "type": row["rel_type"],
+                    "startNodeElementId": start,
+                    "endNodeElementId": end,
+                })
+            return {"nodes": list(nodes.values()), "relationships": rels}
+    except Exception as e:
+        logger.info("expand_node_nams: cypher path failed (%s) — using REST", e)
+
+    # Fallback: REST get_entity with inlined relationships (older lib/service).
     try:
         entity = await client.long_term.get_entity(element_id)
     except Exception as e:
@@ -417,16 +527,28 @@ async def schema_visualization_nams() -> dict[str, Any]:
     client = get_client()
     if client is None:
         return {"nodes": [], "relationships": []}
-    try:
-        entities = await client.long_term.search_entities(query="", limit=1000)
-    except Exception as e:
-        logger.info("schema_visualization_nams: search_entities failed: %s", e)
-        return {"nodes": [], "relationships": []}
-
     by_type: dict[str, int] = {}
-    for ent in entities:
-        t = getattr(ent, "type", "Entity") or "Entity"
-        by_type[t] = by_type.get(t, 0) + 1
+    # Preferred: aggregate via the cypher API. The search API cannot list
+    # everything — the live service rejects an empty query outright.
+    try:
+        rows = await client.query.cypher(
+            "MATCH (n) WHERE n.type IS NOT NULL "
+            "RETURN n.type AS type, count(n) AS count ORDER BY count DESC",
+            {},
+        )
+        for row in rows or []:
+            if isinstance(row, dict) and row.get("type"):
+                by_type[str(row["type"])] = int(row.get("count", 0))
+    except Exception as e:
+        logger.info("schema_visualization_nams: cypher path failed (%s) — using search", e)
+        try:
+            entities = await client.long_term.search_entities(query="entity", limit=1000)
+        except Exception as e2:
+            logger.info("schema_visualization_nams: search_entities failed: %s", e2)
+            return {"nodes": [], "relationships": []}
+        for ent in entities:
+            t = getattr(ent, "type", "Entity") or "Entity"
+            by_type[t] = by_type.get(t, 0) + 1
 
     nodes = [
         {
@@ -456,24 +578,47 @@ async def get_entity_detail_nams(name: str) -> dict[str, Any] | None:
     if entity is None:
         return None
     entity_id = getattr(entity, "id", None) or getattr(entity, "entity_id", None)
-    inlined = getattr(entity, "relationships", None) or []
     connections: list[dict[str, Any]] = []
-    for rel in inlined:
-        target_id = getattr(rel, "target_id", None) or getattr(rel, "target", None)
-        if target_id is None:
-            continue
+    # Preferred: cypher — id-addressed neighbor lookup doesn't exist on the
+    # 0.5.x REST client, and this also surfaces server-created edges.
+    if entity_id:
         try:
-            target = await client.long_term.get_entity(target_id)
-        except Exception:
-            continue
-        connections.append(
-            {
-                "name": getattr(target, "name", "") or "",
-                "labels": [getattr(target, "type", "Entity") or "Entity"],
-                "relationship": getattr(rel, "type", "RELATED_TO"),
-                "direction": "outgoing",
-            }
-        )
+            rows = await client.query.cypher(
+                "MATCH (n) WHERE n.id = $id MATCH (n)-[r]-(m) "
+                "RETURN type(r) AS rel_type, m.name AS name, m.type AS type, "
+                "CASE WHEN startNode(r).id = n.id THEN 'outgoing' ELSE 'incoming' END AS direction",
+                {"id": str(entity_id)},
+            )
+            for row in rows or []:
+                if not isinstance(row, dict) or not row.get("name"):
+                    continue
+                connections.append({
+                    "name": row["name"],
+                    "labels": [row.get("type") or "Entity"],
+                    "relationship": row.get("rel_type") or "RELATED_TO",
+                    "direction": row.get("direction") or "outgoing",
+                })
+        except Exception as e:
+            logger.info("get_entity_detail_nams: cypher connections failed: %s", e)
+    if not connections:
+        # Fallback: inlined relationships from the REST response (older lib).
+        inlined = getattr(entity, "relationships", None) or []
+        for rel in inlined:
+            target_id = getattr(rel, "target_id", None) or getattr(rel, "target", None)
+            if target_id is None:
+                continue
+            try:
+                target = await client.long_term.get_entity(target_id)
+            except Exception:
+                continue
+            connections.append(
+                {
+                    "name": getattr(target, "name", "") or "",
+                    "labels": [getattr(target, "type", "Entity") or "Entity"],
+                    "relationship": getattr(rel, "type", "RELATED_TO"),
+                    "direction": "outgoing",
+                }
+            )
     return {
         "entity": {
             "name": getattr(entity, "name", "") or "",

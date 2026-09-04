@@ -326,6 +326,12 @@ def main(
     # Handle custom domain generation (non-interactive)
     custom_domain_yaml = None
     custom_ontology = None
+    if custom_domain and ontology_file:
+        console.print(
+            "[red]Error:[/red] --custom-domain and --ontology-file are mutually "
+            "exclusive — pass one or the other."
+        )
+        raise SystemExit(1)
     if custom_domain:
         if not anthropic_api_key:
             console.print("[red]Error:[/red] --anthropic-api-key is required for custom domain generation.")
@@ -355,6 +361,10 @@ def main(
             console.print(f"[red]Error:[/red] Failed to load ontology file '{ontology_file}': {e}")
             raise SystemExit(1)
         domain = custom_ontology.domain.id
+        # Carry the raw YAML so the renderer writes it to data/ontology.yaml —
+        # hand-written domains aren't bundled, so the copy-by-domain-id path
+        # would silently produce a scaffold with no ontology file.
+        custom_domain_yaml = Path(ontology_file).read_text()
 
     # Handle Neo4j Aura .env import
     if neo4j_aura_env:
@@ -525,6 +535,15 @@ def main(
         from create_context_graph.wizard import run_wizard
 
         config = run_wizard(self_hosted=bolt_flag_used)
+        if custom_ontology:
+            # --ontology-file was passed but the wizard collected the rest;
+            # the hand-written ontology wins over the wizard's domain pick.
+            console.print(
+                f"[dim]Using ontology from {ontology_file} "
+                f"(domain: {custom_ontology.domain.id})[/dim]"
+            )
+            config.domain = custom_ontology.domain.id
+            config.custom_domain_yaml = custom_domain_yaml
 
     # Resolve output directory
     out = Path(output_dir) if output_dir else Path.cwd() / config.project_slug

@@ -23,7 +23,8 @@ create-context-graph [PROJECT_NAME] [OPTIONS]
 |--------|------|---------|-------------|
 | `--domain` | `string` | *(wizard)* | Domain ID (e.g., `healthcare`, `financial-services`). Use `--list-domains` to see all. |
 | `--framework` | `choice` | *(wizard)* | Agent framework: `pydanticai`, `claude-agent-sdk`, `strands`, `google-adk`, `openai-agents`, `langgraph`, `crewai`, `anthropic-tools`. |
-| `--custom-domain` | `string` | -- | Natural language domain description. Requires `--anthropic-api-key`. |
+| `--custom-domain` | `string` | -- | Natural language domain description. Requires `--anthropic-api-key`. Mutually exclusive with `--ontology-file`. |
+| `--ontology-file` | `path` | -- | Path to a hand-written domain ontology YAML. Scaffolds directly from the file (no LLM call); overrides `--domain`, and the YAML is copied into the project as `data/ontology.yaml`. |
 | `--output-dir` | `path` | `./<project-slug>` | Directory for generated project. |
 | `--with-mcp` | `flag` | `false` | Generate MCP server config for Claude Desktop. |
 | `--mcp-profile` | `choice` | `extended` | MCP tool profile: `core` (6 tools) or `extended` (16 tools). |
@@ -104,7 +105,8 @@ All of the following imply `--self-hosted` if passed without `--nams-api-key`.
 | `--neo4j-uri` | `string` | `$NEO4J_URI` or `neo4j://localhost:7687` | Neo4j Bolt connection URI. |
 | `--neo4j-username` | `string` | `$NEO4J_USERNAME` or `neo4j` | Neo4j username. |
 | `--neo4j-password` | `string` | `$NEO4J_PASSWORD` or `password` | Neo4j password. |
-| `--neo4j-aura-env` | `path` | -- | Path to Aura `.env` file. Auto-sets `neo4j_type=aura`. |
+| `--neo4j-database` | `string` | `$NEO4J_DATABASE` or blank | Database name. Blank defers to the driver default (`neo4j`) — set this for instances whose database has a different name (e.g. Aura instances provisioned via the Aura API/CLI, which often name it after the instance id). Threaded through the generated app, `--ingest` seeding, and `--reset-database`. |
+| `--neo4j-aura-env` | `path` | -- | Path to Aura `.env` file. Auto-sets `neo4j_type=aura`. Also imports `NEO4J_DATABASE` when the file contains one (an explicit `--neo4j-database` wins). |
 | `--neo4j-local` | `flag` | `false` | Use `@johnymontana/neo4j-local` (no Docker). |
 
 ### API Keys
@@ -316,6 +318,7 @@ The following environment variables are read as defaults for their corresponding
 | `NEO4J_URI` | `--neo4j-uri` |
 | `NEO4J_USERNAME` | `--neo4j-username` |
 | `NEO4J_PASSWORD` | `--neo4j-password` |
+| `NEO4J_DATABASE` | `--neo4j-database` |
 | `ANTHROPIC_API_KEY` | `--anthropic-api-key` |
 | `OPENAI_API_KEY` | `--openai-api-key` |
 | `GOOGLE_API_KEY` | `--google-api-key` |

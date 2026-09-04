@@ -24,7 +24,8 @@ Two backend-specific paths:
   ``add_relationship`` against the NAMS REST API a one-shot migration can
   drain those blocks into native edges. Documents are dual-tracked:
   ``add_entity(Document, ...)`` for the queryable long-term node AND
-  ``short_term.add_message(role="document")`` to feed the NAMS extractor.
+  ``short_term.add_message`` (role="user", metadata kind="document",
+  addressed to a server-created conversation id) to feed the NAMS extractor.
   Entity records whose connector declares a ``BODY_FIELDS`` mapping also
   have their body field sent through ``add_message`` for the same reason.
   Decision traces go through the reasoning REST API unchanged.
@@ -48,7 +49,12 @@ from typing import TYPE_CHECKING, Any
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from create_context_graph.ontology import DomainOntology, generate_cypher_schema
+from create_context_graph.ontology import (
+    DomainOntology,
+    build_nams_ontology_document,
+    generate_cypher_schema,
+    split_cypher_statements,
+)
 
 if TYPE_CHECKING:
     from create_context_graph.config import ProjectConfig
@@ -210,6 +216,61 @@ def _resolve_body(
 # ---------------------------------------------------------------------------
 
 
+async def ensure_nams_ontology(
+    client: Any,
+    domain_id: str,
+    ontology_document: dict | None = None,
+) -> str:
+    """Make the workspace's active NAMS ontology match ``domain_id``.
+
+    NAMS auto-binds every workspace to the generic ``nams-default`` ontology
+    until an explicit one is activated, and pre-registers an ontology for
+    each bundled domain. Resolution order:
+
+      1. already active            → ``"already-active"`` (no-op)
+      2. catalog match by name     → activate its latest version (``"activated"``)
+      3. ``ontology_document`` set → create it, then activate (``"created"`` —
+         the custom-domain path; the document comes from
+         :func:`build_nams_ontology_document`)
+
+    Best-effort by design: returns ``"unavailable"`` on any failure or when
+    nothing matches and no document was provided — memory writes still work
+    against the default ontology, just without domain-shaped extraction.
+    All calls use keyword arguments so the parity contract test can record
+    them uniformly.
+    """
+    try:
+        active = await client.ontology.get_active()
+        active_domain = getattr(
+            getattr(getattr(active, "document", None), "domain", None), "id", None
+        )
+        if active_domain == domain_id:
+            return "already-active"
+
+        summaries = await client.ontology.list()
+        match = next(
+            (s for s in summaries if getattr(s, "name", None) == domain_id), None
+        )
+        if match is not None:
+            full = await client.ontology.get(ontology_id=match.id)
+            versions = getattr(full, "versions", None) or []
+            if versions:
+                latest = max(versions, key=lambda v: getattr(v, "revision", 0) or 0)
+                await client.ontology.activate(version_id=latest.id)
+                return "activated"
+
+        if ontology_document is not None:
+            created = await client.ontology.create(
+                name=domain_id, schema=ontology_document
+            )
+            await client.ontology.activate(version_id=created.id)
+            return "created"
+        return "unavailable"
+    except Exception as e:  # noqa: BLE001 — ontology is an enhancement, not a gate
+        console.print(f"  [yellow]NAMS ontology activation skipped:[/yellow] {e}")
+        return "unavailable"
+
+
 async def run_nams_ingest(
     client: Any,
     fixture_data: dict,
@@ -245,6 +306,36 @@ async def run_nams_ingest(
         if on_event is not None:
             on_event(stage, payload)
 
+    # Stage 0: bind the workspace to the domain ontology (best-effort) so
+    # data is stamped with — and extraction speaks — the domain vocabulary
+    # instead of nams-default.
+    ontology_status = await ensure_nams_ontology(
+        client, domain_id, build_nams_ontology_document(ontology)
+    )
+    _emit("ontology", status=ontology_status)
+
+    # NAMS only accepts messages addressed to conversation ids IT minted at
+    # create time — posting to a client-chosen session string 404s with
+    # "conversation not found". Channels are created lazily (one per message
+    # stream) and the server-assigned id is what add_message must target.
+    _channel_ids: dict[str, str | None] = {}
+
+    async def _message_channel(session_hint: str) -> str | None:
+        """Return the server conversation id for ``session_hint``, or None if
+        the channel can't be created (message writes are then skipped)."""
+        if session_hint not in _channel_ids:
+            try:
+                conv = await client.short_term.create_conversation(
+                    session_id=session_hint
+                )
+                _channel_ids[session_hint] = str(getattr(conv, "id", "") or "") or None
+            except Exception as exc:  # noqa: BLE001
+                failures.append({
+                    "kind": "conversation", "name": session_hint, "error": str(exc),
+                })
+                _channel_ids[session_hint] = None
+        return _channel_ids[session_hint]
+
     # Stage 1: entities with ccg-edges encoded into description.
     entities = fixture_data.get("entities", {})
     for label, items in entities.items():
@@ -276,11 +367,17 @@ async def run_nams_ingest(
             if body is None:
                 continue
             try:
+                channel = await _message_channel(f"bodies-{domain_id}")
+                if channel is None:
+                    raise RuntimeError("bodies conversation unavailable")
+                # role must be user/assistant/system — NAMS rejects custom
+                # roles; the metadata kind marks this as extraction fuel.
                 await client.short_term.add_message(
-                    session_id=f"bodies-{domain_id}",
-                    role="document",
+                    session_id=channel,
+                    role="user",
                     content=body,
                     metadata={
+                        "kind": "entity-body",
                         "entity_name": name,
                         "entity_label": label,
                         "domain": domain_id,
@@ -317,11 +414,15 @@ async def run_nams_ingest(
                 entity_type="OBJECT",
                 description=doc_description,
             )
+            channel = await _message_channel(doc_session)
+            if channel is None:
+                raise RuntimeError("docs conversation unavailable")
             await client.short_term.add_message(
-                session_id=doc_session,
-                role="document",
+                session_id=channel,
+                role="user",
                 content=content,
                 metadata={
+                    "kind": "document",
                     "title": title,
                     "template_id": doc.get("template_id", ""),
                     "template_name": doc.get("template_name", ""),
@@ -396,11 +497,25 @@ async def _ingest_with_nams(
                 "  [dim][1/3] NAMS owns schema — skipping CREATE CONSTRAINT statements[/dim]"
             )
             task = progress.add_task("[2/3] Ingesting entities + documents (NAMS)...", total=None)
+
+            def _on_stage(stage: str, payload: dict) -> None:
+                if stage == "ontology":
+                    label = {
+                        "already-active": "domain ontology already active",
+                        "activated": "activated domain ontology",
+                        "created": "created + activated custom domain ontology",
+                        "unavailable": "using NAMS default ontology",
+                    }.get(payload.get("status", ""), payload.get("status", ""))
+                    console.print(
+                        f"  [dim][0/3] {label} ({ontology.domain.id})[/dim]"
+                    )
+
             counts = await run_nams_ingest(
                 client=client,
                 fixture_data=fixture_data,
                 ontology=ontology,
                 body_fields=body_fields,
+                on_event=_on_stage,
             )
             progress.update(
                 task,
@@ -444,18 +559,25 @@ async def _ingest_with_memory_client(
     neo4j_uri: str,
     neo4j_username: str,
     neo4j_password: str,
+    neo4j_database: str = "",
 ) -> None:
-    """Ingest data using neo4j-agent-memory MemoryClient (bolt backend)."""
+    """Ingest data using neo4j-agent-memory MemoryClient (bolt backend).
+
+    ``neo4j_database`` of ``""`` defers to the library default ("neo4j");
+    set it for instances whose database isn't literally named "neo4j".
+    """
     from pydantic import SecretStr
     from neo4j_agent_memory import MemoryClient, MemorySettings
 
-    settings = MemorySettings(
-        neo4j={
-            "uri": neo4j_uri,
-            "username": neo4j_username,
-            "password": SecretStr(neo4j_password),
-        }
-    )
+    neo4j_config: dict = {
+        "uri": neo4j_uri,
+        "username": neo4j_username,
+        "password": SecretStr(neo4j_password),
+    }
+    if neo4j_database:
+        neo4j_config["database"] = neo4j_database
+
+    settings = MemorySettings(neo4j=neo4j_config)
 
     async with MemoryClient(settings) as client:
         with Progress(
@@ -467,14 +589,12 @@ async def _ingest_with_memory_client(
             # Step 1: Apply schema
             task = progress.add_task("[1/4] Applying schema...", total=None)
             cypher_schema = generate_cypher_schema(ontology)
-            for statement in cypher_schema.split(";"):
-                stmt = statement.strip()
-                if stmt and not stmt.startswith("//"):
-                    try:
-                        await client.graph.execute_write(stmt)
-                    except Exception as e:
-                        if "already exists" not in str(e).lower():
-                            console.print(f"  [yellow]Warning:[/yellow] Schema: {e}")
+            for stmt in split_cypher_statements(cypher_schema):
+                try:
+                    await client.graph.execute_write(stmt)
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        console.print(f"  [yellow]Warning:[/yellow] Schema: {e}")
             progress.update(task, description="[1/4] Schema applied")
 
             # Step 2: Ingest entities
@@ -616,6 +736,7 @@ async def _ingest_with_driver(
     neo4j_uri: str,
     neo4j_username: str,
     neo4j_password: str,
+    neo4j_database: str = "",
 ) -> None:
     """Fallback: ingest using neo4j driver directly (no neo4j-agent-memory)."""
     from neo4j import AsyncGraphDatabase
@@ -624,6 +745,8 @@ async def _ingest_with_driver(
         neo4j_uri,
         auth=(neo4j_username, neo4j_password),
     )
+    # None defers to the server default database ("neo4j" unless reconfigured).
+    session_db = neo4j_database or None
 
     try:
         await driver.verify_connectivity()
@@ -639,21 +762,19 @@ async def _ingest_with_driver(
 
         task = progress.add_task("[1/5] Applying schema...", total=None)
         cypher_schema = generate_cypher_schema(ontology)
-        async with driver.session() as session:
-            for statement in cypher_schema.split(";"):
-                stmt = statement.strip()
-                if stmt and not stmt.startswith("//"):
-                    try:
-                        await session.run(stmt)
-                    except Exception as e:
-                        if "already exists" not in str(e).lower():
-                            console.print(f"  [yellow]Warning:[/yellow] Schema: {e}")
+        async with driver.session(database=session_db) as session:
+            for stmt in split_cypher_statements(cypher_schema):
+                try:
+                    await session.run(stmt)
+                except Exception as e:
+                    if "already exists" not in str(e).lower():
+                        console.print(f"  [yellow]Warning:[/yellow] Schema: {e}")
         progress.update(task, description="[1/5] Schema applied")
 
         task = progress.add_task("[2/5] Creating entities...", total=None)
         entity_count = 0
         entities = fixture_data.get("entities", {})
-        async with driver.session() as session:
+        async with driver.session(database=session_db) as session:
             for label, items in entities.items():
                 try:
                     safe_label = _require_safe_cypher_identifier(label, "label")
@@ -674,7 +795,7 @@ async def _ingest_with_driver(
         task = progress.add_task("[3/5] Creating relationships...", total=None)
         rel_count = 0
         relationships = fixture_data.get("relationships", [])
-        async with driver.session() as session:
+        async with driver.session(database=session_db) as session:
             for rel in relationships:
                 try:
                     source_label = _require_safe_cypher_identifier(
@@ -703,7 +824,7 @@ async def _ingest_with_driver(
         task = progress.add_task("[4/5] Creating documents...", total=None)
         doc_count = 0
         documents = fixture_data.get("documents", [])
-        async with driver.session() as session:
+        async with driver.session(database=session_db) as session:
             for doc in documents:
                 try:
                     await session.run(
@@ -741,7 +862,7 @@ async def _ingest_with_driver(
         task = progress.add_task("[5/5] Creating decision traces...", total=None)
         trace_count = 0
         traces = fixture_data.get("traces", [])
-        async with driver.session() as session:
+        async with driver.session(database=session_db) as session:
             for trace_data in traces:
                 try:
                     await session.run(
@@ -785,49 +906,57 @@ async def _ingest_with_driver(
 # ---------------------------------------------------------------------------
 
 
-def reset_neo4j(neo4j_uri: str, neo4j_username: str, neo4j_password: str) -> None:
+def reset_neo4j(
+    neo4j_uri: str,
+    neo4j_username: str,
+    neo4j_password: str,
+    neo4j_database: str = "",
+) -> None:
     """Clear all data from Neo4j (bolt backend)."""
     from neo4j import GraphDatabase
 
     driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
-    with driver.session() as session:
+    with driver.session(database=neo4j_database or None) as session:
         session.run("MATCH (n) DETACH DELETE n")
     driver.close()
 
 
 async def _reset_nams(api_key: str, endpoint: str) -> None:
-    """Best-effort reset on NAMS: list entities and delete one-by-one.
+    """Report what a NAMS reset *would* remove — deletion isn't possible.
 
-    Slow (one REST call per entity) — print a warning. Conversations and
-    reasoning traces are reset via session-level clear calls.
+    Neither the NAMS REST API nor neo4j-agent-memory (through 0.5.x) exposes
+    an entity delete endpoint (``long_term.delete_entity`` does not exist,
+    and the cypher API is read-only). Earlier versions of this function
+    silently reported "0 entities removed" by swallowing AttributeErrors;
+    being honest beats pretending.
     """
     from neo4j_agent_memory import MemoryClient, MemorySettings, NamsConfig
     from pydantic import SecretStr
-
-    console.print(
-        "  [yellow]NAMS reset is per-entity (slow). For fast reset, use --self-hosted.[/yellow]"
-    )
 
     settings = MemorySettings(
         backend="nams",
         nams=NamsConfig(api_key=SecretStr(api_key), endpoint=endpoint),
     )
+    entity_count: int | None = None
     async with MemoryClient(settings) as client:
-        deleted = 0
         try:
-            entities = await client.long_term.search_entities(query="", limit=1000)
-            for ent in entities:
-                ent_id = getattr(ent, "id", None) or getattr(ent, "entity_id", None)
-                if ent_id is None:
-                    continue
-                try:
-                    await client.long_term.delete_entity(ent_id)
-                    deleted += 1
-                except Exception:
-                    pass
-        except Exception as e:
-            console.print(f"  [yellow]Reset partial:[/yellow] {e}")
-    console.print(f"  [green]Reset complete:[/green] {deleted} entities removed")
+            rows = await client.query.cypher(
+                "MATCH (n) WHERE n.id IS NOT NULL RETURN count(n) AS n", {}
+            )
+            if rows and isinstance(rows[0], dict):
+                entity_count = int(rows[0].get("n", 0))
+        except Exception:
+            pass
+    counted = f"{entity_count} stored entities" if entity_count is not None else "stored data"
+    console.print(
+        f"  [yellow]NAMS reset is not available:[/yellow] the NAMS REST API "
+        f"(and neo4j-agent-memory 0.5.x) exposes no delete endpoint, so the "
+        f"CLI cannot remove {counted}."
+    )
+    console.print(
+        "  Manage stored data at https://memory.neo4jlabs.com, or use a "
+        "--self-hosted scaffold for full control."
+    )
 
 
 def reset_memory_store(config: "ProjectConfig") -> None:
@@ -838,7 +967,12 @@ def reset_memory_store(config: "ProjectConfig") -> None:
             return
         asyncio.run(_reset_nams(config.nams_api_key, config.nams_endpoint))
     else:
-        reset_neo4j(config.neo4j_uri, config.neo4j_username, config.neo4j_password)
+        reset_neo4j(
+            config.neo4j_uri,
+            config.neo4j_username,
+            config.neo4j_password,
+            config.neo4j_database,
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -929,6 +1063,7 @@ def ingest_data(
             _ingest_with_memory_client(
                 fixture_data, ontology,
                 config.neo4j_uri, config.neo4j_username, config.neo4j_password,
+                neo4j_database=config.neo4j_database,
             )
         )
     except ImportError:
@@ -937,5 +1072,6 @@ def ingest_data(
             _ingest_with_driver(
                 fixture_data, ontology,
                 config.neo4j_uri, config.neo4j_username, config.neo4j_password,
+                neo4j_database=config.neo4j_database,
             )
         )

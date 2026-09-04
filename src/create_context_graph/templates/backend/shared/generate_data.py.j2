@@ -13,19 +13,30 @@ from app.context_graph_client import connect_neo4j, close_neo4j, execute_cypher
 DATA_DIR = Path(__file__).parent.parent.parent / "data"
 
 
+def _split_cypher_statements(script: str) -> list[str]:
+    """Split a Cypher script into executable statements.
+
+    Comment lines are removed BEFORE splitting on ``;`` — otherwise a
+    semicolon inside a comment splits mid-comment (executing garbage), and a
+    statement preceded by a comment header gets skipped entirely.
+    """
+    code_lines = [
+        line for line in script.splitlines() if not line.strip().startswith("//")
+    ]
+    return [s.strip() for s in "\n".join(code_lines).split(";") if s.strip()]
+
+
 async def apply_schema():
     """Apply the Cypher schema constraints and indexes."""
     schema_path = Path(__file__).parent.parent.parent / "cypher" / "schema.cypher"
     if schema_path.exists():
         schema = schema_path.read_text()
-        for statement in schema.split(";"):
-            stmt = statement.strip()
-            if stmt and not stmt.startswith("//"):
-                try:
-                    await execute_cypher(stmt)
-                    print(f"  Applied: {stmt[:60]}...")
-                except Exception as e:
-                    print(f"  Warning: {e}")
+        for stmt in _split_cypher_statements(schema):
+            try:
+                await execute_cypher(stmt)
+                print(f"  Applied: {stmt[:60]}...")
+            except Exception as e:
+                print(f"  Warning: {e}")
 
 
 def _batch(items: list, size: int = 500) -> list[list]:

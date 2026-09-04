@@ -113,8 +113,51 @@ class _RecordingClient:
         self.long_term = SimpleNamespace(
             add_entity=AsyncMock(side_effect=self._record("long_term.add_entity")),
         )
+
+        async def _create_conversation(**kw):
+            # Live NAMS ignores client-chosen ids and mints its own — mirror
+            # that so the ingestors must use the returned id, not their hint.
+            self.calls.append(("short_term.create_conversation", _clean(kw)))
+            return SimpleNamespace(id=f"conv-{len(self.calls)}")
+
         self.short_term = SimpleNamespace(
             add_message=AsyncMock(side_effect=self._record("short_term.add_message")),
+            create_conversation=AsyncMock(side_effect=_create_conversation),
+        )
+
+        # Ontology namespace — models a workspace on nams-default with the
+        # healthcare domain available in the catalog, so both ingest paths
+        # walk the get_active -> list -> get -> activate sequence.
+        async def _ont_get_active(**kw):
+            self.calls.append(("ontology.get_active", _clean(kw)))
+            return SimpleNamespace(
+                document=SimpleNamespace(domain=SimpleNamespace(id="nams-default"))
+            )
+
+        async def _ont_list(**kw):
+            self.calls.append(("ontology.list", _clean(kw)))
+            return [SimpleNamespace(id="ont-hc", name="healthcare")]
+
+        async def _ont_get(**kw):
+            self.calls.append(("ontology.get", _clean(kw)))
+            return SimpleNamespace(
+                versions=[SimpleNamespace(id="ov-hc-1", revision=1)]
+            )
+
+        async def _ont_activate(**kw):
+            self.calls.append(("ontology.activate", _clean(kw)))
+            return SimpleNamespace(id=kw.get("version_id", "ov-hc-1"))
+
+        async def _ont_create(**kw):
+            self.calls.append(("ontology.create", _clean(kw)))
+            return SimpleNamespace(id="ov-created")
+
+        self.ontology = SimpleNamespace(
+            get_active=AsyncMock(side_effect=_ont_get_active),
+            list=AsyncMock(side_effect=_ont_list),
+            get=AsyncMock(side_effect=_ont_get),
+            activate=AsyncMock(side_effect=_ont_activate),
+            create=AsyncMock(side_effect=_ont_create),
         )
 
         async def _start_trace(**kw):
@@ -181,11 +224,13 @@ def _exec_scaffold_template(client: _RecordingClient) -> dict[str, Any]:
         memory_api_key="sk-test",
         memory_nams_endpoint="https://test.example/v1",
         memory_backend="nams",
+        domain_id="healthcare",
         # Bolt-path settings — _ingest_via_bolt reads these even when the
         # backend is NAMS, because both functions live in the same module.
         neo4j_uri="neo4j://test:7687",
         neo4j_username="neo4j",
         neo4j_password="testpass",
+        neo4j_database="",
     )
     fake_config_mod = ModuleType("app.config")
     fake_config_mod.settings = fake_settings
@@ -345,8 +390,11 @@ def test_document_is_dual_tracked_in_both_paths():
         )
 
     def _doc_message_present(seq):
+        # Live NAMS only accepts user/assistant/system roles — documents ride
+        # role="user" with a metadata kind marker (v0.14.0).
         return any(
-            n == "short_term.add_message" and kw.get("role") == "document"
+            n == "short_term.add_message" and kw.get("role") == "user"
+            and (kw.get("metadata") or {}).get("kind") == "document"
             and (kw.get("metadata") or {}).get("title") == "Discharge Note — Bob"
             for n, kw in seq
         )
@@ -471,7 +519,7 @@ class _AsyncDriverMock:
     async def __aexit__(self, *_):
         return None
 
-    def session(self):
+    def session(self, **kwargs):
         outer = self
 
         class _Ctx:
@@ -556,3 +604,22 @@ def test_bolt_ingest_uses_relationship_labels_when_present():
     assert "MATCH (b:Provider {name: $target_name})" in cypher
     assert "MERGE (a)-[r:TREATS]->(b)" in cypher
     assert params == {"source_name": "Mercy General", "target_name": "Mercy General"}
+
+
+def test_ontology_ensure_runs_first_in_both_paths():
+    """v0.14.0: both ingest paths must bind the workspace to the domain
+    ontology BEFORE any writes — get_active, then (on mismatch) list ->
+    get -> activate — with identical call shapes."""
+    cli_calls = _run_cli_path(_RecordingClient())
+    scaffold_calls = _run_scaffold_path(_RecordingClient())
+
+    expected_head = [
+        ("ontology.get_active", {}),
+        ("ontology.list", {}),
+        ("ontology.get", {"ontology_id": "ont-hc"}),
+        ("ontology.activate", {"version_id": "ov-hc-1"}),
+    ]
+    assert cli_calls[:4] == expected_head, f"CLI head: {cli_calls[:4]}"
+    assert scaffold_calls[:4] == expected_head, f"Scaffold head: {scaffold_calls[:4]}"
+    # No create — healthcare exists in the catalog double.
+    assert all(n != "ontology.create" for n, _ in cli_calls + scaffold_calls)

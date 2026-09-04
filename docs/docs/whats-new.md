@@ -7,7 +7,37 @@ title: "What's New"
 
 Recent additions and changes to create-context-graph and its documentation.
 
-## v0.13.0 (Current) — v0.12.0 feedback report fixes
+## v0.14.0 (Current) — community PR hardening
+
+Integrates five community PRs (#52, #56, #58, #59, #60), closes the gaps found reviewing them, and adds ~90 tests across unit, app-level, integration, and generated-project suites.
+
+### New Features
+
+- **`NEO4J_DATABASE` support** (self-hosted backend). New `--neo4j-database` flag / `NEO4J_DATABASE` env var, threaded through the CLI, wizard, Aura `.env` import, generated `.env`, memory layer, raw Cypher sessions, scaffold-time `--ingest`/`--reset-database`, and the generated `make import` script. Set it for Aura instances whose database isn't literally named `neo4j` (common when provisioned via the Aura API/CLI). See [Neo4j Aura guide](/docs/how-to/use-neo4j-aura).
+- **Memory failures surface in `/health`.** The bolt health response gains `memory`, `memory_error`, and `memory_error_detail`; live `store_message()` failures (e.g. a wrong database name) flip the status to `degraded` instead of failing silently behind an "ok".
+- **Agent tools and `POST /cypher` work on NAMS.** `execute_cypher()` dispatches read queries through the NAMS query API with result-shape coercion; routes return 503 with guidance when the NAMS client never connected.
+- **`--ontology-file` scaffolds from hand-written YAML** — documented since v0.12 but previously unimplemented (issue #50). The file's declared domain id drives the scaffold and the YAML is copied to `data/ontology.yaml`. See [Add a Custom Domain](/docs/how-to/add-custom-domain).
+- **Custom domains load by id** (issue #30). Anything `--list-domains` advertises — including domains saved to `~/.create-context-graph/custom-domains/` — now actually loads.
+
+### Bug Fixes
+
+- Schema DDL splitter rewrite: five indexes/constraints that sat behind comment headers (`person_name`, `document_title`, `document_domain`, `document_name_unique`, `local_file_fulltext`) were silently never created by `make seed`/ingest, and one comment fragment executed as garbage Cypher. A shared comment-aware `split_cypher_statements()` fixes every consumer.
+- Domains without `demo_scenarios` (or with an empty `prompts` list) no longer crash scaffold generation.
+- `.env.example` documents `NEO4J_DATABASE`.
+
+### NAMS domain ontology activation
+
+Generated apps now bind their NAMS workspace to the domain ontology on startup: NAMS pre-registers every bundled domain server-side but leaves workspaces on a generic `nams-default` ontology until one is activated — which nothing did before. Catalog domains activate in one call; custom domains are created from the scaffold's new `ontology_document.json` and then activated. The same binding runs before `make import` and CLI `--ingest`, so all stored data is stamped with the domain's ontology version and server-side extraction uses the domain vocabulary. See the [NAMS guide](/docs/how-to/use-nams).
+
+### Live NAMS fixes
+
+The whole NAMS flow was verified against the production service with `neo4j-agent-memory` 0.5.0, which surfaced and fixed five breaks: conversation memory silently failing on every message (the service only accepts conversation ids it minted — generated apps now create conversations per session), document/body ingest rejected wholesale (`role="document"` isn't a valid role — now `role="user"` with a metadata kind marker over server-created channels), empty document browser and schema view (the service coerces `OBJECT`/`EVENT` types to `custom` — adapters are now cypher-first using the scaffold's own description markers), dead graph expand (`get_entity(id)` doesn't exist in the 0.5.x client — resolved via the cypher API), and a NAMS "reset" that always reported success while deleting nothing (no delete API exists — `make reset` now says so and points at the [NAMS dashboard](https://memory.neo4jlabs.com)).
+
+See the [CHANGELOG](https://github.com/neo4j-labs/create-context-graph/blob/main/CHANGELOG.md) for the full list, including the v0.13.1 feedback-triage release (dry-run credential gate fix, `/schema/models` endpoint, composite-key regression tests).
+
+---
+
+## v0.13.0 — v0.12.0 feedback report fixes
 
 Addresses the May 19, 2026 v0.12.0 feedback report. The headline fix is a runtime bug on the `--self-hosted` connector ingest path that NAMS users never hit; everything else is a cluster of smaller-but-real frontend, backend, and documentation gaps. Test suite: 1,335 passing, 231 skipped (matrix/integration unchanged from baseline).
 

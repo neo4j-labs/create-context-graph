@@ -51,23 +51,11 @@ seed:
 	cd backend && uv run python scripts/generate_data.py
 
 {% if is_nams %}
-# Reset NAMS memory store (per-entity REST deletes — slow; use --self-hosted for fast Cypher reset)
+# NAMS REST (and neo4j-agent-memory <=0.5.x) expose no entity delete API,
+# so there is nothing a client-side reset can remove.
 reset:
-	@echo "Resetting NAMS memory store via REST (this may take a while)..."
-	cd backend && uv run python -c "import asyncio; from app.memory import connect_memory, close_memory, get_client; \
-async def _reset(): \
-    await connect_memory(); \
-    c = get_client(); \
-    if c is None: print('NAMS client not connected'); return; \
-    entities = await c.long_term.search_entities(query='', limit=1000); \
-    for e in entities: \
-        eid = getattr(e, 'id', None) or getattr(e, 'entity_id', None); \
-        if eid: \
-            try: await c.long_term.delete_entity(eid) \
-            except Exception: pass; \
-    print(f'Removed {len(entities)} entities'); \
-    await close_memory(); \
-asyncio.run(_reset())"
+	@echo "NAMS exposes no delete API (neo4j-agent-memory 0.5.x) — reset is not available from the CLI."
+	@echo "Manage stored data at https://memory.neo4jlabs.com, or use a --self-hosted scaffold for full control."
 
 # Test NAMS connection
 test-connection:

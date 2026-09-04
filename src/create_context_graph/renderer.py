@@ -16,6 +16,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import shutil
 from importlib.resources import files
@@ -28,6 +29,7 @@ from create_context_graph.config import ProjectConfig
 from create_context_graph.ontology import (
     DomainOntology,
     _get_domains_path,
+    build_nams_ontology_document,
     generate_cypher_schema,
     generate_pydantic_models,
     generate_visualization_config,
@@ -427,6 +429,14 @@ class ProjectRenderer:
         # __init__.py for app package
         (backend_dir / "app").mkdir(parents=True, exist_ok=True)
         (backend_dir / "app" / "__init__.py").write_text("")
+
+        # NAMS ontology document — connect_memory() activates the matching
+        # server-side ontology by domain id, and falls back to creating one
+        # from this file when the domain isn't in the NAMS catalog (custom
+        # domains). Written for both backends; only the NAMS path reads it.
+        (backend_dir / "app" / "ontology_document.json").write_text(
+            json.dumps(build_nams_ontology_document(self.ontology), indent=2) + "\n"
+        )
 
         # Framework-specific agent template. Only fall back to the stub when
         # the framework directory doesn't exist (e.g. a new framework key was

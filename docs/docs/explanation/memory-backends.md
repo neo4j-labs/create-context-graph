@@ -29,7 +29,7 @@ But the two backends have **different operational profiles**, and each makes sen
 | **Arbitrary Cypher reads** | Yes (`client.query.cypher`, read-only) | Yes |
 | **Arbitrary Cypher writes** | No (REST enforces read-only) | Yes |
 | **GDS algorithms** | No (501 Not Implemented) | Yes |
-| **`make reset`** | Slow (per-entity REST delete) | Fast (`MATCH (n) DETACH DELETE n`) |
+| **`make reset`** | Not available (no delete API in NAMS REST / neo4j-agent-memory 0.5.x — use the NAMS dashboard) | Fast (`MATCH (n) DETACH DELETE n`) |
 | **Data residency** | Hosted by Neo4j Labs | Wherever your Neo4j runs |
 | **Offline development** | No (needs network) | Yes (with Docker / neo4j-local) |
 

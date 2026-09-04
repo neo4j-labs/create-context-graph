@@ -14,8 +14,10 @@ Native adapters are resolved first; everything else routes through LiteLLM.
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
+from pathlib import Path
 
 from app.config import settings
 
@@ -25,6 +27,14 @@ _memory = None  # MemoryIntegration | None
 _client = None  # MemoryClient | None
 _error_category: str | None = None  # "auth" | "rate_limit" | "network" | "config" | "unknown"
 _error_detail: str | None = None  # short human-readable detail
+
+# NAMS only: app session id → server-assigned conversation id. The NAMS
+# service accepts messages solely for conversation ids IT minted at create
+# time — posting to a client-chosen id 404s with "conversation not found"
+# (and neo4j-agent-memory <=0.5.0 posts the client id straight through).
+# Process-local by design: after a backend restart an old session id gets a
+# fresh conversation, so context resets instead of every write failing.
+_nams_conversation_ids: dict[str, str] = {}
 
 
 # Bucketed error messages shown to the user when NAMS init fails. Keys match
@@ -165,6 +175,74 @@ def _build_memory_settings():
     )
 
 
+def _load_local_ontology_document() -> dict | None:
+    """Load the scaffold's NAMS ontology document (written at generation time)."""
+    path = Path(__file__).parent / "ontology_document.json"
+    try:
+        return json.loads(path.read_text())
+    except Exception:  # noqa: BLE001 — missing/corrupt file just disables create
+        return None
+
+
+async def _ensure_nams_ontology() -> None:
+    """Bind the NAMS workspace to this app's domain ontology (best-effort).
+
+    NAMS auto-binds every workspace to the generic ``nams-default`` ontology
+    until an explicit one is activated; the service pre-registers an ontology
+    for each bundled domain, and every stored entity is stamped with the
+    active ontology version. Order: already active → no-op; catalog match by
+    domain id → activate its latest version; otherwise create from the
+    scaffold's ``ontology_document.json`` (custom domains) and activate.
+
+    Never raises — memory works against the default ontology, just without
+    domain-shaped extraction.
+    """
+    if settings.memory_backend != "nams" or _client is None:
+        return
+    try:
+        active = await _client.ontology.get_active()
+        active_domain = getattr(
+            getattr(getattr(active, "document", None), "domain", None), "id", None
+        )
+        if active_domain == settings.domain_id:
+            return
+
+        summaries = await _client.ontology.list()
+        match = next(
+            (s for s in summaries if getattr(s, "name", None) == settings.domain_id),
+            None,
+        )
+        if match is not None:
+            full = await _client.ontology.get(ontology_id=match.id)
+            versions = getattr(full, "versions", None) or []
+            if versions:
+                latest = max(versions, key=lambda v: getattr(v, "revision", 0) or 0)
+                await _client.ontology.activate(version_id=latest.id)
+                logger.info(
+                    "Activated NAMS ontology '%s' (was '%s')",
+                    settings.domain_id, active_domain,
+                )
+                return
+
+        doc = _load_local_ontology_document()
+        if doc is not None:
+            created = await _client.ontology.create(
+                name=settings.domain_id, schema=doc
+            )
+            await _client.ontology.activate(version_id=created.id)
+            logger.info(
+                "Created + activated NAMS ontology '%s' (was '%s')",
+                settings.domain_id, active_domain,
+            )
+            return
+        logger.warning(
+            "No NAMS ontology found for domain '%s' — staying on '%s'",
+            settings.domain_id, active_domain,
+        )
+    except Exception as e:  # noqa: BLE001 — ontology is an enhancement, not a gate
+        logger.warning("NAMS ontology activation skipped: %s", e)
+
+
 async def connect_memory() -> None:
     """Initialize MemoryIntegration. No-ops if the library is unavailable."""
     global _memory, _client, _error_category, _error_detail
@@ -190,6 +268,10 @@ async def connect_memory() -> None:
         ms = _build_memory_settings()
         _client = MemoryClient(ms)
         await _client.connect()
+        # Bind the workspace to this app's domain ontology (NAMS only; no-op
+        # on bolt) before any writes so data is stamped with — and extraction
+        # speaks — the domain vocabulary instead of nams-default.
+        await _ensure_nams_ontology()
         _memory = MemoryIntegration(
             client=_client,
             session_strategy=strategy_map.get(
@@ -233,6 +315,7 @@ async def connect_memory() -> None:
 async def close_memory() -> None:
     """Shut down MemoryIntegration gracefully."""
     global _memory, _client, _error_category, _error_detail
+    _nams_conversation_ids.clear()
     if _memory is not None:
         try:
             await _memory.close()
@@ -279,6 +362,28 @@ def get_error_detail() -> str | None:
     return _error_detail
 
 
+async def _resolve_nams_conversation(session_id: str) -> str:
+    """Return the NAMS conversation id backing ``session_id`` (NAMS only).
+
+    Creates the conversation on first use and caches the server-assigned id —
+    the only id the message endpoints accept. Non-NAMS backends (and any
+    create failure) pass the session id through unchanged.
+    """
+    if settings.memory_backend != "nams" or _client is None:
+        return session_id
+    mapped = _nams_conversation_ids.get(session_id)
+    if mapped:
+        return mapped
+    try:
+        conv = await _client.short_term.create_conversation(session_id=session_id)
+        conv_id = str(getattr(conv, "id", "") or session_id)
+    except Exception as e:
+        logger.warning("NAMS create_conversation failed for %s: %s", session_id, e)
+        return session_id
+    _nams_conversation_ids[session_id] = conv_id
+    return conv_id
+
+
 async def store_message(session_id: str, role: str, content: str) -> dict | None:
     """Store a message and return extraction results (entities, preferences).
 
@@ -289,6 +394,8 @@ async def store_message(session_id: str, role: str, content: str) -> dict | None
     Records failures into the same ``_error_category``/``_error_detail`` state
     ``connect_memory()`` uses, so ``get_error_category()``/``get_error_message()``
     reflect live write failures too — not just failures at startup connect time.
+    ``MemoryIntegration`` swallows its own errors into ``{"error": ...}`` return
+    values, so those are treated as failures rather than successes.
     """
     global _error_category, _error_detail
     if _memory is None:
@@ -298,7 +405,17 @@ async def store_message(session_id: str, role: str, content: str) -> dict | None
     except ImportError:
         NotSupportedError = Exception  # type: ignore[assignment, misc]
     try:
-        result = await _memory.store_message(role, content, session_id=session_id)
+        target_session = await _resolve_nams_conversation(session_id)
+        result = await _memory.store_message(role, content, session_id=target_session)
+        if isinstance(result, dict) and result.get("error"):
+            _error_category, _error_detail = _classify_memory_error(
+                RuntimeError(str(result["error"]))
+            )
+            logger.warning(
+                "Failed to store message [%s/%s]: %s",
+                _error_category, _error_detail, result["error"],
+            )
+            return None
         _error_category = None
         _error_detail = None
         return result
@@ -323,8 +440,9 @@ async def get_context(
     if _memory is None:
         return empty
     try:
+        target_session = await _resolve_nams_conversation(session_id)
         return await _memory.get_context(
-            session_id=session_id, query=query, max_items=max_items
+            session_id=target_session, query=query, max_items=max_items
         )
     except Exception as e:
         logger.warning("Failed to get context: %s", e)

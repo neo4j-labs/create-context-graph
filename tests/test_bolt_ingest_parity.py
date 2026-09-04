@@ -126,6 +126,7 @@ class _RecordingDriver:
         self.session_obj = _RecordingSession()
         self.closed = False
         self.verified = False
+        self.session_kwargs: list[dict[str, Any]] = []
 
     async def verify_connectivity(self):
         self.verified = True
@@ -139,7 +140,8 @@ class _RecordingDriver:
     async def __aexit__(self, *_):
         await self.close()
 
-    def session(self):
+    def session(self, **kwargs):
+        self.session_kwargs.append(dict(kwargs))
         outer = self
 
         class _Ctx:
@@ -178,6 +180,7 @@ def _exec_scaffold_template(driver: _RecordingDriver) -> dict[str, Any]:
         neo4j_uri="neo4j://test:7687",
         neo4j_username="neo4j",
         neo4j_password="testpass",
+        neo4j_database="clinical-db",
     )
     fake_config_mod = ModuleType("app.config")
     fake_config_mod.settings = fake_settings
@@ -252,6 +255,17 @@ def test_async_context_lifecycle(bolt_run):
     driver, _ = bolt_run
     assert driver.verified, "verify_connectivity was not awaited"
     assert driver.closed, "driver was not closed (async with driver: should auto-close)"
+
+
+def test_session_targets_configured_database(bolt_run):
+    """v0.14.0: the bolt session must honor ``NEO4J_DATABASE``. Without the
+    ``database=`` kwarg, ``make import`` writes connector data into the server
+    default database while the app reads from the configured one — silently
+    producing an empty graph on Aura instances whose database isn't "neo4j"."""
+    driver, _ = bolt_run
+    assert driver.session_kwargs, "no session was opened"
+    for kwargs in driver.session_kwargs:
+        assert kwargs.get("database") == "clinical-db"
 
 
 def test_counts(bolt_run):

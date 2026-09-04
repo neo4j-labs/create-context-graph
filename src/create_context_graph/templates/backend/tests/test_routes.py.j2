@@ -54,3 +54,49 @@ def test_scenarios():
     assert "scenarios" in data
     assert isinstance(data["scenarios"], list)
 {% endraw %}
+{% if is_nams %}{% raw %}
+
+def test_health_reports_nams_backend():
+    response = client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["memory_backend"] == "nams"
+    assert "nams" in data
+
+
+def test_health_degrades_when_nams_client_missing():
+    """/health must report degraded (with guidance) when the NAMS client
+    never connected — not crash, and not claim "ok"."""
+    with patch("app.main.get_memory_status", return_value=False), \
+         patch("app.main.get_error_category", return_value="auth"):
+        response = client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "degraded"
+    assert data["nams_error"] == "auth"
+    assert "nams_dashboard" in data
+{% endraw %}{% else %}{% raw %}
+
+def test_health_reports_bolt_backend_with_memory_field():
+    response = client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["memory_backend"] == "bolt"
+    assert data["neo4j"] is True
+    assert data["memory"] is True
+
+
+def test_health_surfaces_live_memory_write_failures():
+    """A store_message() failure (e.g. wrong NEO4J_DATABASE) must flip
+    /health to degraded with the classified error — not stay "ok" while
+    every memory write silently fails."""
+    with patch("app.main.get_error_category", return_value="network"), \
+         patch("app.main.get_error_detail", return_value="ConnectionError"):
+        response = client.get("/health")
+    assert response.status_code == 200
+    data = response.json()
+    assert data["status"] == "degraded"
+    assert data["memory"] is False
+    assert data["memory_error"] == "network"
+    assert data["memory_error_detail"] == "ConnectionError"
+{% endraw %}{% endif %}

@@ -2233,3 +2233,235 @@ class TestV061DomainTools:
             ontology = load_domain(did)
             count = len(ontology.agent_tools)
             assert count >= 7, f"Domain {did} should have >= 7 tools, got {count}"
+
+
+# ---------------------------------------------------------------------------
+# v0.14.0 — NEO4J_DATABASE threading, NAMS cypher runtime, scenario fallback
+# ---------------------------------------------------------------------------
+
+
+def _render(tmp_path, *, name, domain="healthcare", framework="pydanticai", **cfg):
+    config = ProjectConfig(
+        project_name=name,
+        domain=domain,
+        framework=framework,
+        **cfg,
+    )
+    ontology = load_domain(domain)
+    out = tmp_path / config.project_slug
+    ProjectRenderer(config, ontology).render(out)
+    return out
+
+
+class TestV0140Neo4jDatabase:
+    """PR #60: NEO4J_DATABASE must reach every Neo4j touchpoint in the
+    scaffold — config, .env, memory settings, raw driver sessions, and the
+    connector import script."""
+
+    def test_env_carries_database_value(self, tmp_path):
+        out = _render(
+            tmp_path, name="db env", memory_backend="bolt",
+            neo4j_database="clinical-db",
+        )
+        assert "NEO4J_DATABASE=clinical-db" in (out / ".env").read_text()
+
+    def test_env_example_documents_database(self, tmp_path):
+        out = _render(tmp_path, name="db envex", memory_backend="bolt")
+        example = (out / ".env.example").read_text()
+        assert "NEO4J_DATABASE=" in example
+
+    def test_nams_env_omits_bolt_credentials(self, tmp_path):
+        out = _render(
+            tmp_path, name="db nams", framework="strands",
+            memory_backend="nams", nams_api_key="sk-test",
+        )
+        env = (out / ".env").read_text()
+        assert "NEO4J_DATABASE" not in env
+        assert "NEO4J_URI" not in env
+
+    def test_settings_exposes_database_field(self, tmp_path):
+        out = _render(tmp_path, name="db settings", memory_backend="bolt")
+        config_py = (out / "backend" / "app" / "config.py").read_text()
+        assert "neo4j_database: str" in config_py
+
+    def test_execute_cypher_session_is_database_aware(self, tmp_path):
+        out = _render(tmp_path, name="db client", memory_backend="bolt")
+        client_py = (out / "backend" / "app" / "context_graph_client.py").read_text()
+        assert "driver.session(database=settings.neo4j_database or None)" in client_py
+
+    def test_memory_settings_conditionally_pass_database(self, tmp_path):
+        out = _render(tmp_path, name="db memory", memory_backend="bolt")
+        memory_py = (out / "backend" / "app" / "memory.py").read_text()
+        assert 'if settings.neo4j_database:' in memory_py
+        assert 'neo4j_config["database"] = settings.neo4j_database' in memory_py
+
+    def test_import_data_bolt_session_is_database_aware(self, tmp_path):
+        out = _render(
+            tmp_path, name="db import", domain="software-engineering",
+            memory_backend="bolt", saas_connectors=["linear"],
+        )
+        import_py = (out / "backend" / "scripts" / "import_data.py").read_text()
+        assert "driver.session(database=settings.neo4j_database or None)" in import_py
+
+
+class TestV0140MemoryErrorSurfacing:
+    """PR #60: store_message failures reach the /health endpoint."""
+
+    def test_store_message_records_error_state(self, tmp_path):
+        out = _render(tmp_path, name="mem err", memory_backend="bolt")
+        memory_py = (out / "backend" / "app" / "memory.py").read_text()
+        # The failure handler must write into the shared classified-error state
+        assert "global _error_category, _error_detail" in memory_py
+        assert "_error_category, _error_detail = _classify_memory_error(e)" in memory_py
+
+    def test_health_reports_live_memory_errors_on_bolt(self, tmp_path):
+        out = _render(tmp_path, name="mem health", memory_backend="bolt")
+        main_py = (out / "backend" / "app" / "main.py").read_text()
+        assert 'body["memory_error"] = category' in main_py
+        assert 'body["memory_error_detail"] = get_error_detail()' in main_py
+        # Memory state is derived from the client, not assumed on connect
+        assert "get_client() is not None" in main_py
+
+    def test_lifespan_checks_memory_client_after_connect(self, tmp_path):
+        out = _render(tmp_path, name="mem lifespan", memory_backend="bolt")
+        main_py = (out / "backend" / "app" / "main.py").read_text()
+        assert "Neo4j connected but memory is degraded" in main_py
+
+
+class TestV0140NamsCypherTemplate:
+    """PR #56: execute_cypher works on NAMS via the query REST API."""
+
+    def _client_py(self, tmp_path):
+        out = _render(
+            tmp_path, name="nams cy", framework="strands",
+            memory_backend="nams", nams_api_key="sk-test",
+        )
+        return out, (out / "backend" / "app" / "context_graph_client.py").read_text()
+
+    def test_nams_dispatch_present(self, tmp_path):
+        _, client_py = self._client_py(tmp_path)
+        assert 'if settings.memory_backend == "nams":' in client_py
+        assert "_execute_nams_cypher" in client_py
+        assert "client.query.cypher(query, params)" in client_py
+
+    def test_result_coercion_helper_present(self, tmp_path):
+        _, client_py = self._client_py(tmp_path)
+        assert "def _coerce_nams_records(raw):" in client_py
+        for key in ('"results"', '"data"', '"rows"'):
+            assert key in client_py
+
+    def test_require_neo4j_guards_nams_client(self, tmp_path):
+        out, _ = self._client_py(tmp_path)
+        routes_py = (out / "backend" / "app" / "routes.py").read_text()
+        assert "NAMS client not connected. Check MEMORY_API_KEY" in routes_py
+
+    def test_templates_compile_on_nams(self, tmp_path):
+        out, client_py = self._client_py(tmp_path)
+        compile(client_py, "context_graph_client.py", "exec")
+        routes_py = (out / "backend" / "app" / "routes.py").read_text()
+        compile(routes_py, "routes.py", "exec")
+
+
+class TestV0140DemoScenarioFallback:
+    """PR #59 (+ hardening): scaffolds must render even when a domain omits
+    demo_scenarios entirely or ships a scenario with an empty prompts list."""
+
+    def _render_with_scenarios(self, tmp_path, scenarios):
+        config = ProjectConfig(
+            project_name="scenario fallback",
+            domain="healthcare",
+            framework="pydanticai",
+            memory_backend="bolt",
+        )
+        ontology = load_domain("healthcare").model_copy(
+            update={"demo_scenarios": scenarios}
+        )
+        out = tmp_path / "scenario-app"
+        ProjectRenderer(config, ontology).render(out)
+        return (out / "frontend" / "e2e" / "app.spec.ts").read_text()
+
+    def test_no_scenarios_renders_with_fallback_prompt(self, tmp_path):
+        spec = self._render_with_scenarios(tmp_path, [])
+        assert '"Show me the data in the graph"' in spec
+
+    def test_scenario_with_empty_prompts_renders_with_fallback(self, tmp_path):
+        from create_context_graph.ontology import DemoScenario
+
+        spec = self._render_with_scenarios(
+            tmp_path, [DemoScenario(name="Empty", prompts=[])]
+        )
+        assert '"Show me the data in the graph"' in spec
+
+    def test_real_scenario_prompt_is_used(self, tmp_path):
+        from create_context_graph.ontology import DemoScenario
+
+        spec = self._render_with_scenarios(
+            tmp_path,
+            [DemoScenario(name="Demo", prompts=["Which patients are at risk?"])],
+        )
+        assert '"Which patients are at risk?"' in spec
+        assert '"Show me the data in the graph"' not in spec
+
+
+class TestV0140NamsOntologyActivation:
+    """v0.14.0: scaffolds bind the NAMS workspace to the domain ontology.
+
+    NAMS pre-registers every bundled domain server-side but auto-binds
+    workspaces to nams-default until an ontology is explicitly activated —
+    which nothing did before this release.
+    """
+
+    def test_ontology_document_json_written(self, tmp_path):
+        out = _render(tmp_path, name="ont doc", memory_backend="bolt")
+        path = out / "backend" / "app" / "ontology_document.json"
+        assert path.exists()
+        doc = json.loads(path.read_text())
+        assert set(doc.keys()) == {"domain", "entity_types", "relationships"}
+        assert doc["domain"]["id"] == "healthcare"
+        labels = {et["label"] for et in doc["entity_types"]}
+        assert {"Patient", "Provider", "Person"} <= labels
+        # App-side sections must NOT leak into the server document
+        assert "agent_tools" not in doc and "system_prompt" not in doc
+
+    def test_ontology_document_matches_custom_domain(self, tmp_path):
+        from tests.test_custom_domain import VALID_DOMAIN_YAML
+
+        from create_context_graph.ontology import load_domain_from_yaml_string
+
+        config = ProjectConfig(
+            project_name="custom ont doc",
+            domain="test-domain",
+            framework="pydanticai",
+            memory_backend="nams",
+            nams_api_key="sk-test",
+            custom_domain_yaml=VALID_DOMAIN_YAML,
+        )
+        ontology = load_domain_from_yaml_string(VALID_DOMAIN_YAML)
+        out = tmp_path / "custom-ont"
+        ProjectRenderer(config, ontology).render(out)
+
+        doc = json.loads(
+            (out / "backend" / "app" / "ontology_document.json").read_text()
+        )
+        assert doc["domain"]["id"] == "test-domain"
+        assert any(et["label"] == "Widget" for et in doc["entity_types"])
+
+    def test_memory_template_ensures_ontology(self, tmp_path):
+        out = _render(
+            tmp_path, name="ont memory", framework="strands",
+            memory_backend="nams", nams_api_key="sk-test",
+        )
+        memory_py = (out / "backend" / "app" / "memory.py").read_text()
+        assert "async def _ensure_nams_ontology" in memory_py
+        assert "ontology_document.json" in memory_py
+        compile(memory_py, "memory.py", "exec")
+
+    def test_import_data_template_ensures_ontology(self, tmp_path):
+        out = _render(
+            tmp_path, name="ont import", domain="software-engineering",
+            memory_backend="nams", nams_api_key="sk-test",
+            framework="strands", saas_connectors=["linear"],
+        )
+        import_py = (out / "backend" / "scripts" / "import_data.py").read_text()
+        assert "_ensure_nams_ontology(client)" in import_py
+        compile(import_py, "import_data.py", "exec")
