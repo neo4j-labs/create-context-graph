@@ -26,6 +26,14 @@ _client = None  # MemoryClient | None
 _error_category: str | None = None  # "auth" | "rate_limit" | "network" | "config" | "unknown"
 _error_detail: str | None = None  # short human-readable detail
 
+# NAMS only: app session id → server-assigned conversation id. The NAMS
+# service accepts messages solely for conversation ids IT minted at create
+# time — posting to a client-chosen id 404s with "conversation not found"
+# (and neo4j-agent-memory <=0.5.0 posts the client id straight through).
+# Process-local by design: after a backend restart an old session id gets a
+# fresh conversation, so context resets instead of every write failing.
+_nams_conversation_ids: dict[str, str] = {}
+
 
 # Bucketed error messages shown to the user when NAMS init fails. Keys match
 # _error_category values produced by _classify_memory_error().
@@ -233,6 +241,7 @@ async def connect_memory() -> None:
 async def close_memory() -> None:
     """Shut down MemoryIntegration gracefully."""
     global _memory, _client, _error_category, _error_detail
+    _nams_conversation_ids.clear()
     if _memory is not None:
         try:
             await _memory.close()
@@ -279,6 +288,28 @@ def get_error_detail() -> str | None:
     return _error_detail
 
 
+async def _resolve_nams_conversation(session_id: str) -> str:
+    """Return the NAMS conversation id backing ``session_id`` (NAMS only).
+
+    Creates the conversation on first use and caches the server-assigned id —
+    the only id the message endpoints accept. Non-NAMS backends (and any
+    create failure) pass the session id through unchanged.
+    """
+    if settings.memory_backend != "nams" or _client is None:
+        return session_id
+    mapped = _nams_conversation_ids.get(session_id)
+    if mapped:
+        return mapped
+    try:
+        conv = await _client.short_term.create_conversation(session_id=session_id)
+        conv_id = str(getattr(conv, "id", "") or session_id)
+    except Exception as e:
+        logger.warning("NAMS create_conversation failed for %s: %s", session_id, e)
+        return session_id
+    _nams_conversation_ids[session_id] = conv_id
+    return conv_id
+
+
 async def store_message(session_id: str, role: str, content: str) -> dict | None:
     """Store a message and return extraction results (entities, preferences).
 
@@ -289,6 +320,8 @@ async def store_message(session_id: str, role: str, content: str) -> dict | None
     Records failures into the same ``_error_category``/``_error_detail`` state
     ``connect_memory()`` uses, so ``get_error_category()``/``get_error_message()``
     reflect live write failures too — not just failures at startup connect time.
+    ``MemoryIntegration`` swallows its own errors into ``{"error": ...}`` return
+    values, so those are treated as failures rather than successes.
     """
     global _error_category, _error_detail
     if _memory is None:
@@ -298,7 +331,17 @@ async def store_message(session_id: str, role: str, content: str) -> dict | None
     except ImportError:
         NotSupportedError = Exception  # type: ignore[assignment, misc]
     try:
-        result = await _memory.store_message(role, content, session_id=session_id)
+        target_session = await _resolve_nams_conversation(session_id)
+        result = await _memory.store_message(role, content, session_id=target_session)
+        if isinstance(result, dict) and result.get("error"):
+            _error_category, _error_detail = _classify_memory_error(
+                RuntimeError(str(result["error"]))
+            )
+            logger.warning(
+                "Failed to store message [%s/%s]: %s",
+                _error_category, _error_detail, result["error"],
+            )
+            return None
         _error_category = None
         _error_detail = None
         return result
@@ -323,8 +366,9 @@ async def get_context(
     if _memory is None:
         return empty
     try:
+        target_session = await _resolve_nams_conversation(session_id)
         return await _memory.get_context(
-            session_id=session_id, query=query, max_items=max_items
+            session_id=target_session, query=query, max_items=max_items
         )
     except Exception as e:
         logger.warning("Failed to get context: %s", e)

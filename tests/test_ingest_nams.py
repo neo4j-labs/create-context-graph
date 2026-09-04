@@ -54,6 +54,9 @@ class _FakeNamsClient:
         )
         self.short_term = SimpleNamespace(
             add_message=AsyncMock(return_value=SimpleNamespace(id="msg-1")),
+            # Live NAMS mints its own conversation ids — the ingestors must
+            # address messages to this returned id, not their session hint.
+            create_conversation=AsyncMock(return_value=SimpleNamespace(id="conv-srv-1")),
         )
         self.reasoning = SimpleNamespace(
             start_trace=AsyncMock(return_value=SimpleNamespace(id="trace-1")),
@@ -263,11 +266,16 @@ class TestIngestDataDispatch:
         )
         ingest_data(fixture, healthcare_ontology, cfg)
 
-        # Document message side.
+        # Document message side. Live NAMS rejects custom roles and only
+        # accepts the conversation id it minted at create time (v0.14.0).
+        assert fake_client.short_term.create_conversation.await_count == 1
+        conv_kwargs = fake_client.short_term.create_conversation.await_args.kwargs
+        assert conv_kwargs["session_id"].startswith("docs-")
         assert fake_client.short_term.add_message.await_count == 1
         msg_kwargs = fake_client.short_term.add_message.await_args.kwargs
-        assert msg_kwargs["role"] == "document"
-        assert msg_kwargs["session_id"].startswith("docs-")
+        assert msg_kwargs["role"] == "user"
+        assert msg_kwargs["session_id"] == "conv-srv-1"
+        assert msg_kwargs["metadata"]["kind"] == "document"
         assert msg_kwargs["metadata"]["title"] == "Discharge Note — Bob Singh"
 
         # Document entity side.

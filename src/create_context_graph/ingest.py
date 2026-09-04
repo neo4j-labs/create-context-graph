@@ -24,7 +24,8 @@ Two backend-specific paths:
   ``add_relationship`` against the NAMS REST API a one-shot migration can
   drain those blocks into native edges. Documents are dual-tracked:
   ``add_entity(Document, ...)`` for the queryable long-term node AND
-  ``short_term.add_message(role="document")`` to feed the NAMS extractor.
+  ``short_term.add_message`` (role="user", metadata kind="document",
+  addressed to a server-created conversation id) to feed the NAMS extractor.
   Entity records whose connector declares a ``BODY_FIELDS`` mapping also
   have their body field sent through ``add_message`` for the same reason.
   Decision traces go through the reasoning REST API unchanged.
@@ -249,6 +250,28 @@ async def run_nams_ingest(
         if on_event is not None:
             on_event(stage, payload)
 
+    # NAMS only accepts messages addressed to conversation ids IT minted at
+    # create time — posting to a client-chosen session string 404s with
+    # "conversation not found". Channels are created lazily (one per message
+    # stream) and the server-assigned id is what add_message must target.
+    _channel_ids: dict[str, str | None] = {}
+
+    async def _message_channel(session_hint: str) -> str | None:
+        """Return the server conversation id for ``session_hint``, or None if
+        the channel can't be created (message writes are then skipped)."""
+        if session_hint not in _channel_ids:
+            try:
+                conv = await client.short_term.create_conversation(
+                    session_id=session_hint
+                )
+                _channel_ids[session_hint] = str(getattr(conv, "id", "") or "") or None
+            except Exception as exc:  # noqa: BLE001
+                failures.append({
+                    "kind": "conversation", "name": session_hint, "error": str(exc),
+                })
+                _channel_ids[session_hint] = None
+        return _channel_ids[session_hint]
+
     # Stage 1: entities with ccg-edges encoded into description.
     entities = fixture_data.get("entities", {})
     for label, items in entities.items():
@@ -280,11 +303,17 @@ async def run_nams_ingest(
             if body is None:
                 continue
             try:
+                channel = await _message_channel(f"bodies-{domain_id}")
+                if channel is None:
+                    raise RuntimeError("bodies conversation unavailable")
+                # role must be user/assistant/system — NAMS rejects custom
+                # roles; the metadata kind marks this as extraction fuel.
                 await client.short_term.add_message(
-                    session_id=f"bodies-{domain_id}",
-                    role="document",
+                    session_id=channel,
+                    role="user",
                     content=body,
                     metadata={
+                        "kind": "entity-body",
                         "entity_name": name,
                         "entity_label": label,
                         "domain": domain_id,
@@ -321,11 +350,15 @@ async def run_nams_ingest(
                 entity_type="OBJECT",
                 description=doc_description,
             )
+            channel = await _message_channel(doc_session)
+            if channel is None:
+                raise RuntimeError("docs conversation unavailable")
             await client.short_term.add_message(
-                session_id=doc_session,
-                role="document",
+                session_id=channel,
+                role="user",
                 content=content,
                 metadata={
+                    "kind": "document",
                     "title": title,
                     "template_id": doc.get("template_id", ""),
                     "template_name": doc.get("template_name", ""),
@@ -811,38 +844,41 @@ def reset_neo4j(
 
 
 async def _reset_nams(api_key: str, endpoint: str) -> None:
-    """Best-effort reset on NAMS: list entities and delete one-by-one.
+    """Report what a NAMS reset *would* remove — deletion isn't possible.
 
-    Slow (one REST call per entity) — print a warning. Conversations and
-    reasoning traces are reset via session-level clear calls.
+    Neither the NAMS REST API nor neo4j-agent-memory (through 0.5.x) exposes
+    an entity delete endpoint (``long_term.delete_entity`` does not exist,
+    and the cypher API is read-only). Earlier versions of this function
+    silently reported "0 entities removed" by swallowing AttributeErrors;
+    being honest beats pretending.
     """
     from neo4j_agent_memory import MemoryClient, MemorySettings, NamsConfig
     from pydantic import SecretStr
-
-    console.print(
-        "  [yellow]NAMS reset is per-entity (slow). For fast reset, use --self-hosted.[/yellow]"
-    )
 
     settings = MemorySettings(
         backend="nams",
         nams=NamsConfig(api_key=SecretStr(api_key), endpoint=endpoint),
     )
+    entity_count: int | None = None
     async with MemoryClient(settings) as client:
-        deleted = 0
         try:
-            entities = await client.long_term.search_entities(query="", limit=1000)
-            for ent in entities:
-                ent_id = getattr(ent, "id", None) or getattr(ent, "entity_id", None)
-                if ent_id is None:
-                    continue
-                try:
-                    await client.long_term.delete_entity(ent_id)
-                    deleted += 1
-                except Exception:
-                    pass
-        except Exception as e:
-            console.print(f"  [yellow]Reset partial:[/yellow] {e}")
-    console.print(f"  [green]Reset complete:[/green] {deleted} entities removed")
+            rows = await client.query.cypher(
+                "MATCH (n) WHERE n.id IS NOT NULL RETURN count(n) AS n", {}
+            )
+            if rows and isinstance(rows[0], dict):
+                entity_count = int(rows[0].get("n", 0))
+        except Exception:
+            pass
+    counted = f"{entity_count} stored entities" if entity_count is not None else "stored data"
+    console.print(
+        f"  [yellow]NAMS reset is not available:[/yellow] the NAMS REST API "
+        f"(and neo4j-agent-memory 0.5.x) exposes no delete endpoint, so the "
+        f"CLI cannot remove {counted}."
+    )
+    console.print(
+        "  Manage stored data at https://memory.neo4jlabs.com, or use a "
+        "--self-hosted scaffold for full control."
+    )
 
 
 def reset_memory_store(config: "ProjectConfig") -> None:

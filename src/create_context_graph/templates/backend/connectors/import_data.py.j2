@@ -21,7 +21,7 @@ NAMS write shape:
       (NAMS REST has no add_relationship today; the block migrates cleanly
       when it does).
     * Documents → dual-tracked: ``add_entity(name=title, type=OBJECT)`` AND
-      ``short_term.add_message(role="document")`` so the NAMS extractor sees
+      ``short_term.add_message`` (role="user", metadata kind="document") so the NAMS extractor sees
       the prose.
     * Entity records with a body field (declared per-connector via
       ``BODY_FIELDS = {label: property}``) also flow through ``add_message``.
@@ -229,6 +229,26 @@ async def _ingest_via_nams(data: dict[str, Any], body_fields: dict[str, str]) ->
     counts = {"entities": 0, "documents": 0, "bodies": 0, "traces": 0, "edges_encoded": 0, "failures": 0}
 
     async with MemoryClient(mem_settings) as client:
+        # NAMS only accepts messages addressed to conversation ids IT minted
+        # at create time — client-chosen session strings 404. Create each
+        # message channel lazily and target the server-assigned id.
+        _channel_ids: dict[str, str | None] = {}
+
+        async def _message_channel(session_hint: str) -> str | None:
+            if session_hint not in _channel_ids:
+                try:
+                    conv = await client.short_term.create_conversation(
+                        session_id=session_hint
+                    )
+                    _channel_ids[session_hint] = str(getattr(conv, "id", "") or "") or None
+                except Exception as exc:  # noqa: BLE001
+                    _append_deadletter({
+                        "ts": _now_utc_iso(), "kind": "conversation",
+                        "name": session_hint, "error": str(exc),
+                    })
+                    _channel_ids[session_hint] = None
+            return _channel_ids[session_hint]
+
         # Entities + bodies
         entities = data.get("entities", {})
         ent_idx = 0
@@ -258,11 +278,16 @@ async def _ingest_via_nams(data: dict[str, Any], body_fields: dict[str, str]) ->
                 if body is None:
                     continue
                 try:
+                    channel = await _message_channel("bodies-import")
+                    if channel is None:
+                        raise RuntimeError("bodies conversation unavailable")
+                    # role must be user/assistant/system — NAMS rejects
+                    # custom roles; metadata kind marks extraction fuel.
                     await client.short_term.add_message(
-                        session_id="bodies-import",
-                        role="document",
+                        session_id=channel,
+                        role="user",
                         content=body,
-                        metadata={"entity_name": name, "entity_label": label},
+                        metadata={"kind": "entity-body", "entity_name": name, "entity_label": label},
                     )
                     counts["bodies"] += 1
                 except Exception as exc:  # noqa: BLE001
@@ -290,11 +315,15 @@ async def _ingest_via_nams(data: dict[str, Any], body_fields: dict[str, str]) ->
                 await client.long_term.add_entity(
                     name=title, entity_type="OBJECT", description=description,
                 )
+                channel = await _message_channel("docs-import")
+                if channel is None:
+                    raise RuntimeError("docs conversation unavailable")
                 await client.short_term.add_message(
-                    session_id="docs-import",
-                    role="document",
+                    session_id=channel,
+                    role="user",
                     content=content,
                     metadata={
+                        "kind": "document",
                         "title": title,
                         "template_id": doc.get("template_id", ""),
                         "template_name": doc.get("template_name", ""),

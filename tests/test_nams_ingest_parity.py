@@ -113,8 +113,16 @@ class _RecordingClient:
         self.long_term = SimpleNamespace(
             add_entity=AsyncMock(side_effect=self._record("long_term.add_entity")),
         )
+
+        async def _create_conversation(**kw):
+            # Live NAMS ignores client-chosen ids and mints its own — mirror
+            # that so the ingestors must use the returned id, not their hint.
+            self.calls.append(("short_term.create_conversation", _clean(kw)))
+            return SimpleNamespace(id=f"conv-{len(self.calls)}")
+
         self.short_term = SimpleNamespace(
             add_message=AsyncMock(side_effect=self._record("short_term.add_message")),
+            create_conversation=AsyncMock(side_effect=_create_conversation),
         )
 
         async def _start_trace(**kw):
@@ -346,8 +354,11 @@ def test_document_is_dual_tracked_in_both_paths():
         )
 
     def _doc_message_present(seq):
+        # Live NAMS only accepts user/assistant/system roles — documents ride
+        # role="user" with a metadata kind marker (v0.14.0).
         return any(
-            n == "short_term.add_message" and kw.get("role") == "document"
+            n == "short_term.add_message" and kw.get("role") == "user"
+            and (kw.get("metadata") or {}).get("kind") == "document"
             and (kw.get("metadata") or {}).get("title") == "Discharge Note — Bob"
             for n, kw in seq
         )

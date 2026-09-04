@@ -634,3 +634,78 @@ class TestBoltHealthMemorySurfacing:
             assert body["status"] == "ok"
             assert body["memory"] is True
             assert "memory_error" not in body
+
+
+class TestNamsAdapterCypherPaths:
+    """v0.14.0 live-service fixes: the live NAMS coerces unknown entity types
+    to "custom" and rejects empty search queries — the documents and schema
+    endpoints now enumerate through the cypher API using the scaffold's own
+    description markers."""
+
+    def test_documents_enumerates_via_cypher_marker(self, tmp_path):
+        from fastapi.testclient import TestClient
+
+        backend_dir = _scaffold(tmp_path, backend="nams")
+        client = _fake_client()
+        client.query.cypher = AsyncMock(return_value=[
+            {"name": "Discharge Note", "description": "Discharge content\n\n_pole_type: OBJECT_"},
+        ])
+        # Search must NOT be needed when cypher works
+        client.long_term.search_entities = AsyncMock(
+            side_effect=AssertionError("search fallback used despite cypher success")
+        )
+        app, _, _ = _import_app(backend_dir, backend="nams", fake_client=client)
+
+        with TestClient(app) as tc:
+            r = tc.get("/api/documents")
+            assert r.status_code == 200
+            docs = r.json()["documents"]
+            assert len(docs) == 1
+            assert docs[0]["title"] == "Discharge Note"
+            assert "_pole_type" not in docs[0]["content"]
+
+    def test_documents_falls_back_to_search_with_marker_filter(self, tmp_path):
+        """When cypher is unavailable, custom-typed entities carrying the
+        document marker must still be listed (live service stores our OBJECT
+        docs as type "custom")."""
+        from fastapi.testclient import TestClient
+
+        backend_dir = _scaffold(tmp_path, backend="nams")
+        client = _fake_client()
+        client.query.cypher = AsyncMock(side_effect=RuntimeError("cypher unsupported"))
+        client.long_term.search_entities = AsyncMock(return_value=[
+            SimpleNamespace(
+                name="Marked Doc", entity_type="custom",
+                description="Doc body\n\n_pole_type: OBJECT_",
+            ),
+            SimpleNamespace(
+                name="Unmarked Person", entity_type="custom",
+                description="Just a person description",
+            ),
+        ])
+        app, _, _ = _import_app(backend_dir, backend="nams", fake_client=client)
+
+        with TestClient(app) as tc:
+            r = tc.get("/api/documents")
+            assert r.status_code == 200
+            docs = r.json()["documents"]
+            assert [d["title"] for d in docs] == ["Marked Doc"]
+
+    def test_schema_visualization_aggregates_via_cypher(self, tmp_path):
+        from fastapi.testclient import TestClient
+
+        backend_dir = _scaffold(tmp_path, backend="nams")
+        client = _fake_client()
+        client.query.cypher = AsyncMock(return_value=[
+            {"type": "Person", "count": 25},
+            {"type": "custom", "count": 71},
+        ])
+        app, _, _ = _import_app(backend_dir, backend="nams", fake_client=client)
+
+        with TestClient(app) as tc:
+            r = tc.get("/api/schema/visualization")
+            assert r.status_code == 200
+            body = r.json()
+            counts = {n["name"]: n["count"] for n in body["nodes"]}
+            assert counts == {"Person": 25, "custom": 71}
+            assert body["relationships"] == []

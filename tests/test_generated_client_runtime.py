@@ -494,3 +494,107 @@ class TestClassifyMemoryError:
         assert classify(Exception("connection refused"))[0] == "network"
         assert classify(Exception("MEMORY_API_KEY missing"))[0] == "config"
         assert classify(Exception("something odd"))[0] == "unknown"
+
+
+class TestNamsConversationTranslation:
+    """v0.14.0 live-service fixes: the NAMS service only accepts messages
+    addressed to conversation ids IT minted — client-chosen session ids 404
+    ("conversation not found") and neo4j-agent-memory <=0.5.0 posts them
+    straight through, so every chat memory write silently failed."""
+
+    def _load(self, nams_backend_dir):
+        settings = _make_settings(memory_backend="nams")
+        _install_app_stubs(settings)
+        _install_memory_lib_stub()
+        mem = _load_module(
+            nams_backend_dir / "app" / "memory.py", "generated_memory_nams"
+        )
+        client = MagicMock()
+        client.short_term.create_conversation = AsyncMock(
+            return_value=SimpleNamespace(id="conv-uuid-1")
+        )
+        mem._client = client
+        mem._memory = SimpleNamespace(
+            store_message=AsyncMock(return_value={"entities": []}),
+            get_context=AsyncMock(
+                return_value={"messages": [], "entities": [], "preferences": [], "traces": []}
+            ),
+        )
+        return mem, client
+
+    async def test_store_message_targets_server_conversation_id(self, nams_backend_dir):
+        mem, client = self._load(nams_backend_dir)
+
+        await mem.store_message("app-session-1", "user", "hello")
+
+        client.short_term.create_conversation.assert_awaited_once_with(
+            session_id="app-session-1"
+        )
+        kwargs = mem._memory.store_message.await_args.kwargs
+        assert kwargs["session_id"] == "conv-uuid-1"
+
+    async def test_conversation_created_once_per_session(self, nams_backend_dir):
+        mem, client = self._load(nams_backend_dir)
+
+        await mem.store_message("app-session-1", "user", "one")
+        await mem.store_message("app-session-1", "assistant", "two")
+        await mem.get_context("app-session-1", query="x")
+
+        assert client.short_term.create_conversation.await_count == 1
+        ctx_kwargs = mem._memory.get_context.await_args.kwargs
+        assert ctx_kwargs["session_id"] == "conv-uuid-1"
+
+    async def test_create_failure_falls_back_to_raw_session(self, nams_backend_dir):
+        mem, client = self._load(nams_backend_dir)
+        client.short_term.create_conversation = AsyncMock(
+            side_effect=ConnectionError("service down")
+        )
+
+        await mem.store_message("app-session-2", "user", "hello")
+
+        kwargs = mem._memory.store_message.await_args.kwargs
+        assert kwargs["session_id"] == "app-session-2"
+
+    async def test_bolt_backend_skips_translation(self, bolt_backend_dir):
+        settings = _make_settings(memory_backend="bolt")
+        _install_app_stubs(settings)
+        _install_memory_lib_stub()
+        mem = _load_module(
+            bolt_backend_dir / "app" / "memory.py", "generated_memory_bolt_skip"
+        )
+        sentinel = MagicMock()
+        sentinel.short_term.create_conversation = AsyncMock()
+        mem._client = sentinel
+        mem._memory = SimpleNamespace(
+            store_message=AsyncMock(return_value={"entities": []})
+        )
+
+        await mem.store_message("bolt-session", "user", "hello")
+
+        sentinel.short_term.create_conversation.assert_not_awaited()
+        assert mem._memory.store_message.await_args.kwargs["session_id"] == "bolt-session"
+
+
+class TestStoreMessageSwallowedErrors:
+    """MemoryIntegration swallows failures into {'error': ...} return values
+    (observed live) — store_message must treat those as failures, not clear
+    the error state and report success."""
+
+    async def test_error_dict_return_records_error_state(self, bolt_backend_dir):
+        settings = _make_settings(memory_backend="bolt")
+        _install_app_stubs(settings)
+        _install_memory_lib_stub()
+        mem = _load_module(
+            bolt_backend_dir / "app" / "memory.py", "generated_memory_errdict"
+        )
+        mem._memory = SimpleNamespace(
+            store_message=AsyncMock(
+                return_value={"error": "NAMS POST /conversations/x/messages → 404: conversation not found"}
+            )
+        )
+
+        result = await mem.store_message("s-1", "user", "hello")
+
+        assert result is None
+        assert mem.get_error_category() is not None
+        assert mem.get_error_detail() is not None
