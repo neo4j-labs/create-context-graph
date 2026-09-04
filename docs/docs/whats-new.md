@@ -25,6 +25,10 @@ Integrates five community PRs (#52, #56, #58, #59, #60), closes the gaps found r
 - Domains without `demo_scenarios` (or with an empty `prompts` list) no longer crash scaffold generation.
 - `.env.example` documents `NEO4J_DATABASE`.
 
+### Live NAMS fixes
+
+The whole NAMS flow was verified against the production service with `neo4j-agent-memory` 0.5.0, which surfaced and fixed five breaks: conversation memory silently failing on every message (the service only accepts conversation ids it minted — generated apps now create conversations per session), document/body ingest rejected wholesale (`role="document"` isn't a valid role — now `role="user"` with a metadata kind marker over server-created channels), empty document browser and schema view (the service coerces `OBJECT`/`EVENT` types to `custom` — adapters are now cypher-first using the scaffold's own description markers), dead graph expand (`get_entity(id)` doesn't exist in the 0.5.x client — resolved via the cypher API), and a NAMS "reset" that always reported success while deleting nothing (no delete API exists — `make reset` now says so and points at the [NAMS dashboard](https://memory.neo4jlabs.com)).
+
 See the [CHANGELOG](https://github.com/neo4j-labs/create-context-graph/blob/main/CHANGELOG.md) for the full list, including the v0.13.1 feedback-triage release (dry-run credential gate fix, `/schema/models` endpoint, composite-key regression tests).
 
 ---

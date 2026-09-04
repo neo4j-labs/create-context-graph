@@ -398,14 +398,11 @@ class TestIngestDataDispatch:
 
 
 class TestResetMemoryStoreDispatch:
-    def test_nams_reset_calls_delete_entity_for_each(self, fake_client, fake_nams_module):
-        fake_client.long_term.search_entities = AsyncMock(
-            return_value=[
-                SimpleNamespace(id="e1"),
-                SimpleNamespace(id="e2"),
-                SimpleNamespace(id="e3"),
-            ]
-        )
+    def test_nams_reset_reports_unavailable(self, fake_client, fake_nams_module, capsys):
+        """v0.14.0: NAMS REST / neo4j-agent-memory 0.5.x has no delete API —
+        reset must say so (with the live entity count) instead of silently
+        reporting "0 entities removed" like the old swallow-everything loop."""
+        fake_client.query = SimpleNamespace(cypher=AsyncMock(return_value=[{"n": 3}]))
         cfg = ProjectConfig(
             project_name="x",
             domain="healthcare",
@@ -413,7 +410,12 @@ class TestResetMemoryStoreDispatch:
             nams_api_key="sk-test",
         )
         reset_memory_store(cfg)
-        assert fake_client.long_term.delete_entity.await_count == 3
+        out = capsys.readouterr().out
+        assert "reset is not available" in out
+        assert "3 stored entities" in out
+        assert "memory.neo4jlabs.com" in out
+        # No deletes attempted — the API doesn't exist upstream.
+        assert fake_client.long_term.delete_entity.await_count == 0
 
     def test_nams_reset_without_api_key_warns(self, capsys):
         cfg = ProjectConfig(

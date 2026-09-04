@@ -425,6 +425,59 @@ async def expand_node_nams(element_id: str) -> dict[str, Any]:
     client = get_client()
     if client is None:
         return {"nodes": [], "relationships": []}
+
+    # Preferred: the cypher API. neo4j-agent-memory 0.5.x has no
+    # ``long_term.get_entity(id)`` — id-addressed lookups only exist through
+    # cypher, which also returns the server-side relationships (e.g. the
+    # SAME_AS edges NAMS entity resolution creates).
+    try:
+        rows = await client.query.cypher(
+            "MATCH (n) WHERE n.id = $id "
+            "OPTIONAL MATCH (n)-[r]-(m) "
+            "RETURN n.id AS id, n.name AS name, n.type AS type, "
+            "n.description AS description, type(r) AS rel_type, "
+            "m.id AS other_id, m.name AS other_name, m.type AS other_type, "
+            "m.description AS other_description, "
+            "CASE WHEN r IS NULL THEN NULL WHEN startNode(r).id = n.id THEN true ELSE false END AS outgoing",
+            {"id": element_id},
+        )
+        if rows:
+            nodes: dict[str, dict[str, Any]] = {}
+            rels: list[dict[str, Any]] = []
+            for row in rows:
+                if not isinstance(row, dict) or not row.get("id"):
+                    continue
+                nodes.setdefault(str(row["id"]), {
+                    "elementId": str(row["id"]),
+                    "labels": [row.get("type") or "Entity"],
+                    "name": row.get("name") or "",
+                    "description": row.get("description") or "",
+                })
+                other_id = row.get("other_id")
+                if not other_id or not row.get("rel_type"):
+                    continue
+                nodes.setdefault(str(other_id), {
+                    "elementId": str(other_id),
+                    "labels": [row.get("other_type") or "Entity"],
+                    "name": row.get("other_name") or "",
+                    "description": row.get("other_description") or "",
+                })
+                start, end = (
+                    (str(row["id"]), str(other_id))
+                    if row.get("outgoing") in (True, None)
+                    else (str(other_id), str(row["id"]))
+                )
+                rels.append({
+                    "elementId": f"{start}-{row['rel_type']}-{end}",
+                    "type": row["rel_type"],
+                    "startNodeElementId": start,
+                    "endNodeElementId": end,
+                })
+            return {"nodes": list(nodes.values()), "relationships": rels}
+    except Exception as e:
+        logger.info("expand_node_nams: cypher path failed (%s) — using REST", e)
+
+    # Fallback: REST get_entity with inlined relationships (older lib/service).
     try:
         entity = await client.long_term.get_entity(element_id)
     except Exception as e:
@@ -525,24 +578,47 @@ async def get_entity_detail_nams(name: str) -> dict[str, Any] | None:
     if entity is None:
         return None
     entity_id = getattr(entity, "id", None) or getattr(entity, "entity_id", None)
-    inlined = getattr(entity, "relationships", None) or []
     connections: list[dict[str, Any]] = []
-    for rel in inlined:
-        target_id = getattr(rel, "target_id", None) or getattr(rel, "target", None)
-        if target_id is None:
-            continue
+    # Preferred: cypher — id-addressed neighbor lookup doesn't exist on the
+    # 0.5.x REST client, and this also surfaces server-created edges.
+    if entity_id:
         try:
-            target = await client.long_term.get_entity(target_id)
-        except Exception:
-            continue
-        connections.append(
-            {
-                "name": getattr(target, "name", "") or "",
-                "labels": [getattr(target, "type", "Entity") or "Entity"],
-                "relationship": getattr(rel, "type", "RELATED_TO"),
-                "direction": "outgoing",
-            }
-        )
+            rows = await client.query.cypher(
+                "MATCH (n) WHERE n.id = $id MATCH (n)-[r]-(m) "
+                "RETURN type(r) AS rel_type, m.name AS name, m.type AS type, "
+                "CASE WHEN startNode(r).id = n.id THEN 'outgoing' ELSE 'incoming' END AS direction",
+                {"id": str(entity_id)},
+            )
+            for row in rows or []:
+                if not isinstance(row, dict) or not row.get("name"):
+                    continue
+                connections.append({
+                    "name": row["name"],
+                    "labels": [row.get("type") or "Entity"],
+                    "relationship": row.get("rel_type") or "RELATED_TO",
+                    "direction": row.get("direction") or "outgoing",
+                })
+        except Exception as e:
+            logger.info("get_entity_detail_nams: cypher connections failed: %s", e)
+    if not connections:
+        # Fallback: inlined relationships from the REST response (older lib).
+        inlined = getattr(entity, "relationships", None) or []
+        for rel in inlined:
+            target_id = getattr(rel, "target_id", None) or getattr(rel, "target", None)
+            if target_id is None:
+                continue
+            try:
+                target = await client.long_term.get_entity(target_id)
+            except Exception:
+                continue
+            connections.append(
+                {
+                    "name": getattr(target, "name", "") or "",
+                    "labels": [getattr(target, "type", "Entity") or "Entity"],
+                    "relationship": getattr(rel, "type", "RELATED_TO"),
+                    "direction": "outgoing",
+                }
+            )
     return {
         "entity": {
             "name": getattr(entity, "name", "") or "",

@@ -132,13 +132,16 @@ uv pip install 'neo4j-agent-memory[litellm,sentence-transformers,extraction,fuzz
 
 ## Resetting NAMS state
 
-`make reset` on a NAMS project enumerates all entities via REST and deletes them one by one. Slow but correct:
+Resetting from the CLI is **not currently possible**: neither the NAMS REST
+API nor `neo4j-agent-memory` (through 0.5.x) exposes an entity delete
+endpoint, and the NAMS cypher API is read-only. `make reset` and
+`--reset-database` on a NAMS project print an explanation (with the current
+entity count) instead of pretending to delete.
 
-```bash
-make reset
-```
-
-For fast resets, use a self-hosted scaffold — `MATCH (n) DETACH DELETE n` runs in milliseconds.
+Manage stored data from the NAMS dashboard at
+[memory.neo4jlabs.com](https://memory.neo4jlabs.com), or use a self-hosted
+scaffold for full control — `MATCH (n) DETACH DELETE n` runs in milliseconds
+on bolt.
 
 ## Troubleshooting
 
