@@ -428,7 +428,11 @@ class TestResetMemoryStoreDispatch:
         out = capsys.readouterr().out
         assert "reset is not available" in out
         assert "3 stored entities" in out
-        assert "memory.neo4jlabs.com" in out
+        # Assert the full sentence, not a bare hostname substring — a
+        # `"host.com" in text` check pattern-matches CodeQL's
+        # incomplete-URL-sanitization rule (py/incomplete-url-substring-sanitization)
+        # even in test assertions.
+        assert "Manage stored data at https://memory.neo4jlabs.com" in out
         # No deletes attempted — the API doesn't exist upstream.
         assert fake_client.long_term.delete_entity.await_count == 0
 
