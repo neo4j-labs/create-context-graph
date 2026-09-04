@@ -201,6 +201,55 @@ def get_driver() -> AsyncDriver:
     return _driver
 
 
+def _coerce_nams_records(raw):
+    """Normalize results from the NAMS cypher API into a list of row objects."""
+    if raw is None:
+        return []
+    if isinstance(raw, list):
+        return raw
+    if isinstance(raw, dict):
+        for key in ("results", "data", "rows"):
+            value = raw.get(key)
+            if isinstance(value, list):
+                return value
+            if value is not None and isinstance(value, tuple):
+                return list(value)
+        return [raw]
+    if isinstance(raw, tuple):
+        return list(raw)
+    return [raw]
+
+
+async def _execute_nams_cypher(
+    query: str,
+    parameters: dict | None = None,
+    *,
+    collect: bool = True,
+    tool_name: str | None = None,
+    timeout: float | None = 30.0,
+) -> list[dict]:
+    """Execute a read-only cypher query using the NAMS client."""
+    del timeout  # Kept for call compatibility
+    from app.memory import get_client
+
+    client = get_client()
+    if client is None:
+        raise RuntimeError("NAMS client not connected. Call connect_memory() first.")
+
+    params = parameters or {}
+    if tool_name and collect:
+        _collector.emit_tool_start(tool_name, params)
+
+    result = await client.query.cypher(query, params)
+    records = _coerce_nams_records(result)
+
+    if collect:
+        _collector.collect(records)
+        if tool_name:
+            _collector.collect_tool_call(tool_name, params, str(records[:2]))
+    return records
+
+
 async def execute_cypher(
     query: str,
     parameters: dict | None = None,
@@ -211,6 +260,15 @@ async def execute_cypher(
 ) -> list[dict]:
     """Execute a Cypher query and return results as dicts with graph metadata."""
     from app.config import settings
+
+    if settings.memory_backend == "nams":
+        return await _execute_nams_cypher(
+            query,
+            parameters,
+            collect=collect,
+            tool_name=tool_name,
+            timeout=timeout,
+        )
 
     driver = get_driver()
     if tool_name and collect:
