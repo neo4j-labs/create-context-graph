@@ -41,7 +41,8 @@ my-app/
 │   │   ├── constants.py              # Shared constants (index names, graph projections)
 │   │   ├── context_graph_client.py   # Neo4j read/write client with query timeouts
 │   │   ├── gds_client.py            # Neo4j Graph Data Science client (label-validated)
-│   │   └── vector_client.py         # Vector search client with logging
+│   │   ├── vector_client.py         # Vector search client with logging
+│   │   └── ontology_document.json   # NAMS ontology doc — activated (or created, for custom domains) on connect
 │   ├── tests/
 │   │   ├── __init__.py
 │   │   └── test_routes.py            # Generated test scaffold (health, scenarios)

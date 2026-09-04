@@ -130,6 +130,32 @@ cd backend
 uv pip install 'neo4j-agent-memory[litellm,sentence-transformers,extraction,fuzzy]>=0.4.0,<0.6.0'
 ```
 
+## Domain ontology activation
+
+NAMS binds every workspace to a generic `nams-default` ontology until an
+explicit one is activated — and it pre-registers a server-side ontology for
+every bundled create-context-graph domain. As of v0.14.0, generated apps
+handle this automatically:
+
+- **On startup** (`connect_memory()`), the app checks the workspace's active
+  ontology. If it doesn't match the app's domain, it activates the matching
+  catalog ontology (e.g. `healthcare`), so stored entities are stamped with
+  the domain's ontology version and server-side extraction uses the domain
+  vocabulary.
+- **Custom domains** (`--custom-domain` / `--ontology-file`) aren't in the
+  server catalog, so the app **creates** the ontology from the scaffold's
+  `backend/app/ontology_document.json` (written at generation time from your
+  domain YAML) and activates it.
+- The same binding runs at the start of `make import` and CLI-side
+  `--ingest`, so imported data is domain-stamped too.
+
+This is best-effort: if the ontology API is unavailable, the app logs a
+warning and continues on `nams-default` — memory still works, just without
+domain-shaped extraction. Note that the *stored* entity `type` currently
+remains one of Person/Organization/Location/custom regardless of the active
+ontology; activation governs the ontology-version stamp, validation mode,
+and extraction vocabulary.
+
 ## Resetting NAMS state
 
 Resetting from the CLI is **not currently possible**: neither the NAMS REST

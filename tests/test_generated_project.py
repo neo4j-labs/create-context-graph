@@ -2401,3 +2401,67 @@ class TestV0140DemoScenarioFallback:
         )
         assert '"Which patients are at risk?"' in spec
         assert '"Show me the data in the graph"' not in spec
+
+
+class TestV0140NamsOntologyActivation:
+    """v0.14.0: scaffolds bind the NAMS workspace to the domain ontology.
+
+    NAMS pre-registers every bundled domain server-side but auto-binds
+    workspaces to nams-default until an ontology is explicitly activated —
+    which nothing did before this release.
+    """
+
+    def test_ontology_document_json_written(self, tmp_path):
+        out = _render(tmp_path, name="ont doc", memory_backend="bolt")
+        path = out / "backend" / "app" / "ontology_document.json"
+        assert path.exists()
+        doc = json.loads(path.read_text())
+        assert set(doc.keys()) == {"domain", "entity_types", "relationships"}
+        assert doc["domain"]["id"] == "healthcare"
+        labels = {et["label"] for et in doc["entity_types"]}
+        assert {"Patient", "Provider", "Person"} <= labels
+        # App-side sections must NOT leak into the server document
+        assert "agent_tools" not in doc and "system_prompt" not in doc
+
+    def test_ontology_document_matches_custom_domain(self, tmp_path):
+        from tests.test_custom_domain import VALID_DOMAIN_YAML
+
+        from create_context_graph.ontology import load_domain_from_yaml_string
+
+        config = ProjectConfig(
+            project_name="custom ont doc",
+            domain="test-domain",
+            framework="pydanticai",
+            memory_backend="nams",
+            nams_api_key="sk-test",
+            custom_domain_yaml=VALID_DOMAIN_YAML,
+        )
+        ontology = load_domain_from_yaml_string(VALID_DOMAIN_YAML)
+        out = tmp_path / "custom-ont"
+        ProjectRenderer(config, ontology).render(out)
+
+        doc = json.loads(
+            (out / "backend" / "app" / "ontology_document.json").read_text()
+        )
+        assert doc["domain"]["id"] == "test-domain"
+        assert any(et["label"] == "Widget" for et in doc["entity_types"])
+
+    def test_memory_template_ensures_ontology(self, tmp_path):
+        out = _render(
+            tmp_path, name="ont memory", framework="strands",
+            memory_backend="nams", nams_api_key="sk-test",
+        )
+        memory_py = (out / "backend" / "app" / "memory.py").read_text()
+        assert "async def _ensure_nams_ontology" in memory_py
+        assert "ontology_document.json" in memory_py
+        compile(memory_py, "memory.py", "exec")
+
+    def test_import_data_template_ensures_ontology(self, tmp_path):
+        out = _render(
+            tmp_path, name="ont import", domain="software-engineering",
+            memory_backend="nams", nams_api_key="sk-test",
+            framework="strands", saas_connectors=["linear"],
+        )
+        import_py = (out / "backend" / "scripts" / "import_data.py").read_text()
+        assert "_ensure_nams_ontology(client)" in import_py
+        compile(import_py, "import_data.py", "exec")

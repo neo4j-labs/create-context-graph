@@ -125,6 +125,41 @@ class _RecordingClient:
             create_conversation=AsyncMock(side_effect=_create_conversation),
         )
 
+        # Ontology namespace — models a workspace on nams-default with the
+        # healthcare domain available in the catalog, so both ingest paths
+        # walk the get_active -> list -> get -> activate sequence.
+        async def _ont_get_active(**kw):
+            self.calls.append(("ontology.get_active", _clean(kw)))
+            return SimpleNamespace(
+                document=SimpleNamespace(domain=SimpleNamespace(id="nams-default"))
+            )
+
+        async def _ont_list(**kw):
+            self.calls.append(("ontology.list", _clean(kw)))
+            return [SimpleNamespace(id="ont-hc", name="healthcare")]
+
+        async def _ont_get(**kw):
+            self.calls.append(("ontology.get", _clean(kw)))
+            return SimpleNamespace(
+                versions=[SimpleNamespace(id="ov-hc-1", revision=1)]
+            )
+
+        async def _ont_activate(**kw):
+            self.calls.append(("ontology.activate", _clean(kw)))
+            return SimpleNamespace(id=kw.get("version_id", "ov-hc-1"))
+
+        async def _ont_create(**kw):
+            self.calls.append(("ontology.create", _clean(kw)))
+            return SimpleNamespace(id="ov-created")
+
+        self.ontology = SimpleNamespace(
+            get_active=AsyncMock(side_effect=_ont_get_active),
+            list=AsyncMock(side_effect=_ont_list),
+            get=AsyncMock(side_effect=_ont_get),
+            activate=AsyncMock(side_effect=_ont_activate),
+            create=AsyncMock(side_effect=_ont_create),
+        )
+
         async def _start_trace(**kw):
             self.calls.append(("reasoning.start_trace", _clean(kw)))
             return SimpleNamespace(id=f"trace-{len(self.calls)}")
@@ -189,6 +224,7 @@ def _exec_scaffold_template(client: _RecordingClient) -> dict[str, Any]:
         memory_api_key="sk-test",
         memory_nams_endpoint="https://test.example/v1",
         memory_backend="nams",
+        domain_id="healthcare",
         # Bolt-path settings — _ingest_via_bolt reads these even when the
         # backend is NAMS, because both functions live in the same module.
         neo4j_uri="neo4j://test:7687",
@@ -568,3 +604,22 @@ def test_bolt_ingest_uses_relationship_labels_when_present():
     assert "MATCH (b:Provider {name: $target_name})" in cypher
     assert "MERGE (a)-[r:TREATS]->(b)" in cypher
     assert params == {"source_name": "Mercy General", "target_name": "Mercy General"}
+
+
+def test_ontology_ensure_runs_first_in_both_paths():
+    """v0.14.0: both ingest paths must bind the workspace to the domain
+    ontology BEFORE any writes — get_active, then (on mismatch) list ->
+    get -> activate — with identical call shapes."""
+    cli_calls = _run_cli_path(_RecordingClient())
+    scaffold_calls = _run_scaffold_path(_RecordingClient())
+
+    expected_head = [
+        ("ontology.get_active", {}),
+        ("ontology.list", {}),
+        ("ontology.get", {"ontology_id": "ont-hc"}),
+        ("ontology.activate", {"version_id": "ov-hc-1"}),
+    ]
+    assert cli_calls[:4] == expected_head, f"CLI head: {cli_calls[:4]}"
+    assert scaffold_calls[:4] == expected_head, f"Scaffold head: {scaffold_calls[:4]}"
+    # No create — healthcare exists in the catalog double.
+    assert all(n != "ontology.create" for n, _ in cli_calls + scaffold_calls)

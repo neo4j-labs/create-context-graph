@@ -211,6 +211,55 @@ def _require_safe_cypher_identifier(value: str, kind: str) -> str:
     raise ValueError(f"Unsafe Cypher {kind}: {value!r}")
 
 
+def _load_ontology_document() -> dict[str, Any] | None:
+    """Load the scaffold's NAMS ontology document (written at generation time)."""
+    path = Path(__file__).resolve().parent.parent / "app" / "ontology_document.json"
+    try:
+        return json.loads(path.read_text())
+    except Exception:  # noqa: BLE001 — missing/corrupt file just disables create
+        return None
+
+
+async def _ensure_nams_ontology(client: Any) -> str:
+    """Bind the workspace to this app's domain ontology (best-effort).
+
+    Mirrors ``ensure_nams_ontology`` in src/create_context_graph/ingest.py —
+    kept in lockstep via test_nams_ingest_parity.py. Already active → no-op;
+    catalog match by domain id → activate latest version; otherwise create
+    from ``app/ontology_document.json`` and activate. Never raises.
+    """
+    domain_id = settings.domain_id
+    try:
+        active = await client.ontology.get_active()
+        active_domain = getattr(
+            getattr(getattr(active, "document", None), "domain", None), "id", None
+        )
+        if active_domain == domain_id:
+            return "already-active"
+
+        summaries = await client.ontology.list()
+        match = next(
+            (s for s in summaries if getattr(s, "name", None) == domain_id), None
+        )
+        if match is not None:
+            full = await client.ontology.get(ontology_id=match.id)
+            versions = getattr(full, "versions", None) or []
+            if versions:
+                latest = max(versions, key=lambda v: getattr(v, "revision", 0) or 0)
+                await client.ontology.activate(version_id=latest.id)
+                return "activated"
+
+        doc = _load_ontology_document()
+        if doc is not None:
+            created = await client.ontology.create(name=domain_id, schema=doc)
+            await client.ontology.activate(version_id=created.id)
+            return "created"
+        return "unavailable"
+    except Exception as exc:  # noqa: BLE001 — ontology is an enhancement, not a gate
+        logger.warning("NAMS ontology activation skipped: %s", exc)
+        return "unavailable"
+
+
 async def _ingest_via_nams(data: dict[str, Any], body_fields: dict[str, str]) -> dict[str, int]:
     """Write data into NAMS. Mirrors src/create_context_graph/ingest.py
     run_nams_ingest() — kept in lockstep via test_nams_ingest_parity.py."""
@@ -229,6 +278,12 @@ async def _ingest_via_nams(data: dict[str, Any], body_fields: dict[str, str]) ->
     counts = {"entities": 0, "documents": 0, "bodies": 0, "traces": 0, "edges_encoded": 0, "failures": 0}
 
     async with MemoryClient(mem_settings) as client:
+        # Stage 0: bind the workspace to the domain ontology (best-effort)
+        # so data is stamped with — and extraction speaks — the domain
+        # vocabulary instead of nams-default.
+        ontology_status = await _ensure_nams_ontology(client)
+        logger.info("NAMS ontology: %s (%s)", ontology_status, settings.domain_id)
+
         # NAMS only accepts messages addressed to conversation ids IT minted
         # at create time — client-chosen session strings 404. Create each
         # message channel lazily and target the server-assigned id.

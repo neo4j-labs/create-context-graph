@@ -598,3 +598,98 @@ class TestStoreMessageSwallowedErrors:
         assert result is None
         assert mem.get_error_category() is not None
         assert mem.get_error_detail() is not None
+
+
+class TestGeneratedEnsureNamsOntology:
+    """v0.14.0: connect_memory() binds the NAMS workspace to the app's domain
+    ontology — activate from the server catalog, or create from the
+    scaffold's ontology_document.json for custom domains."""
+
+    def _load(self, nams_backend_dir, *, active="nams-default", catalog=("healthcare",),
+              domain_id="healthcare"):
+        settings = _make_settings(memory_backend="nams", domain_id=domain_id)
+        _install_app_stubs(settings)
+        _install_memory_lib_stub()
+        mem = _load_module(
+            nams_backend_dir / "app" / "memory.py", "generated_memory_ontology"
+        )
+        client = MagicMock()
+        client.ontology.get_active = AsyncMock(return_value=SimpleNamespace(
+            document=SimpleNamespace(domain=SimpleNamespace(id=active))
+        ))
+        client.ontology.list = AsyncMock(return_value=[
+            SimpleNamespace(id=f"ont-{name}", name=name) for name in catalog
+        ])
+        client.ontology.get = AsyncMock(return_value=SimpleNamespace(
+            versions=[SimpleNamespace(id="ov-1", revision=1),
+                      SimpleNamespace(id="ov-2", revision=2)]
+        ))
+        client.ontology.activate = AsyncMock(return_value=SimpleNamespace(id="ov-2"))
+        client.ontology.create = AsyncMock(return_value=SimpleNamespace(id="ov-new"))
+        mem._client = client
+        return mem, client
+
+    async def test_activates_catalog_match(self, nams_backend_dir):
+        mem, client = self._load(nams_backend_dir)
+
+        await mem._ensure_nams_ontology()
+
+        client.ontology.get.assert_awaited_once_with(ontology_id="ont-healthcare")
+        client.ontology.activate.assert_awaited_once_with(version_id="ov-2")
+
+    async def test_noop_when_already_active(self, nams_backend_dir):
+        mem, client = self._load(nams_backend_dir, active="healthcare")
+
+        await mem._ensure_nams_ontology()
+
+        client.ontology.list.assert_not_awaited()
+        client.ontology.activate.assert_not_awaited()
+
+    async def test_creates_from_scaffold_document_for_unknown_domain(self, nams_backend_dir):
+        """The scaffold ships app/ontology_document.json — an off-catalog
+        domain id creates the ontology from it, then activates."""
+        mem, client = self._load(nams_backend_dir, catalog=())
+
+        await mem._ensure_nams_ontology()
+
+        client.ontology.create.assert_awaited_once()
+        kwargs = client.ontology.create.await_args.kwargs
+        assert kwargs["name"] == "healthcare"
+        doc = kwargs["schema"]
+        assert set(doc.keys()) == {"domain", "entity_types", "relationships"}
+        assert doc["domain"]["id"] == "healthcare"
+        assert any(et["label"] == "Patient" for et in doc["entity_types"])
+        client.ontology.activate.assert_awaited_once_with(version_id="ov-new")
+
+    async def test_bolt_backend_is_noop(self, bolt_backend_dir):
+        settings = _make_settings(memory_backend="bolt")
+        _install_app_stubs(settings)
+        _install_memory_lib_stub()
+        mem = _load_module(
+            bolt_backend_dir / "app" / "memory.py", "generated_memory_ontology_bolt"
+        )
+        client = MagicMock()
+        client.ontology.get_active = AsyncMock(
+            side_effect=AssertionError("ontology API touched on bolt")
+        )
+        mem._client = client
+
+        await mem._ensure_nams_ontology()
+
+        client.ontology.get_active.assert_not_awaited()
+
+    async def test_failure_never_raises(self, nams_backend_dir):
+        mem, client = self._load(nams_backend_dir)
+        client.ontology.get_active = AsyncMock(side_effect=ConnectionError("down"))
+
+        await mem._ensure_nams_ontology()  # must not raise
+
+    def test_connect_memory_calls_ensure(self, nams_backend_dir):
+        """Template pin: the connect path awaits the ontology bind."""
+        source = (nams_backend_dir / "app" / "memory.py").read_text()
+        assert "await _ensure_nams_ontology()" in source
+        # and it happens after client connect, before MemoryIntegration
+        connect_idx = source.index("await _client.connect()")
+        ensure_idx = source.index("await _ensure_nams_ontology()")
+        integration_idx = source.index("_memory = MemoryIntegration(")
+        assert connect_idx < ensure_idx < integration_idx

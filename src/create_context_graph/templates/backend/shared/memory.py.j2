@@ -14,8 +14,10 @@ Native adapters are resolved first; everything else routes through LiteLLM.
 
 from __future__ import annotations
 
+import json
 import logging
 import uuid
+from pathlib import Path
 
 from app.config import settings
 
@@ -173,6 +175,74 @@ def _build_memory_settings():
     )
 
 
+def _load_local_ontology_document() -> dict | None:
+    """Load the scaffold's NAMS ontology document (written at generation time)."""
+    path = Path(__file__).parent / "ontology_document.json"
+    try:
+        return json.loads(path.read_text())
+    except Exception:  # noqa: BLE001 — missing/corrupt file just disables create
+        return None
+
+
+async def _ensure_nams_ontology() -> None:
+    """Bind the NAMS workspace to this app's domain ontology (best-effort).
+
+    NAMS auto-binds every workspace to the generic ``nams-default`` ontology
+    until an explicit one is activated; the service pre-registers an ontology
+    for each bundled domain, and every stored entity is stamped with the
+    active ontology version. Order: already active → no-op; catalog match by
+    domain id → activate its latest version; otherwise create from the
+    scaffold's ``ontology_document.json`` (custom domains) and activate.
+
+    Never raises — memory works against the default ontology, just without
+    domain-shaped extraction.
+    """
+    if settings.memory_backend != "nams" or _client is None:
+        return
+    try:
+        active = await _client.ontology.get_active()
+        active_domain = getattr(
+            getattr(getattr(active, "document", None), "domain", None), "id", None
+        )
+        if active_domain == settings.domain_id:
+            return
+
+        summaries = await _client.ontology.list()
+        match = next(
+            (s for s in summaries if getattr(s, "name", None) == settings.domain_id),
+            None,
+        )
+        if match is not None:
+            full = await _client.ontology.get(ontology_id=match.id)
+            versions = getattr(full, "versions", None) or []
+            if versions:
+                latest = max(versions, key=lambda v: getattr(v, "revision", 0) or 0)
+                await _client.ontology.activate(version_id=latest.id)
+                logger.info(
+                    "Activated NAMS ontology '%s' (was '%s')",
+                    settings.domain_id, active_domain,
+                )
+                return
+
+        doc = _load_local_ontology_document()
+        if doc is not None:
+            created = await _client.ontology.create(
+                name=settings.domain_id, schema=doc
+            )
+            await _client.ontology.activate(version_id=created.id)
+            logger.info(
+                "Created + activated NAMS ontology '%s' (was '%s')",
+                settings.domain_id, active_domain,
+            )
+            return
+        logger.warning(
+            "No NAMS ontology found for domain '%s' — staying on '%s'",
+            settings.domain_id, active_domain,
+        )
+    except Exception as e:  # noqa: BLE001 — ontology is an enhancement, not a gate
+        logger.warning("NAMS ontology activation skipped: %s", e)
+
+
 async def connect_memory() -> None:
     """Initialize MemoryIntegration. No-ops if the library is unavailable."""
     global _memory, _client, _error_category, _error_detail
@@ -198,6 +268,10 @@ async def connect_memory() -> None:
         ms = _build_memory_settings()
         _client = MemoryClient(ms)
         await _client.connect()
+        # Bind the workspace to this app's domain ontology (NAMS only; no-op
+        # on bolt) before any writes so data is stamped with — and extraction
+        # speaks — the domain vocabulary instead of nams-default.
+        await _ensure_nams_ontology()
         _memory = MemoryIntegration(
             client=_client,
             session_strategy=strategy_map.get(

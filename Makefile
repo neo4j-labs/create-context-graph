@@ -14,7 +14,7 @@ install-all:  ## Install all optional dependencies (dev + generate + connectors)
 
 ## Testing
 
-test:  ## Run fast tests (1,437 passing, no Neo4j or API keys required)
+test:  ## Run fast tests (1,454 passing, no Neo4j or API keys required)
 	uv run --extra dev pytest tests/ -v --tb=short
 
 test-slow:  ## Run full suite including slow + functional vault tests (~2.7s extra)

@@ -363,6 +363,23 @@ _NEO4J_TYPE_MAP = {
 }
 
 
+def build_nams_ontology_document(ontology: DomainOntology) -> dict:
+    """Build the document shape the NAMS ontology API expects.
+
+    The server's ``OntologyDocument`` is ``{domain, entity_types,
+    relationships}`` with field-for-field the same sub-models this package
+    defines (labels, pole types, property defs). App-side sections
+    (``document_templates``, ``decision_traces``, ``demo_scenarios``,
+    ``agent_tools``, ``system_prompt``, ``visualization``) are not part of
+    the server schema and are excluded.
+    """
+    return {
+        "domain": ontology.domain.model_dump(),
+        "entity_types": [et.model_dump() for et in ontology.entity_types],
+        "relationships": [rel.model_dump() for rel in ontology.relationships],
+    }
+
+
 def split_cypher_statements(script: str) -> list[str]:
     """Split a Cypher script into executable statements.
 

@@ -51,6 +51,7 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from create_context_graph.ontology import (
     DomainOntology,
+    build_nams_ontology_document,
     generate_cypher_schema,
     split_cypher_statements,
 )
@@ -215,6 +216,61 @@ def _resolve_body(
 # ---------------------------------------------------------------------------
 
 
+async def ensure_nams_ontology(
+    client: Any,
+    domain_id: str,
+    ontology_document: dict | None = None,
+) -> str:
+    """Make the workspace's active NAMS ontology match ``domain_id``.
+
+    NAMS auto-binds every workspace to the generic ``nams-default`` ontology
+    until an explicit one is activated, and pre-registers an ontology for
+    each bundled domain. Resolution order:
+
+      1. already active            → ``"already-active"`` (no-op)
+      2. catalog match by name     → activate its latest version (``"activated"``)
+      3. ``ontology_document`` set → create it, then activate (``"created"`` —
+         the custom-domain path; the document comes from
+         :func:`build_nams_ontology_document`)
+
+    Best-effort by design: returns ``"unavailable"`` on any failure or when
+    nothing matches and no document was provided — memory writes still work
+    against the default ontology, just without domain-shaped extraction.
+    All calls use keyword arguments so the parity contract test can record
+    them uniformly.
+    """
+    try:
+        active = await client.ontology.get_active()
+        active_domain = getattr(
+            getattr(getattr(active, "document", None), "domain", None), "id", None
+        )
+        if active_domain == domain_id:
+            return "already-active"
+
+        summaries = await client.ontology.list()
+        match = next(
+            (s for s in summaries if getattr(s, "name", None) == domain_id), None
+        )
+        if match is not None:
+            full = await client.ontology.get(ontology_id=match.id)
+            versions = getattr(full, "versions", None) or []
+            if versions:
+                latest = max(versions, key=lambda v: getattr(v, "revision", 0) or 0)
+                await client.ontology.activate(version_id=latest.id)
+                return "activated"
+
+        if ontology_document is not None:
+            created = await client.ontology.create(
+                name=domain_id, schema=ontology_document
+            )
+            await client.ontology.activate(version_id=created.id)
+            return "created"
+        return "unavailable"
+    except Exception as e:  # noqa: BLE001 — ontology is an enhancement, not a gate
+        console.print(f"  [yellow]NAMS ontology activation skipped:[/yellow] {e}")
+        return "unavailable"
+
+
 async def run_nams_ingest(
     client: Any,
     fixture_data: dict,
@@ -249,6 +305,14 @@ async def run_nams_ingest(
     def _emit(stage: str, **payload: Any) -> None:
         if on_event is not None:
             on_event(stage, payload)
+
+    # Stage 0: bind the workspace to the domain ontology (best-effort) so
+    # data is stamped with — and extraction speaks — the domain vocabulary
+    # instead of nams-default.
+    ontology_status = await ensure_nams_ontology(
+        client, domain_id, build_nams_ontology_document(ontology)
+    )
+    _emit("ontology", status=ontology_status)
 
     # NAMS only accepts messages addressed to conversation ids IT minted at
     # create time — posting to a client-chosen session string 404s with
@@ -433,11 +497,25 @@ async def _ingest_with_nams(
                 "  [dim][1/3] NAMS owns schema — skipping CREATE CONSTRAINT statements[/dim]"
             )
             task = progress.add_task("[2/3] Ingesting entities + documents (NAMS)...", total=None)
+
+            def _on_stage(stage: str, payload: dict) -> None:
+                if stage == "ontology":
+                    label = {
+                        "already-active": "domain ontology already active",
+                        "activated": "activated domain ontology",
+                        "created": "created + activated custom domain ontology",
+                        "unavailable": "using NAMS default ontology",
+                    }.get(payload.get("status", ""), payload.get("status", ""))
+                    console.print(
+                        f"  [dim][0/3] {label} ({ontology.domain.id})[/dim]"
+                    )
+
             counts = await run_nams_ingest(
                 client=client,
                 fixture_data=fixture_data,
                 ontology=ontology,
                 body_fields=body_fields,
+                on_event=_on_stage,
             )
             progress.update(
                 task,
