@@ -99,7 +99,7 @@ Or use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector):
 
 ```bash
 npx @modelcontextprotocol/inspector uv run --directory ./backend \
-  python -m neo4j_agent_memory.mcp.server
+  neo4j-agent-memory mcp serve --backend nams
 ```
 
 ## Dual-Interface Architecture

@@ -6,7 +6,7 @@ title: "Building Your First Linear Context Graph"
 # Building Your First Linear Context Graph
 
 :::info Time & difficulty
-**Time:** ~15-20 minutes | **Level:** Intermediate | **Prerequisites:** Python 3.11+, Node.js 18+, Neo4j, Linear API key
+**Time:** ~15-20 minutes | **Level:** Intermediate | **Prerequisites:** Python 3.11+, Node.js 22+ (24 LTS recommended), Neo4j, Linear API key
 :::
 
 This tutorial walks you through importing your real Linear workspace data into a Neo4j context graph and querying it with an AI agent. By the end, you'll have a running app where you can ask natural language questions about your issues, projects, cycles, and team workload -- backed by a connected graph of your actual project data.
@@ -47,10 +47,10 @@ These tools work with your imported Linear data because Linear entities (Issues,
 Before you begin, make sure you have:
 
 - **Python 3.11+** -- check with `python3 --version`
-- **Node.js 18+** -- check with `node --version`
+- **Node.js 22+ (24 LTS recommended)** -- check with `node --version`
 - **Neo4j** -- one of:
   - [Neo4j Aura](https://console.neo4j.io) (free cloud instance)
-  - Docker: `docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:5`
+  - Docker: `docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:5.26.30`
   - neo4j-local: `npx @johnymontana/neo4j-local`
 - **uv** (recommended) -- install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **A Linear API key** -- see Step 1 below

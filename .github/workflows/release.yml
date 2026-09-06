@@ -36,7 +36,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
 
@@ -58,7 +58,7 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Get version from tag
         id: tag
@@ -104,13 +104,13 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       # --- Python build ---
       - name: Set up Python
-        uses: actions/setup-python@v5
+        uses: actions/setup-python@v7
         with:
-          python-version: "3.x"
+          python-version: "3.12"
 
       - name: Install build tool
         run: pip install build
@@ -120,16 +120,17 @@ jobs:
 
       # --- Node build ---
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
 
-      - name: Build Node package
-        run: npm run build --if-present --prefix npm-wrapper
+      - name: Smoke-run the npm wrapper
+        # Nothing else executes the wrapper; catch ESM/engines regressions here.
+        run: node npm-wrapper/bin/create-context-graph --version
 
       # --- Share artifacts ---
       - name: Upload dist artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist/
@@ -148,7 +149,7 @@ jobs:
 
     steps:
       - name: Download dist
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: dist
           path: dist/
@@ -176,24 +177,19 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Setup Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          # Node 24 LTS bundles npm >= 11.5.1, the floor for Trusted Publishing,
+          # so no floating `npm install -g npm@X` step is needed (that drift
+          # broke the v0.14.0 publish mid-release).
+          node-version: 24
           registry-url: https://registry.npmjs.org
 
-      - name: Upgrade npm (required for Trusted Publishers)
-        # Pinned major: npm@latest drifted to a release requiring a newer
-        # Node than the job image and broke the v0.14.0 publish mid-release.
-        run: npm install -g npm@12
-
-      - name: Download dist
-        uses: actions/download-artifact@v4
-        with:
-          name: dist
-          path: dist/
+      - name: Check npm version supports Trusted Publishing
+        run: node -e "const [a,b,c]=process.versions.npm.split('.').map(Number); if (a<11 || (a===11 && (b<5 || (b===5 && c<1)))) { console.error('npm', process.versions.npm, '< 11.5.1'); process.exit(1) }"
 
       - name: Publish to npm
         run: npm publish --provenance --access public

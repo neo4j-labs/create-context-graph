@@ -26,10 +26,14 @@ class JiraConnector:
                 "Install it with: pip install atlassian-python-api"
             )
 
+        # Jira Cloud removed /rest/api/2/search (CHANGE-2046); with cloud=True
+        # atlassian-python-api>=4.0 routes jql() to /search/jql instead.
+        # Data Center / Server keep the classic endpoint.
         self._jira = Jira(
             url=credentials["url"],
             username=credentials["email"],
             password=credentials["token"],
+            cloud=".atlassian.net" in credentials["url"].lower(),
         )
         self._project_key = credentials["project"]
 

@@ -67,7 +67,7 @@ There are two flows depending on what you want:
 ### Prerequisites
 
 - Python 3.11+ (with [uv](https://docs.astral.sh/uv/) recommended)
-- Node.js 18+ (for the frontend)
+- Node.js 22+ (24 LTS recommended) (for the frontend)
 - **NAMS path:** a NAMS API key from [memory.neo4jlabs.com](https://memory.neo4jlabs.com)
 - **Self-hosted path:** Neo4j 5+ (Docker, Aura, or local install)
 - **Either path:** `ANTHROPIC_API_KEY` for the agent (or `OPENAI_API_KEY`/`GOOGLE_API_KEY` depending on framework)
@@ -231,9 +231,9 @@ Select your preferred agent framework at project creation time:
 | **PydanticAI** | Structured tool definitions with Pydantic models and `RunContext` | Full streaming | `ANTHROPIC_API_KEY` |
 | **Claude Agent SDK** | Anthropic tool-use with agentic loop | Full streaming | `ANTHROPIC_API_KEY` |
 | **OpenAI Agents SDK** | `@function_tool` decorators with `Runner.run()` | Full streaming | `OPENAI_API_KEY` |
-| **LangGraph** | Stateful graph-based agent workflow with `create_react_agent()` | Full streaming | `ANTHROPIC_API_KEY` |
+| **LangGraph** | Stateful graph-based agent workflow with `langchain.agents.create_agent()` | Full streaming | `ANTHROPIC_API_KEY` |
 | **CrewAI** | Multi-agent crew with role-based tools | Tool streaming | `ANTHROPIC_API_KEY` |
-| **Strands** | Tool-use agents with Anthropic model | Tool streaming | `ANTHROPIC_API_KEY` |
+| **Strands** | Tool-use agents with Anthropic model | Full streaming | `ANTHROPIC_API_KEY` |
 | **Google ADK** | Gemini agents with `FunctionTool` calling | Full streaming | `GOOGLE_API_KEY` |
 | **Anthropic Tools** | Modular tool registry with Anthropic API agentic loop | Full streaming | `ANTHROPIC_API_KEY` |
 
@@ -438,7 +438,7 @@ python scripts/e2e_smoke_test.py --domain healthcare --framework claude-agent-sd
 - `NEO4J_URI`, `NEO4J_USERNAME`, `NEO4J_PASSWORD` — Neo4j connection (Aura, Docker, or local) for `--backend bolt`
 - `MEMORY_API_KEY` — NAMS API key for `--backend nams`
 - `ANTHROPIC_API_KEY` — for Claude-based frameworks (PydanticAI, Claude Agent SDK, Anthropic Tools, Strands, CrewAI)
-- `OPENAI_API_KEY` — for OpenAI-based frameworks (OpenAI Agents, LangGraph)
+- `OPENAI_API_KEY` — for the OpenAI Agents framework (LangGraph uses Anthropic)
 - `GOOGLE_API_KEY` — for Google ADK (Gemini)
 
 ### CI Pipeline

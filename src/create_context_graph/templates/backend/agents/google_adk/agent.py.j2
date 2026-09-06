@@ -2,54 +2,18 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
-import threading
-# Google ADK calls sync tool functions from within its async run_async() loop,
-# requiring nest_asyncio to bridge sync tools back to async execute_cypher().
-import nest_asyncio
-if not getattr(asyncio, "_nest_patched", False):
-    nest_asyncio.apply()
+import logging
 
 from google.adk.agents import Agent
+from google.adk.agents.run_config import RunConfig, StreamingMode
 from google.adk.tools import FunctionTool
 
 from app.config import settings
 from app.context_graph_client import execute_cypher, get_schema, get_collector
 from app.memory import store_message, get_context, resolve_session_id
 
-
-_main_loop: asyncio.AbstractEventLoop | None = None
-
-
-def _run_sync(coro):
-    """Run an async coroutine from a synchronous context.
-
-    When called from the event loop's thread (ADK's sync tool callbacks inside
-    run_async), uses nest_asyncio-patched ``run_until_complete``.
-    When called from a worker thread, uses ``run_coroutine_threadsafe`` to
-    schedule on the main loop.
-    Falls back to ``asyncio.run()`` when no event loop is available.
-    """
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        # No event loop — use the captured main loop if available, else new loop
-        loop = _main_loop
-        if loop is not None and loop.is_running():
-            future = asyncio.run_coroutine_threadsafe(coro, loop)
-            return future.result(timeout=30)
-        return asyncio.run(coro)
-
-    # Same thread as the event loop: reentrant call via nest_asyncio
-    loop_thread = getattr(loop, "_thread_id", None)
-    current_tid = threading.current_thread().ident
-    if loop_thread is None or current_tid == loop_thread:
-        return loop.run_until_complete(coro)
-
-    # Different thread: schedule on the loop safely
-    future = asyncio.run_coroutine_threadsafe(coro, loop)
-    return future.result(timeout=30)
+logger = logging.getLogger(__name__)
 
 
 SYSTEM_PROMPT = """{{ system_prompt }}
@@ -60,10 +24,14 @@ CRITICAL: Call tools DIRECTLY without any introductory text. Do NOT say "I'll se
 
 # ---------------------------------------------------------------------------
 # Agent tools — domain-specific for {{ domain.name }}
+#
+# Tools are ``async def``: ADK's FunctionTool awaits coroutine functions
+# natively, so they can call ``execute_cypher`` directly on the running event
+# loop (no event-loop re-entrancy shim or thread bridging).
 # ---------------------------------------------------------------------------
 
 {% for tool in agent_tools %}
-def {{ tool.name }}({% for param in tool.parameters %}{{ param.name }}: {{ 'str' if param.type == 'string' else 'int' if param.type == 'integer' else 'float' if param.type == 'float' else 'str' }}{% if param.default is defined and param.default is not none %} = {{ param.default if param.type != 'string' else '"' + param.default + '"' }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}) -> str:
+async def {{ tool.name }}({% for param in tool.parameters %}{{ param.name }}: {{ 'str' if param.type == 'string' else 'int' if param.type == 'integer' else 'float' if param.type == 'float' else 'str' }}{% if param.default is defined and param.default is not none %} = {{ param.default if param.type != 'string' else '"' + param.default + '"' }}{% endif %}{% if not loop.last %}, {% endif %}{% endfor %}) -> str:
     """{{ tool.description }}"""
     cypher = """{{ tool.cypher | indent(4) }}"""
     params = {
@@ -71,13 +39,13 @@ def {{ tool.name }}({% for param in tool.parameters %}{{ param.name }}: {{ 'str'
         "{{ param.name }}": {{ param.name }},
 {% endfor %}
     }
-    result = _run_sync(execute_cypher(cypher, params, tool_name="{{ tool.name }}"))
+    result = await execute_cypher(cypher, params, tool_name="{{ tool.name }}")
     return json.dumps(result, default=str)
 
 {% endfor %}
 
 {% raw %}
-def run_cypher(query: str, parameters: str = "{}") -> str:
+async def run_cypher(query: str, parameters: str = "{}") -> str:
     """Execute a read-only Cypher query against the knowledge graph."""
     try:
         params = json.loads(parameters) if parameters else {}
@@ -85,21 +53,21 @@ def run_cypher(query: str, parameters: str = "{}") -> str:
         return json.dumps({"error": "Invalid JSON parameters"})
     params.setdefault("domain", settings.domain_id)
     try:
-        result = _run_sync(execute_cypher(query, params, tool_name="run_cypher"))
+        result = await execute_cypher(query, params, tool_name="run_cypher")
         return json.dumps(result, default=str)
     except Exception as e:
         return json.dumps({"error": f"Cypher query failed: {e}"})
 
 
-def get_graph_schema() -> str:
+async def get_graph_schema() -> str:
     """Get the knowledge graph schema (node labels and relationship types)."""
-    result = _run_sync(get_schema())
+    result = await get_schema()
     return json.dumps(result, default=str)
 {% endraw %}
 
 agent = Agent(
     name="{{ domain.id | replace('-', '_') }}_agent",
-    model="gemini-2.0-flash",
+    model=settings.gemini_model,
     instruction=SYSTEM_PROMPT,
     tools=[
 {% for tool in agent_tools %}
@@ -132,6 +100,47 @@ def _get_runner():
     return _runner, _session_service
 
 
+async def _prepare_turn(message: str, session_id: str, history: list[dict]) -> tuple[str, str]:
+    """Return ``(adk_session_id, input_text)`` for this turn.
+
+    Reuses the ADK session for the same ``session_id``; on a brand-new ADK
+    session, persisted history from the memory layer is injected as context.
+    """
+    _, session_service = _get_runner()
+    if session_id in _sessions:
+        adk_session_id = _sessions[session_id]
+        # ADK manages multi-turn internally — just send the current message
+        return adk_session_id, message
+
+    session = await session_service.create_session(
+        app_name="context-graph", user_id=session_id
+    )
+    adk_session_id = session.id
+    _sessions[session_id] = adk_session_id
+    if history:
+        history_block = "\n\n".join(
+            f"[{m['role'].upper()}]\n{m['content']}" for m in history
+        )
+        input_text = (
+            f"<conversation_history>\n{history_block}\n</conversation_history>\n\n"
+            f"[USER]\n{message}"
+        )
+    else:
+        input_text = message
+    return adk_session_id, input_text
+
+
+def _event_text(event) -> str:
+    """Concatenate the text parts of an ADK event.
+
+    ``google.adk.events.Event`` has no ``.text`` attribute — model output lives
+    in ``event.content.parts[*].text`` (function calls/responses have no text).
+    """
+    content = getattr(event, "content", None)
+    parts = getattr(content, "parts", None) or []
+    return "".join(getattr(part, "text", None) or "" for part in parts)
+
+
 async def handle_message(message: str, session_id: str | None = None) -> dict:
     """Handle an incoming chat message."""
     session_id = resolve_session_id(session_id)
@@ -141,30 +150,8 @@ async def handle_message(message: str, session_id: str | None = None) -> dict:
     context = await get_context(session_id, query=message)
     history = context.get("messages", [])
 
-    runner, session_service = _get_runner()
-
-    # Reuse ADK session for the same session_id
-    if session_id in _sessions:
-        adk_session_id = _sessions[session_id]
-        # ADK manages multi-turn internally — just send the current message
-        input_text = message
-    else:
-        session = await session_service.create_session(
-            app_name="context-graph", user_id=session_id
-        )
-        adk_session_id = session.id
-        _sessions[session_id] = adk_session_id
-        # New ADK session — inject any persisted history as context
-        if history:
-            history_block = "\n\n".join(
-                f"[{m['role'].upper()}]\n{m['content']}" for m in history
-            )
-            input_text = (
-                f"<conversation_history>\n{history_block}\n</conversation_history>\n\n"
-                f"[USER]\n{message}"
-            )
-        else:
-            input_text = message
+    runner, _ = _get_runner()
+    adk_session_id, input_text = await _prepare_turn(message, session_id, history)
 
     from google.genai import types
     content = types.Content(
@@ -176,14 +163,15 @@ async def handle_message(message: str, session_id: str | None = None) -> dict:
         async for event in runner.run_async(
             user_id=session_id, session_id=adk_session_id, new_message=content
         ):
-            if hasattr(event, "text") and event.text:
-                response_text += event.text
-    except AttributeError:
-        # google-genai SDK may raise AttributeError during async cleanup
-        # when _async_httpx_client was never initialized
-        pass
+            if getattr(event, "partial", False):
+                continue  # only complete events carry final text in non-streaming mode
+            response_text += _event_text(event)
+    except Exception as e:  # noqa: BLE001 — surface model/tool failures instead of hiding them
+        logger.error("Google ADK agent error: %s", e, exc_info=True)
+        if not response_text:
+            response_text = f"An error occurred: {e}"
 
-    response_text = response_text or "No response generated."
+    response_text = response_text.strip() or "I searched the knowledge graph but couldn't find relevant results for your query. Could you try rephrasing your question?"
     assistant_result = await store_message(session_id, "assistant", response_text)
 
     return {
@@ -196,7 +184,13 @@ async def handle_message(message: str, session_id: str | None = None) -> dict:
 
 
 async def handle_message_stream(message: str, session_id: str | None = None) -> None:
-    """Handle a chat message with streaming text deltas via the collector event queue."""
+    """Handle a chat message with streaming text deltas via the collector event queue.
+
+    ``RunConfig(streaming_mode=StreamingMode.SSE)`` makes the runner yield
+    ``partial=True`` chunks followed by one aggregated ``partial=False`` event
+    per model turn; deltas are emitted for the chunks and the aggregate is
+    skipped so text is never duplicated.
+    """
     session_id = resolve_session_id(session_id)
 
     collector = get_collector()
@@ -204,28 +198,8 @@ async def handle_message_stream(message: str, session_id: str | None = None) -> 
     context = await get_context(session_id, query=message)
     history = context.get("messages", [])
 
-    runner, session_service = _get_runner()
-
-    # Reuse ADK session for the same session_id
-    if session_id in _sessions:
-        adk_session_id = _sessions[session_id]
-        input_text = message
-    else:
-        session = await session_service.create_session(
-            app_name="context-graph", user_id=session_id
-        )
-        adk_session_id = session.id
-        _sessions[session_id] = adk_session_id
-        if history:
-            history_block = "\n\n".join(
-                f"[{m['role'].upper()}]\n{m['content']}" for m in history
-            )
-            input_text = (
-                f"<conversation_history>\n{history_block}\n</conversation_history>\n\n"
-                f"[USER]\n{message}"
-            )
-        else:
-            input_text = message
+    runner, _ = _get_runner()
+    adk_session_id, input_text = await _prepare_turn(message, session_id, history)
 
     from google.genai import types
     content = types.Content(
@@ -233,18 +207,35 @@ async def handle_message_stream(message: str, session_id: str | None = None) -> 
     )
 
     response_text = ""
+    saw_partial = False
     try:
         async for event in runner.run_async(
-            user_id=session_id, session_id=adk_session_id, new_message=content
+            user_id=session_id,
+            session_id=adk_session_id,
+            new_message=content,
+            run_config=RunConfig(streaming_mode=StreamingMode.SSE),
         ):
-            if hasattr(event, "text") and event.text:
-                collector.emit_text_delta(event.text)
-                response_text += event.text
-    except AttributeError:
-        # google-genai SDK may raise AttributeError during async cleanup
-        pass
+            text = _event_text(event)
+            if getattr(event, "partial", False):
+                saw_partial = True
+                if text:
+                    collector.emit_text_delta(text)
+                    response_text += text
+                continue
+            if saw_partial:
+                # Aggregate of the chunks already emitted for this turn.
+                saw_partial = False
+                continue
+            if text:
+                # Provider/version that did not stream partial chunks.
+                collector.emit_text_delta(text)
+                response_text += text
+    except Exception as e:  # noqa: BLE001
+        logger.error("Google ADK streaming error: %s", e, exc_info=True)
+        if not response_text:
+            response_text = f"An error occurred: {e}"
 
-    response_text = response_text or "No response generated."
+    response_text = response_text.strip() or "I searched the knowledge graph but couldn't find relevant results for your query. Could you try rephrasing your question?"
     assistant_result = await store_message(session_id, "assistant", response_text)
     if assistant_result:
         collector.emit_entities_extracted(assistant_result.get("entities", []))
