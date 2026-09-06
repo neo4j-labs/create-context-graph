@@ -72,5 +72,5 @@ make mcp-server
 Or use the [MCP Inspector](https://github.com/modelcontextprotocol/inspector) to test tools:
 
 ```bash
-npx @modelcontextprotocol/inspector uv run --directory ./backend python -m neo4j_agent_memory.mcp.server
+npx @modelcontextprotocol/inspector uv run --directory ./backend neo4j-agent-memory mcp serve{% if is_nams %} --backend nams{% endif %}
 ```

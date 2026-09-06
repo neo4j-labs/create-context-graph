@@ -157,8 +157,10 @@ class TestNamsRenderedTemplates:
     def test_pyproject_has_litellm_no_extraction(self, tmp_path):
         out, _ = self._render(tmp_path)
         pkg = (out / "backend" / "pyproject.toml").read_text()
-        assert "neo4j-agent-memory[litellm]" in pkg
-        assert ">=0.4.0" in pkg
+        # [nams] declares httpx for the hosted backend; strands has no native
+        # OpenAI/Anthropic memory adapter dependency so it keeps [litellm].
+        assert "neo4j-agent-memory[nams,litellm]" in pkg
+        assert ">=0.5.0" in pkg
         assert "<0.6.0" in pkg
         # NAMS path should NOT pull in spaCy/GLiNER (extraction happens server-side)
         assert "extraction" not in pkg
@@ -657,7 +659,10 @@ class TestBoltRenderedTemplates:
         pkg = (out / "backend" / "pyproject.toml").read_text()
         assert "extraction" in pkg
         assert "fuzzy" in pkg
-        assert "neo4j-agent-memory[litellm,sentence-transformers,extraction,fuzzy]" in pkg
+        # pydanticai ships anthropic+openai natively, so no [litellm] (whose
+        # openai<3 cap would otherwise force a litellm downgrade).
+        assert "neo4j-agent-memory[sentence-transformers,extraction,fuzzy]" in pkg
+        assert '"litellm>=' not in pkg
 
     def test_makefile_skips_spacy_download_on_nams(self, tmp_path):
         """NAMS scaffolds must not run ``spacy download`` — spacy isn't installed.
@@ -684,8 +689,12 @@ class TestBoltRenderedTemplates:
             "NAMS scaffolds must not include spacy download — spacy isn't installed"
         )
 
-    def test_makefile_guards_spacy_download_on_bolt(self, tmp_path):
-        """Bolt scaffolds may run spacy download, but only when spacy is importable."""
+    def test_makefile_has_no_spacy_download_on_bolt(self, tmp_path):
+        """The spaCy model is a locked URL dependency, not an ad-hoc download.
+
+        ``spacy download`` installed the model outside uv.lock, and the next
+        exact ``uv sync`` removed it again.
+        """
         cfg = ProjectConfig(
             project_name="Bolt Make Test",
             domain="financial-services",
@@ -697,9 +706,9 @@ class TestBoltRenderedTemplates:
         ProjectRenderer(cfg, load_domain(cfg.domain)).render(out)
         makefile = (out / "Makefile").read_text()
         install_block = makefile.split("install-backend:", 1)[1].split("\n\n", 1)[0]
-        assert "spacy download en_core_web_sm" in install_block
-        # Must be guarded by an import check so it doesn't crash when extras are missing
-        assert 'python -c "import spacy"' in install_block
+        assert "spacy download" not in install_block
+        pkg = (out / "backend" / "pyproject.toml").read_text()
+        assert "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/" in pkg
 
     def test_dockerfile_skips_spacy_download_on_nams(self, tmp_path):
         """NAMS Dockerfiles must not include a spacy model download.
@@ -720,8 +729,8 @@ class TestBoltRenderedTemplates:
             "NAMS Dockerfiles must not run spacy download — spacy isn't installed"
         )
 
-    def test_dockerfile_includes_spacy_download_on_bolt(self, tmp_path):
-        """Bolt Dockerfiles still pre-fetch the spacy model for entity extraction."""
+    def test_dockerfile_bolt_is_pinned_and_lock_aware(self, tmp_path):
+        """Bolt Dockerfiles rely on the locked model dependency and pin their toolchain."""
         cfg = ProjectConfig(
             project_name="Bolt Docker Test",
             domain="financial-services",
@@ -732,7 +741,11 @@ class TestBoltRenderedTemplates:
         out.mkdir()
         ProjectRenderer(cfg, load_domain(cfg.domain)).render(out)
         dockerfile = (out / "Dockerfile.backend").read_text()
-        assert "spacy download en_core_web_sm" in dockerfile
+        assert "spacy download" not in dockerfile
+        assert "ghcr.io/astral-sh/uv:latest" not in dockerfile
+        assert "ghcr.io/astral-sh/uv:0." in dockerfile
+        assert "FROM python:3.13-slim" in dockerfile
+        assert "uv sync --locked --no-dev --no-install-project" in dockerfile
 
     def test_env_has_neo4j_lines_on_bolt(self, tmp_path):
         cfg = ProjectConfig(

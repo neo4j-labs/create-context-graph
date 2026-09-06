@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import json
 
+from langchain.agents import create_agent
 from langchain_anthropic import ChatAnthropic
 from langchain_core.tools import tool
-from langgraph.prebuilt import create_react_agent
 
 from app.config import settings
 from app.context_graph_client import execute_cypher, get_schema
@@ -71,11 +71,13 @@ TOOLS = [
 
 {% raw %}
 model = ChatAnthropic(
-    model="claude-sonnet-4-20250514",
+    model=settings.anthropic_model,
     api_key=settings.anthropic_api_key,
 )
 
-graph = create_react_agent(model, TOOLS, prompt=SYSTEM_PROMPT)
+# ``langgraph.prebuilt.create_react_agent`` is deprecated since LangGraph 1.0
+# and removed in 2.0; ``langchain.agents.create_agent`` is its replacement.
+graph = create_agent(model, TOOLS, system_prompt=SYSTEM_PROMPT)
 
 
 # ---------------------------------------------------------------------------
@@ -108,7 +110,11 @@ async def handle_message(message: str, session_id: str | None = None) -> dict:
 
     # Extract the last AI message
     ai_messages = [m for m in result["messages"] if hasattr(m, "content") and m.type == "ai"]
-    response_text = ai_messages[-1].content if ai_messages else ""
+    # ``.text`` (langchain-core >=1.0) flattens block-list content; ``.content``
+    # is a list whenever Anthropic returns thinking/citation/multi-text blocks.
+    response_text = (getattr(ai_messages[-1], "text", None) or "") if ai_messages else ""
+    if not isinstance(response_text, str):
+        response_text = str(ai_messages[-1].content) if ai_messages else ""
     if not response_text.strip():
         response_text = "I searched the knowledge graph but couldn't find relevant results for your query. Could you try rephrasing your question?"
 

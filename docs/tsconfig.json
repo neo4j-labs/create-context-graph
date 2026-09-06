@@ -2,6 +2,8 @@
   // This file is not used in compilation. It is here just for a nice editor experience.
   "extends": "@docusaurus/tsconfig",
   "compilerOptions": {
+    // Required for the @site/* alias: the base config's baseUrl resolves
+    // relative to node_modules/@docusaurus/tsconfig, not this project.
     "baseUrl": "."
   },
   "exclude": [".docusaurus", "build"]

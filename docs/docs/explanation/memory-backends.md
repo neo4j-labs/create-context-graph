@@ -79,7 +79,7 @@ One caveat: the generated `pyproject.toml` includes backend-appropriate extras. 
 
 ```bash
 cd backend
-uv pip install 'neo4j-agent-memory[litellm,sentence-transformers,extraction,fuzzy]>=0.4.0,<0.6.0'
+uv pip install 'neo4j-agent-memory[litellm,sentence-transformers,extraction,fuzzy]>=0.5.0,<0.6.0'
 ```
 
 ## How the frontend handles the difference

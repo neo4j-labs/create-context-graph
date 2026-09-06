@@ -21,7 +21,7 @@ Start with **PydanticAI** -- it offers the best combination of type safety, full
 | **Anthropic Tools** | Anthropic | Full (text + tools) | Native async | No framework dependency. Direct API control over agentic loop. |
 | **Strands** | Anthropic | Full (text + tools) | Thread-bridged | Sync framework in worker thread; text streams via `agent.stream_async()`. |
 | **CrewAI** | Anthropic | Full (text + tools) | Thread-bridged | Higher startup (multi-agent init); text streams via `LLMStreamChunkEvent`. Needs `crewai[anthropic]`. |
-| **Google ADK** | Google Gemini | Full (text + tools) | Native async | Requires `GOOGLE_API_KEY`. Uses `nest_asyncio` for reentrant async. |
+| **Google ADK** | Google Gemini | Full (text + tools) | Native async | Requires `GOOGLE_API_KEY`. Tools are `async def`; ADK awaits them natively. |
 
 ## Choosing a Framework
 
@@ -61,11 +61,11 @@ Most frameworks use native `async/await`. CrewAI and Strands are synchronous and
 
 | Framework | Key Dependencies |
 |---|---|
-| PydanticAI | `pydantic-ai>=0.1` |
-| Claude Agent SDK | `claude-agent-sdk>=0.1`, `anthropic>=0.30` |
-| OpenAI Agents SDK | `openai-agents>=0.1` |
-| LangGraph | `langgraph>=0.1`, `langchain-anthropic>=0.3` |
-| CrewAI | `crewai[anthropic]>=0.1` |
-| Strands | `strands-agents[anthropic]>=0.1` |
-| Google ADK | `google-adk>=0.1`, `nest-asyncio>=1.5` |
-| Anthropic Tools | `anthropic>=0.30` |
+| PydanticAI | `pydantic-ai-slim[anthropic]>=2.30,<3` |
+| Claude Agent SDK | `anthropic>=1.0,<2` (Anthropic Messages API with Claude-Agent-SDK-style dict tools) |
+| OpenAI Agents SDK | `openai-agents>=0.21,<0.23` |
+| LangGraph | `langchain>=1.4,<2`, `langchain-anthropic>=1.7,<2` |
+| CrewAI | `crewai[anthropic]>=1.15,<2` |
+| Strands | `strands-agents[anthropic]>=1.53,<2.0` |
+| Google ADK | `google-adk>=2.2,<3` |
+| Anthropic Tools | `anthropic>=1.0,<2` |

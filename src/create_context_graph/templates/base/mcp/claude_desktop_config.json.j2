@@ -6,13 +6,13 @@
       "args": [
         "run",
         "--directory", "./backend",
-        "python", "-m", "neo4j_agent_memory.mcp.server",
+        "neo4j-agent-memory", "mcp", "serve",
         "--backend", "nams",
         "--profile", "{{ mcp_profile }}"
       ],
       "env": {
         "MEMORY_API_KEY": "${MEMORY_API_KEY}",
-        "MEMORY_NAMS_ENDPOINT": "{{ nams_endpoint }}"
+        "MEMORY_ENDPOINT": "{{ nams_endpoint }}"
       }
     }
   }
@@ -25,9 +25,10 @@
       "args": [
         "run",
         "--directory", "./backend",
-        "python", "-m", "neo4j_agent_memory.mcp.server",
-        "--neo4j-uri", "${NEO4J_URI}",
-        "--neo4j-password", "${NEO4J_PASSWORD}",
+        "neo4j-agent-memory", "mcp", "serve",
+        "--backend", "bolt",
+        "--uri", "${NEO4J_URI}",
+        "--password", "${NEO4J_PASSWORD}",
         "--profile", "{{ mcp_profile }}"
       ]
     }

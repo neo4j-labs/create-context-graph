@@ -136,6 +136,13 @@ class TestGeneratedTestExecution:
             ("claude-agent-sdk", "nams"),
             ("langgraph", "nams"),
             ("anthropic-tools", "nams"),
+            # Strands is the default framework, and google-adk / openai-agents /
+            # crewai were never installed by any test — real installs are the
+            # only signal that catches upstream breaks before users do.
+            ("strands", "nams"),
+            ("google-adk", "nams"),
+            ("openai-agents", "nams"),
+            ("crewai", "nams"),
             # One bolt scaffold so the self-hosted branch of the generated
             # test file (memory_error surfacing in /health) executes for real.
             ("pydanticai", "bolt"),

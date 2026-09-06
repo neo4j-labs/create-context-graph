@@ -1,0 +1,34 @@
+# Dependabot cannot parse the Jinja-templated manifests that hold the versions
+# generated projects install (templates/**/pyproject.toml.j2, package.json.j2,
+# Dockerfile.*.j2, docker-compose*.j2, config.py FRAMEWORK_DEPENDENCIES).
+# Those are checked by scripts/check_template_versions.py instead.
+version: 2
+updates:
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      dev-tooling:
+        patterns: ["pytest*", "ruff"]
+      cli-core:
+        patterns: ["click", "rich", "questionary", "jinja2", "pyyaml", "pydantic"]
+      connectors:
+        patterns: ["PyGithub", "notion-client", "atlassian-python-api", "slack-sdk", "google-*", "simple-salesforce", "markdown-it-py", "mdit-py-plugins", "pdf-oxide", "pypdf", "pdfplumber", "beautifulsoup4", "lxml", "python-docx"]
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: npm
+    directory: /docs
+    schedule:
+      interval: monthly
+    groups:
+      docusaurus:
+        patterns: ["@docusaurus/*"]
+  - package-ecosystem: npm
+    directory: /npm-wrapper
+    schedule:
+      interval: monthly

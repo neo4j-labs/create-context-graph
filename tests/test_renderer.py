@@ -14,6 +14,7 @@
 
 """Unit tests for the renderer module."""
 
+import re
 import json
 
 import pytest
@@ -367,9 +368,11 @@ class TestProjectRenderer:
         renderer.render(tmp_output)
 
         dc = (tmp_output / "docker-compose.yml").read_text()
-        assert "neo4j:5." in dc
-        # Should be pinned to patch version, not just "neo4j:5"
-        assert "neo4j:5\n" not in dc
+        # Exact patch pin on the 5.26 LTS line or an exact YYYY.MM.P calendar tag —
+        # never a floating `neo4j:5`, `neo4j:2026` or `latest` (GDS pairs with
+        # exactly one server minor).
+        assert re.search(r"image: neo4j:(5\.\d+\.\d+|20\d\d\.\d\d\.\d+)\n", dc), dc
+        assert "image: neo4j:latest" not in dc
 
     def test_makefile_has_trap_cleanup(self, financial_config, tmp_output):
         """Verify Makefile uses trap for process cleanup."""
@@ -472,14 +475,14 @@ class TestProjectRenderer:
         assert not (tmp_output / "mcp").exists()
 
     def test_pyproject_bumps_memory_version(self, financial_config, tmp_output):
-        """Verify generated pyproject.toml requires neo4j-agent-memory>=0.4.0,<0.6.0."""
+        """Verify generated pyproject.toml requires neo4j-agent-memory>=0.5.0,<0.6.0."""
         ontology = load_domain(financial_config.domain)
         renderer = ProjectRenderer(financial_config, ontology)
         renderer.render(tmp_output)
 
         pkg = (tmp_output / "backend" / "pyproject.toml").read_text()
         assert "neo4j-agent-memory" in pkg
-        assert ">=0.4.0" in pkg
+        assert ">=0.5.0" in pkg
         assert "<0.6.0" in pkg
         # Self-hosted (financial_config) includes extraction + fuzzy extras
         assert "extraction" in pkg
@@ -500,7 +503,10 @@ class TestProjectRenderer:
 
         makefile = (tmp_output / "Makefile").read_text()
         assert "mcp-server" in makefile
-        assert "neo4j_agent_memory.mcp.server" in makefile
+        # The console script is the only entry point with a NAMS backend flag;
+        # ``python -m neo4j_agent_memory.mcp.server`` is bolt-only.
+        assert "neo4j-agent-memory mcp serve" in makefile
+        assert "neo4j_agent_memory.mcp.server" not in makefile
 
     def test_makefile_no_mcp_target_by_default(self, financial_config, tmp_output):
         """Verify Makefile does NOT include mcp-server when with_mcp=False."""
@@ -620,7 +626,7 @@ class TestAllFrameworksRender:
         "pydanticai": "pydantic_ai",
         "claude-agent-sdk": "anthropic",
         "openai-agents": "agents",
-        "langgraph": "langgraph",
+        "langgraph": "langchain",
         "crewai": "crewai",
         "strands": "strands",
         "google-adk": "google.adk",
@@ -827,7 +833,7 @@ class TestFrameworkAgentNotStubFallback:
         "pydanticai": ["from pydantic_ai import", "@agent.tool"],
         "claude-agent-sdk": ["import anthropic", "client.messages.stream"],
         "openai-agents": ["from agents import", "Runner.run"],
-        "langgraph": ["from langgraph.prebuilt import create_react_agent", "ChatAnthropic"],
+        "langgraph": ["from langchain.agents import create_agent", "ChatAnthropic"],
         "crewai": ["from crewai import", "Crew("],
         "strands": ["from strands import Agent", "stream_async"],
         "google-adk": ["from google.adk", "FunctionTool"],

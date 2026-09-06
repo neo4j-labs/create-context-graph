@@ -200,7 +200,11 @@ class TestGeneratedCodeSecurity:
             scaffolded_project / "backend" / "app" / "context_graph_client.py"
         ).read_text()
         # The driver's session.run should receive parameters as a second arg
-        assert "session.run(query, parameters" in source or "session.run(query, params" in source, (
+        assert (
+            "session.run(Query(query, timeout=timeout), parameters" in source
+            or "session.run(query, parameters" in source
+            or "session.run(query, params" in source
+        ), (
             "execute_cypher must pass parameters to session.run() for safe "
             "parameterized query execution — never use f-strings or .format()."
         )

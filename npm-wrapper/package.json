@@ -24,10 +24,11 @@
   },
   "homepage": "https://github.com/neo4j-labs/create-context-graph",
   "engines": {
-    "node": ">=18"
+    "node": ">=22"
   },
   "files": [
     "bin/create-context-graph",
     "README.md"
-  ]
+  ],
+  "type": "module"
 }

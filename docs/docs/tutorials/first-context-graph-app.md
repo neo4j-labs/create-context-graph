@@ -19,7 +19,7 @@ This tutorial walks you through creating a context graph application from scratc
 Before you begin, make sure you have:
 
 - **Python 3.11+** -- check with `python --version`
-- **Node.js 18+** -- check with `node --version`
+- **Node.js 22+ (24 LTS recommended)** -- check with `node --version`
 - **Docker** (optional) -- one option for running Neo4j locally. Alternatives: [Neo4j Aura](https://console.neo4j.io) (free cloud) or `@johnymontana/neo4j-local` (requires Node.js)
 - **uv** (recommended) -- install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
 

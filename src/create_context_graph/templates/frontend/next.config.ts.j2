@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Dockerfile.frontend copies .next/standalone — requires the standalone output.
+  output: "standalone",
   experimental: {
     optimizePackageImports: ["@chakra-ui/react"],
   },

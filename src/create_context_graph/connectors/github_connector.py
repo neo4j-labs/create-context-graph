@@ -139,14 +139,15 @@ class GitHubConnector(BaseConnector):
 
     def authenticate(self, credentials: dict[str, str]) -> None:
         try:
-            from github import Github
+            from github import Auth, Github
         except ImportError:
             raise ImportError(
                 "PyGithub is required for the GitHub connector. "
                 "Install it with: pip install PyGithub"
             )
 
-        self._client = Github(credentials["token"])
+        # Positional-token construction is deprecated (removed in PyGithub 3).
+        self._client = Github(auth=Auth.Token(credentials["token"]))
         self._repo = self._client.get_repo(credentials["repo"])
         self._token = credentials["token"]
         if "/" in credentials["repo"]:

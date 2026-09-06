@@ -6,7 +6,7 @@ title: "Build a Developer Knowledge Graph from Claude Code Sessions"
 # Build a Developer Knowledge Graph from Claude Code Sessions
 
 :::info Time & difficulty
-**Time:** ~15-20 minutes | **Level:** Intermediate | **Prerequisites:** Python 3.11+, Node.js 18+, Neo4j, Claude Code
+**Time:** ~15-20 minutes | **Level:** Intermediate | **Prerequisites:** Python 3.11+, Node.js 22+ (24 LTS recommended), Neo4j, Claude Code
 :::
 
 This tutorial walks you through importing your Claude Code session history into a Neo4j context graph. Every session you've had with Claude Code -- the files you edited, the decisions you made, the errors you fixed, and the preferences you expressed -- becomes a connected, queryable knowledge graph.
@@ -50,10 +50,10 @@ The CLI reads your local Claude Code session files, extracts entities (files, de
 Before you begin, make sure you have:
 
 - **Python 3.11+** -- check with `python3 --version`
-- **Node.js 18+** -- check with `node --version`
+- **Node.js 22+ (24 LTS recommended)** -- check with `node --version`
 - **Neo4j** -- one of:
   - [Neo4j Aura](https://console.neo4j.io) (free cloud instance)
-  - Docker: `docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:5`
+  - Docker: `docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:5.26.30`
   - neo4j-local: `npx @johnymontana/neo4j-local`
 - **uv** (recommended) -- install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **Claude Code session history** -- at least one session in `~/.claude/projects/`

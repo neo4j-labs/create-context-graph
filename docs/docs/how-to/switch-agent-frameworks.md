@@ -74,10 +74,10 @@ Regardless of which framework you choose, the generated project always includes:
 
 The generated `backend/pyproject.toml` includes only the dependencies needed for the chosen framework. For example:
 
-- `pydanticai` adds `pydantic-ai`
-- `langgraph` adds `langgraph`, `langchain-core`, `langchain-anthropic`
-- `strands` adds `strands-agents`, `strands-agents-builder`, and configures Bedrock
-- `google-adk` adds `google-adk`, `google-generativeai`
+- `pydanticai` adds `pydantic-ai-slim[anthropic]`
+- `langgraph` adds `langchain` (which pins `langgraph` and `langchain-core`) and `langchain-anthropic`
+- `strands` adds `strands-agents[anthropic]` (Anthropic model; no Bedrock/AWS configuration)
+- `google-adk` adds `google-adk` (which pins `google-genai`)
 
 All frameworks share common dependencies: `fastapi`, `uvicorn`, `neo4j`, `pydantic`, and `python-dotenv`.
 

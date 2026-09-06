@@ -30,8 +30,8 @@ NEO4J_DATABASE=
 # Examples (uncomment one):
 # MEMORY_LLM=anthropic/claude-haiku-4-5             # Anthropic native
 # MEMORY_LLM=openai/gpt-4o-mini                     # OpenAI native
-# MEMORY_LLM=bedrock/anthropic.claude-3-haiku-20240307-v1:0  # AWS Bedrock via LiteLLM
-# MEMORY_LLM=vertex_ai/gemini-1.5-flash             # Google Vertex AI via LiteLLM
+# MEMORY_LLM={{ model_defaults.memory_llm_bedrock_example }}  # AWS Bedrock via LiteLLM
+# MEMORY_LLM={{ model_defaults.memory_llm_vertex_example }}             # Google Vertex AI via LiteLLM
 # MEMORY_LLM=ollama/llama3                          # Local Ollama via LiteLLM
 MEMORY_LLM=
 # MEMORY_EMBEDDING=sentence-transformers/all-MiniLM-L6-v2   # Local (default fallback)
@@ -42,7 +42,10 @@ MEMORY_EMBEDDING=
 ANTHROPIC_API_KEY=your-anthropic-key-here
 OPENAI_API_KEY=  # Optional: enables OpenAI embeddings for conversation memory (local sentence-transformers used by default)
 GOOGLE_API_KEY=your-google-api-key-here  # Required for google-adk framework
-# ANTHROPIC_MODEL=claude-sonnet-4-20250514  # Override default model for Claude Agent SDK
+# Agent model overrides — defaults are baked into backend/app/config.py
+# ANTHROPIC_MODEL={{ model_defaults.anthropic }}
+# OPENAI_MODEL={{ model_defaults.openai_agent }}
+# GEMINI_MODEL={{ model_defaults.gemini }}
 
 # Application
 DOMAIN_ID={{ domain.id }}
