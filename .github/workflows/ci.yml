@@ -19,6 +19,10 @@ on:
 # publishing floating major tags at v8, so it is pinned by SHA (v10.0.1).
 # The uv version is pinned to match `[tool.uv] required-version` in pyproject.
 
+# Least-privilege token for every job; nothing in CI writes to the repo.
+permissions:
+  contents: read
+
 env:
   UV_VERSION: "0.12.10"
 

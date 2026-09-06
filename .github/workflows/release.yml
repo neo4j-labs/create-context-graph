@@ -5,6 +5,10 @@ on:
     tags:
       - "v*"
 
+# Least-privilege default; the publish jobs add id-token: write explicitly.
+permissions:
+  contents: read
+
 jobs:
   validate-tag-format:
     name: Validate tag format

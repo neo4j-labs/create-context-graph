@@ -17,6 +17,7 @@
 from __future__ import annotations
 
 from typing import Any
+from urllib.parse import urlparse
 
 from create_context_graph.connectors import (
     BaseConnector,
@@ -25,7 +26,18 @@ from create_context_graph.connectors import (
 )
 
 
+def _is_jira_cloud(url: str) -> bool:
+    """True when ``url``'s host is an Atlassian Cloud site (``*.atlassian.net``).
+
+    Checks the parsed hostname, not a substring, so ``https://evil.example/x.atlassian.net``
+    is not mistaken for Cloud.
+    """
+    host = (urlparse(url).hostname or "").lower()
+    return host == "atlassian.net" or host.endswith(".atlassian.net")
+
+
 @register_connector("jira")
+
 class JiraConnector(BaseConnector):
     """Import data from Jira projects."""
 
@@ -81,7 +93,7 @@ class JiraConnector(BaseConnector):
             url=credentials["url"],
             username=credentials["email"],
             password=credentials["token"],
-            cloud=".atlassian.net" in credentials["url"].lower(),
+            cloud=_is_jira_cloud(credentials["url"]),
         )
         self._project_key = credentials["project"]
 
