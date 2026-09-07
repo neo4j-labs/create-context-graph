@@ -7,12 +7,18 @@ export
 .PHONY: start dev dev-backend dev-frontend install schema seed reset test-connection clean test test-e2e lint docker-build docker-prod-up docker-prod-down
 
 # Start both backend and frontend
+# Recipe lines referencing $(MAKE) run even under `make -n`, so skip the real
+# body under a dry run instead of just narrowing what the EXIT trap kills.
 start:
+ifeq (,$(findstring n,$(firstword -$(MAKEFLAGS))))
 	@echo "Starting {{ domain.name }} Context Graph..."
 	@trap 'kill 0' EXIT; \
 		$(MAKE) dev-backend & \
 		$(MAKE) dev-frontend & \
 		wait
+else
+	@echo "Starting {{ domain.name }} Context Graph... (dry run)"
+endif
 
 dev: start
 
