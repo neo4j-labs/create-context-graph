@@ -19,6 +19,7 @@ import json
 import pytest
 
 from create_context_graph.config import ProjectConfig
+from create_context_graph.discovery import build_ontology_from_discovery
 from create_context_graph.ontology import load_domain
 from create_context_graph.renderer import (
     ProjectRenderer,
@@ -27,6 +28,71 @@ from create_context_graph.renderer import (
     _to_pascal_case,
     _to_snake_case,
 )
+
+
+def _sample_discovery() -> dict:
+    return {
+        "labels": ["Match", "Player", "Team", "Venue"],
+        "relationship_types": ["PLAYED_AT", "PLAYS_FOR"],
+        "properties": {
+            "Match": [
+                {"name": "match_id", "types": ["String"], "mandatory": True},
+                {"name": "match_date", "types": ["Date"], "mandatory": False},
+            ],
+            "Player": [
+                {"name": "player_id", "types": ["String"], "mandatory": True},
+                {"name": "name", "types": ["String"], "mandatory": True},
+            ],
+            "Team": [
+                {"name": "team_id", "types": ["String"], "mandatory": True},
+                {"name": "name", "types": ["String"], "mandatory": True},
+            ],
+            "Venue": [
+                {"name": "venue_id", "types": ["String"], "mandatory": True},
+                {"name": "name", "types": ["String"], "mandatory": True},
+            ],
+        },
+        "rel_properties": {},
+        "constraints": [],
+        "indexes": [],
+        "schema_graph": [
+            {
+                "start_label": "Player",
+                "rel_type": "PLAYS_FOR",
+                "end_label": "Team",
+            },
+            {
+                "start_label": "Match",
+                "rel_type": "PLAYED_AT",
+                "end_label": "Venue",
+            },
+        ],
+        "sample_counts": {
+            "Match": 12,
+            "Player": 48,
+            "Team": 8,
+            "Venue": 4,
+        },
+    }
+
+
+def _from_database_config() -> ProjectConfig:
+    return ProjectConfig(
+        project_name="Discovered Graph",
+        domain="discovered-graph",
+        framework="pydanticai",
+        data_source="none",
+        neo4j_type="existing",
+        from_database=True,
+    )
+
+
+def _from_database_ontology():
+    return build_ontology_from_discovery(
+        _sample_discovery(),
+        domain_id="discovered-graph",
+        domain_name="Discovered Graph",
+    )
 
 
 class TestFilters:
@@ -611,6 +677,59 @@ class TestProjectRenderer:
         assert len(ctx["demo_scenarios"]) > 0
         scenario_names = [s["name"] for s in ctx["demo_scenarios"]]
         assert "Session Intelligence" not in scenario_names
+
+
+class TestFromDatabaseRendering:
+    def test_from_database_no_schema_cypher(self, tmp_output):
+        config = _from_database_config()
+        ontology = _from_database_ontology()
+        renderer = ProjectRenderer(config, ontology)
+        renderer.render(tmp_output)
+
+        assert not (tmp_output / "cypher" / "schema.cypher").exists()
+        assert (tmp_output / "cypher" / "gds_projections.cypher").exists()
+
+    def test_from_database_has_cypher_guard(self, healthcare_config, tmp_output):
+        ontology = load_domain(healthcare_config.domain)
+        renderer = ProjectRenderer(healthcare_config, ontology)
+        renderer.render(tmp_output)
+
+        assert (tmp_output / "backend" / "app" / "cypher_guard.py").exists()
+
+    def test_from_database_has_chart_builder(self, healthcare_config, tmp_output):
+        ontology = load_domain(healthcare_config.domain)
+        renderer = ProjectRenderer(healthcare_config, ontology)
+        renderer.render(tmp_output)
+
+        assert (tmp_output / "backend" / "app" / "chart_builder.py").exists()
+
+    def test_chart_panel_component_rendered(self, healthcare_config, tmp_output):
+        ontology = load_domain(healthcare_config.domain)
+        renderer = ProjectRenderer(healthcare_config, ontology)
+        renderer.render(tmp_output)
+
+        assert (tmp_output / "frontend" / "components" / "ChartPanel.tsx").exists()
+
+    def test_from_database_generate_data_skips_schema(self, tmp_output):
+        config = _from_database_config()
+        ontology = _from_database_ontology()
+        renderer = ProjectRenderer(config, ontology)
+        renderer.render(tmp_output)
+
+        generate_data = (
+            tmp_output / "backend" / "scripts" / "generate_data.py"
+        ).read_text()
+        assert "already in database" in generate_data
+        assert "await apply_schema()" not in generate_data
+
+    def test_from_database_context_empty_cypher(self):
+        config = _from_database_config()
+        ontology = _from_database_ontology()
+        renderer = ProjectRenderer(config, ontology)
+        ctx = renderer._context()
+
+        assert ctx["cypher_schema"] == ""
+        assert ctx["from_database"] is True
 
 
 class TestAllFrameworksRender:

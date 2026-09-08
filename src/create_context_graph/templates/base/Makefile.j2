@@ -4,7 +4,7 @@
 -include .env
 export
 
-.PHONY: start dev dev-backend dev-frontend install schema seed reset test-connection clean test test-e2e lint docker-build docker-prod-up docker-prod-down
+.PHONY: start dev dev-backend dev-frontend install{% if not from_database %} schema{% endif %} seed reset test-connection clean test test-e2e lint docker-build docker-prod-up docker-prod-down
 
 # Start both backend and frontend
 start:
@@ -42,10 +42,12 @@ install-frontend:
 # Install everything
 install: install-backend install-frontend
 
+{% if not from_database %}
 # Apply Neo4j schema constraints and indexes only (no data)
 schema:
 	cd backend && uv run python -c "import asyncio; from scripts.generate_data import apply_schema; asyncio.run(apply_schema())"
 
+{% endif %}
 # Apply schema and ingest fixtures.json into Neo4j (real data if present, otherwise dummy data)
 seed:
 	cd backend && uv run python scripts/generate_data.py

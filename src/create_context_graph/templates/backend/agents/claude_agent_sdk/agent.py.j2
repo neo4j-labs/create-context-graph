@@ -8,8 +8,17 @@ import os
 import anthropic
 
 from app.config import settings
-from app.context_graph_client import execute_cypher, get_schema
+from app.chart_builder import ChartBuildError, build_plotly_spec
+from app.context_graph_client import execute_cypher, get_collector, get_schema as fetch_schema
+from app.cypher_guard import CypherGuardError, enforce_row_limit, validate_read_only
 from app.memory import store_message, get_context, resolve_session_id
+
+{% if from_database %}
+try:
+    from app.constants import ENTITY_LABELS
+except ImportError:
+    ENTITY_LABELS = [{% for et in entity_types %}"{{ et.label }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+{% endif %}
 
 
 SYSTEM_PROMPT = """{{ system_prompt }}
@@ -45,7 +54,7 @@ TOOLS = [
 {% endfor %}
 {% raw %}
     {
-        "name": "execute_cypher",
+        "name": "run_cypher",
         "description": "Execute a read-only Cypher query against the knowledge graph",
         "input_schema": {
             "type": "object",
@@ -57,7 +66,36 @@ TOOLS = [
         },
     },
     {
-        "name": "get_schema",
+        "name": "create_chart",
+        "description": "Create a Plotly chart from query result data",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "chart_type": {
+                    "type": "string",
+                    "description": "Chart type: bar, line, scatter, pie, hbar, or table",
+                },
+                "title": {"type": "string", "description": "Chart title"},
+                "data": {
+                    "type": "string",
+                    "description": "JSON array of records to visualize",
+                },
+                "x_field": {"type": "string", "description": "Field for x-axis values"},
+                "y_field": {"type": "string", "description": "Field for y-axis values"},
+                "labels_field": {
+                    "type": "string",
+                    "description": "Field for pie chart labels",
+                },
+                "values_field": {
+                    "type": "string",
+                    "description": "Field for pie chart values",
+                },
+            },
+            "required": ["chart_type", "title", "data"],
+        },
+    },
+    {
+        "name": "get_graph_schema",
         "description": "Get the knowledge graph schema (node labels and relationship types)",
         "input_schema": {
             "type": "object",
@@ -66,6 +104,35 @@ TOOLS = [
     },
 ]
 {% endraw %}
+{% if from_database %}
+{% raw %}
+TOOLS.extend([
+    {
+        "name": "get_schema",
+        "description": "Get the database schema with discovered node property information",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "sample_data",
+        "description": "Return a small sample of nodes for a discovered label",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "label": {"type": "string", "description": "Node label to sample"},
+                "limit": {
+                    "type": "integer",
+                    "description": "Maximum number of nodes to return, capped at 10",
+                },
+            },
+            "required": ["label"],
+        },
+    },
+])
+{% endraw %}
+{% endif %}
 
 # ---------------------------------------------------------------------------
 # Tool execution
@@ -78,26 +145,127 @@ TOOL_CYPHER = {
 }
 
 {% raw %}
+async def run_cypher(tool_input: dict) -> str:
+    """Execute a read-only Cypher query against the knowledge graph."""
+    query = tool_input["query"]
+    try:
+        validate_read_only(query)
+        query = enforce_row_limit(query)
+    except CypherGuardError as e:
+        return json.dumps({"error": str(e)})
+
+    params = dict(tool_input.get("parameters", {}))
+    if not settings.from_database:
+        params.setdefault("domain", settings.domain_id)
+    try:
+        result = await execute_cypher(query, params, tool_name="run_cypher")
+        payload = {"results": result}
+        if len(result) >= 100:
+            payload["note"] = "Results were limited. Add a smaller LIMIT for a more focused response."
+        return json.dumps(payload, default=str)
+    except Exception as e:
+        return json.dumps({"error": f"Cypher query failed: {e}"})
+
+
+async def create_chart(tool_input: dict) -> str:
+    """Create a Plotly chart from query result data."""
+    try:
+        rows = json.loads(tool_input["data"])
+    except json.JSONDecodeError as e:
+        return json.dumps({"error": f"Invalid JSON chart data: {e}"})
+
+    try:
+        spec = build_plotly_spec(
+            tool_input["chart_type"],
+            tool_input["title"],
+            rows,
+            x_field=tool_input.get("x_field", ""),
+            y_field=tool_input.get("y_field", ""),
+            labels_field=tool_input.get("labels_field", ""),
+            values_field=tool_input.get("values_field", ""),
+        )
+    except ChartBuildError as e:
+        return json.dumps({"error": str(e)})
+
+    collector = get_collector()
+    collector.emit_chart_data(spec)
+    return json.dumps({"status": "success", "chart": spec}, default=str)
+
+
+async def get_graph_schema(tool_input: dict) -> str:
+    """Get the knowledge graph schema (node labels and relationship types)."""
+    result = await fetch_schema()
+    return json.dumps(result, default=str)
+
+{% endraw %}
+{% if from_database %}
+{% raw %}
+async def get_schema(tool_input: dict) -> str:
+    """Get the database schema with discovered node property information."""
+    schema = await fetch_schema()
+    try:
+        properties = await execute_cypher(
+            """
+            CALL db.schema.nodeTypeProperties()
+            YIELD nodeLabels, propertyName, propertyTypes, mandatory
+            RETURN nodeLabels, propertyName, propertyTypes, mandatory
+            ORDER BY nodeLabels, propertyName
+            """,
+            collect=False,
+        )
+        schema["properties"] = properties
+    except Exception as e:
+        schema["properties_error"] = str(e)
+    return json.dumps(schema, default=str)
+
+
+async def sample_data(tool_input: dict) -> str:
+    """Return a small sample of nodes for a discovered label."""
+    label = tool_input["label"]
+    if label not in ENTITY_LABELS:
+        return json.dumps({"error": f"Unknown label: {label}"})
+
+    bounded_limit = max(1, min(int(tool_input.get("limit", 5)), 10))
+    safe_label = label.replace("`", "``")
+    query = f"MATCH (n:`{safe_label}`) RETURN n LIMIT $limit"
+    try:
+        result = await execute_cypher(
+            query,
+            {"limit": bounded_limit},
+            tool_name="sample_data",
+        )
+        return json.dumps({"results": result}, default=str)
+    except Exception as e:
+        return json.dumps({"error": f"Sample query failed: {e}"})
+
+{% endraw %}
+{% endif %}
+{% raw %}
+TOOL_FUNCTIONS = {
+    "run_cypher": run_cypher,
+    "create_chart": create_chart,
+    "get_graph_schema": get_graph_schema,
+{% endraw %}
+{% if from_database %}
+{% raw %}
+    "get_schema": get_schema,
+    "sample_data": sample_data,
+{% endraw %}
+{% endif %}
+{% raw %}
+}
+
+
 async def execute_tool(tool_name: str, tool_input: dict) -> str:
     """Execute a tool and return the result as a string."""
     try:
-        if tool_name == "execute_cypher":
-            params = dict(tool_input.get("parameters", {}))
-            params.setdefault("domain", settings.domain_id)
-            result = await execute_cypher(
-                tool_input["query"],
-                params,
-                tool_name="execute_cypher",
-            )
-            return json.dumps(result, default=str)
-
-        if tool_name == "get_schema":
-            result = await get_schema()
-            return json.dumps(result, default=str)
+        if tool_name in TOOL_FUNCTIONS:
+            return await TOOL_FUNCTIONS[tool_name](tool_input)
 
         if tool_name in TOOL_CYPHER:
             tool_params = dict(tool_input)
-            tool_params.setdefault("domain", settings.domain_id)
+            if not settings.from_database:
+                tool_params.setdefault("domain", settings.domain_id)
             result = await execute_cypher(
                 TOOL_CYPHER[tool_name], tool_params, tool_name=tool_name
             )

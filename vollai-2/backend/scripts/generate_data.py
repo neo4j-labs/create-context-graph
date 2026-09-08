@@ -1,0 +1,225 @@
+"""Generate sample data for Discovered Database context graph."""
+
+from __future__ import annotations
+
+import asyncio
+import json
+from pathlib import Path
+
+from app.config import settings
+from app.context_graph_client import connect_neo4j, close_neo4j, execute_cypher
+
+
+DATA_DIR = Path(__file__).parent.parent.parent / "data"
+
+
+async def apply_schema():
+    """Apply the Cypher schema constraints and indexes."""
+    schema_path = Path(__file__).parent.parent.parent / "cypher" / "schema.cypher"
+    if schema_path.exists():
+        schema = schema_path.read_text()
+        for statement in schema.split(";"):
+            stmt = statement.strip()
+            if stmt and not stmt.startswith("//"):
+                try:
+                    await execute_cypher(stmt)
+                    print(f"  Applied: {stmt[:60]}...")
+                except Exception as e:
+                    print(f"  Warning: {e}")
+
+
+def _batch(items: list, size: int = 500) -> list[list]:
+    """Split a list into batches."""
+    return [items[i:i + size] for i in range(0, len(items), size)]
+
+
+def _safe_props(item: dict) -> dict:
+    """Coerce property values to Neo4j-safe types."""
+    safe = {}
+    for k, v in item.items():
+        if isinstance(v, bool):
+            safe[k] = v
+        elif isinstance(v, (int, float, str)):
+            safe[k] = v
+        elif v is None:
+            safe[k] = ""
+        else:
+            safe[k] = str(v)
+    return safe
+
+
+async def load_fixture_data(data: dict):
+    """Load entities and relationships from fixture data."""
+    entities = data.get("entities", {})
+    for label, items in entities.items():
+        if not items:
+            continue
+        enriched = [{**_safe_props(item), "domain": settings.domain_id} for item in items]
+        all_keys = set()
+        for item in enriched:
+            all_keys.update(item.keys())
+        set_clause = ", ".join(f"n.{k} = item.{k}" for k in all_keys)
+        cypher = f"UNWIND $batch AS item MERGE (n:{label} {{name: item.name, domain: item.domain}}) ON CREATE SET {set_clause} ON MATCH SET {set_clause}"
+        for batch in _batch(enriched):
+            try:
+                await execute_cypher(cypher, {"batch": batch})
+            except Exception as e:
+                print(f"  Warning creating {label}: {e}")
+        print(f"  Created {len(items)} {label} nodes")
+
+    # Create relationships in batches grouped by type+labels
+    relationships = data.get("relationships", [])
+    rel_groups: dict[tuple, list] = {}
+    for rel in relationships:
+        key = (rel["type"], rel["source_label"], rel["target_label"])
+        rel_groups.setdefault(key, []).append(rel)
+
+    for (rel_type, src_label, tgt_label), rels in rel_groups.items():
+        cypher = f"""
+        UNWIND $batch AS rel
+        MATCH (a:{src_label} {{name: rel.source_name}})
+        MATCH (b:{tgt_label} {{name: rel.target_name}})
+        MERGE (a)-[r:{rel_type}]->(b)
+        """
+        batch_data = [{"source_name": r["source_name"], "target_name": r["target_name"]} for r in rels]
+        for batch in _batch(batch_data):
+            try:
+                await execute_cypher(cypher, {"batch": batch})
+            except Exception as e:
+                print(f"  Warning creating {rel_type} relationships: {e}")
+    print(f"  Created {len(relationships)} relationships")
+
+
+async def load_documents(data: dict):
+    """Load documents and link them to mentioned entities."""
+    documents = data.get("documents", [])
+    if not documents:
+        print("  No documents to load")
+        return
+
+    doc_batch = [
+        {
+            "title": doc.get("title", ""),
+            "content": doc.get("content", ""),
+            "template_id": doc.get("template_id", ""),
+            "template_name": doc.get("template_name", ""),
+            "domain": settings.domain_id,
+        }
+        for doc in documents
+    ]
+    cypher = """
+    UNWIND $batch AS doc
+    MERGE (d:Document {title: doc.title})
+    SET d.content = doc.content,
+        d.template_id = doc.template_id,
+        d.template_name = doc.template_name,
+        d.domain = doc.domain
+    """
+    for batch in _batch(doc_batch, 100):
+        try:
+            await execute_cypher(cypher, {"batch": batch})
+        except Exception as e:
+            print(f"  Warning creating documents: {e}")
+
+    print(f"  Created {len(documents)} Document nodes")
+
+    # Link documents to mentioned entities
+    try:
+        link_cypher = """
+        MATCH (d:Document) WHERE d.domain = $domain
+        MATCH (e) WHERE e.name IS NOT NULL
+          AND NOT 'Document' IN labels(e)
+          AND NOT 'DecisionTrace' IN labels(e)
+          AND NOT 'TraceStep' IN labels(e)
+          AND (e.domain IS NULL OR e.domain = $domain)
+          AND d.content CONTAINS e.name
+        MERGE (d)-[:MENTIONS]->(e)
+        RETURN count(*) AS links_created
+        """
+        result = await execute_cypher(link_cypher, {"domain": settings.domain_id})
+        link_count = result[0]["links_created"] if result else 0
+        print(f"  Created {link_count} MENTIONS relationships")
+    except Exception as e:
+        print(f"  Warning linking documents: {e}")
+
+
+async def load_decision_traces(data: dict):
+    """Load decision traces with their reasoning steps."""
+    traces = data.get("traces", [])
+    if not traces:
+        print("  No decision traces to load")
+        return
+
+    for trace in traces:
+        # Create trace node
+        try:
+            await execute_cypher(
+                "MERGE (t:DecisionTrace {id: $id}) SET t.task = $task, t.outcome = $outcome, t.domain = $domain",
+                {
+                    "id": trace.get("id", ""),
+                    "task": trace.get("task", ""),
+                    "outcome": trace.get("outcome", ""),
+                    "domain": settings.domain_id,
+                },
+            )
+        except Exception as e:
+            print(f"  Warning creating trace: {e}")
+            continue
+
+        # Create steps and link to trace
+        for i, step in enumerate(trace.get("steps", [])):
+            try:
+                await execute_cypher(
+                    """
+                    MATCH (t:DecisionTrace {id: $trace_id})
+                    MERGE (s:TraceStep {trace_id: $trace_id, step_number: $step_number})
+                    SET s.thought = $thought, s.action = $action, s.observation = $observation
+                    MERGE (t)-[:HAS_STEP]->(s)
+                    """,
+                    {
+                        "trace_id": trace.get("id", ""),
+                        "step_number": i + 1,
+                        "thought": step.get("thought", ""),
+                        "action": step.get("action", ""),
+                        "observation": step.get("observation", ""),
+                    },
+                )
+            except Exception as e:
+                print(f"  Warning creating trace step: {e}")
+
+    print(f"  Created {len(traces)} DecisionTrace nodes with steps")
+
+async def main():
+    print("Seeding Discovered Database context graph...")
+    await connect_neo4j()
+
+
+    # Load fixture data
+    fixture_path = DATA_DIR / "fixtures.json"
+    if not fixture_path.exists():
+        print("No fixture data found. Create data/fixtures.json to seed data.")
+        await close_neo4j()
+        return
+
+    data = json.loads(fixture_path.read_text())
+
+    print("\n[1/4] Schema is already in database (--from-database mode); skipping schema application.")
+
+    print("\n[2/4] Loading entities and relationships...")
+
+    await load_fixture_data(data)
+
+    print("\n[3/4] Loading documents...")
+
+    await load_documents(data)
+
+    print("\n[4/4] Loading decision traces...")
+
+    await load_decision_traces(data)
+
+    await close_neo4j()
+    print("\nDone! Your Discovered Database context graph is ready.")
+
+
+if __name__ == "__main__":
+    asyncio.run(main())

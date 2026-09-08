@@ -1,0 +1,82 @@
+# Base POLE+O ontology - shared foundation for all domains
+# Person, Object, Location, Event + Organization
+version: "1.0"
+
+base_entity_types:
+  Person:
+    pole_type: PERSON
+    color: "#22c55e"
+    icon: user
+    base_properties:
+      - name: name
+        type: string
+        required: true
+      - name: email
+        type: string
+      - name: role
+        type: string
+      - name: description
+        type: string
+
+  Organization:
+    pole_type: ORGANIZATION
+    color: "#3b82f6"
+    icon: building
+    base_properties:
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+      - name: industry
+        type: string
+
+  Location:
+    pole_type: LOCATION
+    color: "#a855f7"
+    icon: map-pin
+    base_properties:
+      - name: name
+        type: string
+        required: true
+      - name: address
+        type: string
+      - name: latitude
+        type: float
+      - name: longitude
+        type: float
+
+  Event:
+    pole_type: EVENT
+    color: "#f97316"
+    icon: calendar
+    base_properties:
+      - name: name
+        type: string
+        required: true
+      - name: date
+        type: datetime
+      - name: description
+        type: string
+
+  Object:
+    pole_type: OBJECT
+    color: "#eab308"
+    icon: box
+    base_properties:
+      - name: name
+        type: string
+        required: true
+      - name: description
+        type: string
+
+base_relationships:
+  WORKS_FOR:
+    source: Person
+    target: Organization
+  LOCATED_AT:
+    source: Organization
+    target: Location
+  PARTICIPATED_IN:
+    source: Person
+    target: Event

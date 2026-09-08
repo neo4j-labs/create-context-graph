@@ -1,6 +1,11 @@
 """Constants for {{ domain.name }} Context Graph."""
 
 # ---------------------------------------------------------------------------
+# Entity labels
+# ---------------------------------------------------------------------------
+ENTITY_LABELS = [{% for et in entity_types %}"{{ et.label }}"{% if not loop.last %}, {% endif %}{% endfor %}]
+
+# ---------------------------------------------------------------------------
 # Vector index configuration
 # ---------------------------------------------------------------------------
 DEFAULT_VECTOR_INDEX = "entity_embeddings"

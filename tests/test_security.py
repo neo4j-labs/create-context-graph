@@ -92,6 +92,17 @@ def _scaffold_framework(tmp_path, framework: str):
     return out
 
 
+def _extract_run_cypher_body(source: str) -> str:
+    """Extract the generated run_cypher function body from agent.py."""
+    match = re.search(
+        r"(?:async\s+)?def\s+run_cypher\(.*?\n(?=\n(?:@|async def |def |class |\Z))",
+        source,
+        re.DOTALL,
+    )
+    assert match, "run_cypher function not found in generated agent.py"
+    return match.group()
+
+
 # ===========================================================================
 # 1. Agent Tool Cypher Parameterization (all 23 domains)
 # ===========================================================================
@@ -275,6 +286,45 @@ class TestGeneratedCodeSecurity:
 
 class TestRunCypherToolSecurity:
     """Verify the run_cypher tool safely parses parameters and injects domain."""
+
+    @pytest.mark.parametrize("framework", RUN_CYPHER_FRAMEWORKS)
+    def test_run_cypher_imports_cypher_guard(self, tmp_path, framework):
+        """agent.py must import cypher_guard helpers for run_cypher."""
+        out = _scaffold_framework(tmp_path, framework)
+        source = (out / "backend" / "app" / "agent.py").read_text()
+        assert re.search(
+            r"from app\.cypher_guard import .*validate_read_only",
+            source,
+        ), (
+            f"Framework '{framework}': agent.py must import "
+            "validate_read_only from app.cypher_guard."
+        )
+        assert re.search(
+            r"from app\.cypher_guard import .*enforce_row_limit",
+            source,
+        ), (
+            f"Framework '{framework}': agent.py must import "
+            "enforce_row_limit from app.cypher_guard."
+        )
+
+    @pytest.mark.parametrize("framework", RUN_CYPHER_FRAMEWORKS)
+    def test_run_cypher_calls_validate_before_execute(self, tmp_path, framework):
+        """run_cypher must validate read-only Cypher before execution."""
+        out = _scaffold_framework(tmp_path, framework)
+        source = (out / "backend" / "app" / "agent.py").read_text()
+        body = _extract_run_cypher_body(source)
+        validate_index = body.find("validate_read_only(")
+        execute_index = body.find("execute_cypher(")
+        assert validate_index != -1, (
+            f"Framework '{framework}': run_cypher must call validate_read_only."
+        )
+        assert execute_index != -1, (
+            f"Framework '{framework}': run_cypher must call execute_cypher."
+        )
+        assert validate_index < execute_index, (
+            f"Framework '{framework}': run_cypher must call validate_read_only "
+            "before execute_cypher."
+        )
 
     @pytest.mark.parametrize("framework", RUN_CYPHER_FRAMEWORKS)
     def test_run_cypher_parses_json_parameters(self, tmp_path, framework):
