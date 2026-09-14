@@ -622,7 +622,12 @@ def main(
     if config.saas_connectors:
         import json
 
-        from create_context_graph.connectors import get_connector, merge_connector_results, NormalizedData
+        from create_context_graph.connectors import (
+            get_connector,
+            merge_connector_results,
+            merge_into_fixture_payload,
+            NormalizedData,
+        )
 
         console.print("\n[bold]Importing data from connected services...[/bold]")
         results: list[NormalizedData] = []
@@ -642,8 +647,23 @@ def main(
 
         if results:
             merged = merge_connector_results(results)
+            payload = merged.model_dump()
+            # Merge into whatever is already there (demo fixtures from
+            # --demo-data, or an earlier connector run) rather than replacing
+            # it; a connector that fetched nothing used to wipe the file (#27).
+            if fixture_path.exists():
+                try:
+                    existing = json.loads(fixture_path.read_text())
+                except (OSError, json.JSONDecodeError) as e:
+                    console.print(
+                        f"  [yellow]⚠[/yellow] could not read {fixture_path} "
+                        f"({e}); writing connector data only"
+                    )
+                else:
+                    if isinstance(existing, dict):
+                        payload = merge_into_fixture_payload(existing, merged)
             fixture_path.parent.mkdir(parents=True, exist_ok=True)
-            fixture_path.write_text(json.dumps(merged.model_dump(), indent=2, default=str))
+            fixture_path.write_text(json.dumps(payload, indent=2, default=str))
             console.print(f"\n[green]Imported data written to {fixture_path}[/green]")
 
     # Reset Neo4j database if requested

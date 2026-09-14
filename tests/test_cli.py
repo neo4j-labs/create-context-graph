@@ -15,6 +15,7 @@
 """Integration tests for the CLI module."""
 
 import json
+from unittest.mock import patch
 
 import pytest
 
@@ -1246,3 +1247,86 @@ class TestOntologyFileFlag:
 
         assert (out / "data" / "ontology.yaml").read_text() == ontology_file.read_text()
         assert "DOMAIN_ID=test-domain" in (out / ".env").read_text()
+
+
+class TestDemoDataWithConnector:
+    """--demo-data combined with a connector must not lose the demo fixtures.
+
+    Regression tests for #27: the connector phase wrote ``fixtures.json``
+    unconditionally, so a connector that returned nothing replaced the
+    freshly generated demo data with empty collections.
+    """
+
+    def test_empty_connector_result_preserves_demo_data(self, runner, tmp_path):
+        """A connector that finds nothing must leave the demo fixtures intact."""
+        from create_context_graph.connectors import NormalizedData
+        from create_context_graph.connectors.claude_code_connector import ClaudeCodeConnector
+
+        out = tmp_path / "demo-plus-empty"
+        with patch.object(ClaudeCodeConnector, "fetch", return_value=NormalizedData()):
+            result = runner.invoke(main, [
+                "demo-plus-empty",
+                "--domain", "software-engineering",
+                "--framework", "pydanticai",
+                "--demo-data",
+                "--connector", "claude-code",
+                "--output-dir", str(out),
+            ])
+        assert result.exit_code == 0, result.output
+
+        data = json.loads((out / "data" / "fixtures.json").read_text())
+        assert len(data["entities"]) > 0, "connector phase wiped the demo entities"
+        assert len(data["documents"]) > 0, "connector phase wiped the demo documents"
+
+    def test_connector_result_merges_into_demo_data(self, runner, tmp_path):
+        """Connector data must be added to the demo fixtures, not replace them."""
+        from create_context_graph.connectors import NormalizedData
+        from create_context_graph.connectors.claude_code_connector import ClaudeCodeConnector
+
+        fetched = NormalizedData(
+            entities={"Session": [{"name": "imported-session"}]},
+            documents=[{"title": "imported-doc", "content": "hello"}],
+        )
+
+        out = tmp_path / "demo-plus-data"
+        with patch.object(ClaudeCodeConnector, "fetch", return_value=fetched):
+            result = runner.invoke(main, [
+                "demo-plus-data",
+                "--domain", "software-engineering",
+                "--framework", "pydanticai",
+                "--demo-data",
+                "--connector", "claude-code",
+                "--output-dir", str(out),
+            ])
+        assert result.exit_code == 0, result.output
+
+        data = json.loads((out / "data" / "fixtures.json").read_text())
+        # The imported entity label is present ...
+        assert "Session" in data["entities"]
+        assert any(e["name"] == "imported-session" for e in data["entities"]["Session"])
+        # ... alongside the demo labels, which must survive.
+        assert [label for label in data["entities"] if label != "Session"], (
+            "demo entity labels were replaced by the connector result"
+        )
+        assert any(d.get("title") == "imported-doc" for d in data["documents"])
+
+    def test_connector_without_demo_data_still_writes(self, runner, tmp_path):
+        """Without --demo-data the connector result is still written as-is."""
+        from create_context_graph.connectors import NormalizedData
+        from create_context_graph.connectors.claude_code_connector import ClaudeCodeConnector
+
+        fetched = NormalizedData(entities={"Session": [{"name": "only-imported"}]})
+
+        out = tmp_path / "connector-only"
+        with patch.object(ClaudeCodeConnector, "fetch", return_value=fetched):
+            result = runner.invoke(main, [
+                "connector-only",
+                "--domain", "software-engineering",
+                "--framework", "pydanticai",
+                "--connector", "claude-code",
+                "--output-dir", str(out),
+            ])
+        assert result.exit_code == 0, result.output
+
+        data = json.loads((out / "data" / "fixtures.json").read_text())
+        assert data["entities"] == {"Session": [{"name": "only-imported"}]}

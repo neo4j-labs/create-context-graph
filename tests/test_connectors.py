@@ -25,6 +25,7 @@ from create_context_graph.connectors import (
     get_connector,
     list_connectors,
     merge_connector_results,
+    merge_into_fixture_payload,
 )
 
 
@@ -123,6 +124,57 @@ class TestMergeResults:
         merged = merge_connector_results([r1, r2, r3])
         assert len(merged.entities["A"]) == 2
         assert len(merged.entities["B"]) == 1
+
+
+class TestMergeIntoFixturePayload:
+    """Merging connector data into an existing fixtures.json payload (#27)."""
+
+    def _existing(self):
+        return {
+            "domain": "healthcare",
+            "entities": {"Person": [{"name": "demo"}]},
+            "relationships": [{"type": "TREATS"}],
+            "documents": [{"title": "demo-doc"}],
+            "traces": [{"id": "demo-trace"}],
+        }
+
+    def test_preserves_unmodelled_keys(self):
+        """``domain`` is not part of NormalizedData and must survive the merge."""
+        payload = merge_into_fixture_payload(self._existing(), NormalizedData())
+        assert payload["domain"] == "healthcare"
+
+    def test_empty_data_keeps_existing_collections(self):
+        payload = merge_into_fixture_payload(self._existing(), NormalizedData())
+        assert payload["entities"] == {"Person": [{"name": "demo"}]}
+        assert payload["relationships"] == [{"type": "TREATS"}]
+        assert payload["documents"] == [{"title": "demo-doc"}]
+        assert payload["traces"] == [{"id": "demo-trace"}]
+
+    def test_appends_rather_than_replaces(self):
+        data = NormalizedData(
+            entities={"Person": [{"name": "imported"}], "Session": [{"name": "s1"}]},
+            documents=[{"title": "imported-doc"}],
+        )
+        payload = merge_into_fixture_payload(self._existing(), data)
+        assert [e["name"] for e in payload["entities"]["Person"]] == ["demo", "imported"]
+        assert payload["entities"]["Session"] == [{"name": "s1"}]
+        assert [d["title"] for d in payload["documents"]] == ["demo-doc", "imported-doc"]
+
+    def test_does_not_mutate_the_existing_payload(self):
+        existing = self._existing()
+        merge_into_fixture_payload(
+            existing, NormalizedData(entities={"Person": [{"name": "imported"}]})
+        )
+        assert existing["entities"]["Person"] == [{"name": "demo"}]
+
+    def test_tolerates_missing_collection_keys(self):
+        """A partial fixtures.json must not raise."""
+        payload = merge_into_fixture_payload(
+            {"domain": "healthcare"},
+            NormalizedData(entities={"Person": [{"name": "imported"}]}),
+        )
+        assert payload["entities"] == {"Person": [{"name": "imported"}]}
+        assert payload["relationships"] == []
 
 
 # ---------------------------------------------------------------------------
