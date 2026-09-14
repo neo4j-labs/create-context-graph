@@ -154,6 +154,28 @@ def merge_connector_results(results: list[NormalizedData]) -> NormalizedData:
     return merged
 
 
+def merge_into_fixture_payload(
+    existing: dict[str, Any], data: NormalizedData
+) -> dict[str, Any]:
+    """Merge connector ``data`` into an already-written fixtures.json payload.
+
+    The demo-data generator writes keys that the connector schema does not
+    model — ``domain`` in particular — so the merge is done on a copy of
+    ``existing`` and only the four collection keys are replaced. Without this,
+    running ``--demo-data`` alongside a connector replaced the generated
+    fixtures instead of adding to them (#27).
+    """
+    base = NormalizedData(
+        entities=existing.get("entities") or {},
+        relationships=existing.get("relationships") or [],
+        documents=existing.get("documents") or [],
+        traces=existing.get("traces") or [],
+    )
+    payload = dict(existing)
+    payload.update(base.merge(data).model_dump())
+    return payload
+
+
 # ---------------------------------------------------------------------------
 # Import all connectors to register them
 # ---------------------------------------------------------------------------
