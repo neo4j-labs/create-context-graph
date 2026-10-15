@@ -15,6 +15,9 @@
 """Unit tests for the renderer module."""
 
 import json
+import os
+import shutil
+import subprocess
 
 import pytest
 
@@ -379,6 +382,20 @@ class TestProjectRenderer:
 
         makefile = (tmp_output / "Makefile").read_text()
         assert "trap" in makefile
+        assert "findstring n" in makefile
+
+    @pytest.mark.skipif(shutil.which("make") is None, reason="requires GNU make")
+    def test_makefile_dry_run_does_not_kill_process_group(self, financial_config, tmp_output):
+        """`make -n start` must not signal the invoking process group (#57)."""
+        ontology = load_domain(financial_config.domain)
+        renderer = ProjectRenderer(financial_config, ontology)
+        renderer.render(tmp_output)
+
+        proc = subprocess.Popen(
+            ["make", "-n", "start"], cwd=tmp_output, preexec_fn=os.setsid
+        )
+        returncode = proc.wait(timeout=10)
+        assert returncode == 0, f"dry run should exit cleanly, got {returncode}"
 
     def test_neo4j_local_makefile_targets(self, tmp_output):
         """Verify neo4j-local type generates neo4j-start/stop targets."""
