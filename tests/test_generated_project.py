@@ -411,9 +411,11 @@ class TestGeneratedDockerCompose:
         out, _ = generated_project
         dc = (out / "docker-compose.yml").read_text()
         # Should be pinned to specific patch version, not just major
-        assert "neo4j:5." in dc
-        # Must NOT be just "neo4j:5" without a patch version
-        assert "image: neo4j:5\n" not in dc
+        # Exact patch pin on the 5.26 LTS line or an exact YYYY.MM.P calendar tag —
+        # never a floating `neo4j:5`, `neo4j:2026` or `latest` (GDS pairs with
+        # exactly one server minor).
+        assert re.search(r"image: neo4j:(5\.\d+\.\d+|20\d\d\.\d\d\.\d+)\n", dc), dc
+        assert "image: neo4j:latest" not in dc
 
     def test_no_docker_compose_for_existing(self, tmp_path):
         config = ProjectConfig(
@@ -1296,11 +1298,29 @@ class TestDeferredBugFixes:
         pyproject = (out / "backend" / "pyproject.toml").read_text()
         assert '>=3.11, <3.14' in pyproject
 
-    def test_non_crewai_requires_python_310(self, generated_project):
-        """BUG-016: Non-CrewAI projects must require Python 3.10+."""
+    def test_non_crewai_requires_python_311_to_314(self, generated_project):
+        """Python 3.10 is EOL; 3.14 is GA; 3.15 is blocked by litellm/spacy caps."""
         out, _ = generated_project
         pyproject = (out / "backend" / "pyproject.toml").read_text()
-        assert '>=3.10, <3.14' in pyproject
+        assert '>=3.11, <3.15' in pyproject
+
+    def test_google_adk_no_nest_asyncio_dep(self, tmp_path):
+        """ADK awaits async tools natively; nest-asyncio is archived upstream."""
+        config = ProjectConfig(
+            project_name="ADK Dep Test",
+            domain="financial-services",
+            framework="google-adk",
+        )
+        ontology = load_domain("financial-services")
+        out = tmp_path / "adk-test"
+        renderer = ProjectRenderer(config, ontology)
+        renderer.render(out)
+        pyproject = (out / "backend" / "pyproject.toml").read_text()
+        agent = (out / "backend" / "app" / "agent.py").read_text()
+        assert "nest-asyncio" not in pyproject
+        assert "nest_asyncio" not in agent
+        assert "StreamingMode.SSE" in agent
+        assert 'hasattr(event, "text")' not in agent
 
     def test_strands_no_nest_asyncio_dep(self, tmp_path):
         """Phase 0: Strands must not depend on nest-asyncio."""

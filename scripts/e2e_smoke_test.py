@@ -293,7 +293,7 @@ def start_backend(project_dir: Path, framework: str = "") -> subprocess.Popen | 
 
     cmd = ["uv", "run", "uvicorn", "app.main:app", "--port", str(BACKEND_PORT)]
     # Frameworks using nest_asyncio are incompatible with uvloop
-    if framework in ("crewai", "strands", "google-adk"):
+    if framework in ("crewai", "strands"):
         cmd.extend(["--loop", "asyncio"])
 
     proc = subprocess.Popen(

@@ -25,7 +25,11 @@ class NotionConnector:
                 "Install it with: pip install notion-client"
             )
 
-        self._client = Client(auth=credentials["token"])
+        # notion-client >=2.6 defaults to Notion-Version 2025-09-03 (data sources),
+        # which changes the search filter enum and page parent types this
+        # connector relies on. Pin the classic API version until the connector
+        # is migrated to the data-source model.
+        self._client = Client(auth=credentials["token"], notion_version="2022-06-28")
 
     def _extract_title(self, page: dict) -> str:
         """Extract title from a Notion page properties."""

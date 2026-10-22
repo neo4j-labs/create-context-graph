@@ -166,7 +166,7 @@ async def chat_stream(request: ChatRequest):
         yield f"event: session_id\ndata: {json.dumps({'session_id': session_id})}\n\n"
         idle_timeout = 120.0  # Max seconds between events
         overall_timeout = 300.0  # 5 min total max
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         start_time = loop.time()
         try:
             while True:

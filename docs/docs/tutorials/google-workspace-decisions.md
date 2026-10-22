@@ -6,7 +6,7 @@ title: "Decision Traces from Google Workspace"
 # Decision Traces from Google Workspace
 
 :::info Time & difficulty
-**Time:** ~20-30 minutes | **Level:** Intermediate | **Prerequisites:** Python 3.11+, Node.js 18+, Neo4j, Google Cloud project with OAuth credentials
+**Time:** ~20-30 minutes | **Level:** Intermediate | **Prerequisites:** Python 3.11+, Node.js 22+ (24 LTS recommended), Neo4j, Google Cloud project with OAuth credentials
 :::
 
 This tutorial walks you through importing your team's Google Workspace data -- Drive files, comment threads, revision history, calendar events, and email metadata -- into a Neo4j context graph. The defining feature is **decision trace extraction**: resolved comment threads in Google Docs become first-class decision nodes in your graph, capturing the question, deliberation, resolution, and participants.
@@ -46,10 +46,10 @@ A full-stack application that:
 Before you begin, make sure you have:
 
 - **Python 3.11+** -- check with `python3 --version`
-- **Node.js 18+** -- check with `node --version`
+- **Node.js 22+ (24 LTS recommended)** -- check with `node --version`
 - **Neo4j** -- one of:
   - [Neo4j Aura](https://console.neo4j.io) (free cloud instance)
-  - Docker: `docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:5`
+  - Docker: `docker run -p 7474:7474 -p 7687:7687 -e NEO4J_AUTH=neo4j/password neo4j:5.26.30`
   - neo4j-local: `npx @johnymontana/neo4j-local`
 - **uv** (recommended) -- install with `curl -LsSf https://astral.sh/uv/install.sh | sh`
 - **Google Cloud project with OAuth credentials** -- see Step 1 below

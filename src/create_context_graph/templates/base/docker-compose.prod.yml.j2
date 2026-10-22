@@ -6,13 +6,14 @@
 
 services:
   neo4j:
-    image: neo4j:5.26.0
+    image: neo4j:5.26.30
     ports:
       - "7474:7474"
       - "7687:7687"
     environment:
       NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
       NEO4J_PLUGINS: '["apoc", "graph-data-science"]'
+      NEO4J_dbms_security_procedures_unrestricted: apoc.*,gds.*
     volumes:
       - neo4j_data:/data
     healthcheck:
@@ -28,23 +29,27 @@ services:
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     environment:
+      MEMORY_BACKEND: {{ memory_backend }}
+{% if is_nams %}
+      MEMORY_API_KEY: ${MEMORY_API_KEY}
+      MEMORY_NAMS_ENDPOINT: {{ nams_endpoint }}
+{% endif %}
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USERNAME: neo4j
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:-password}
-{% if 'anthropic' in framework or framework == 'pydanticai' or framework == 'claude-agent-sdk' %}
+{% if framework in ['anthropic-tools', 'claude-agent-sdk', 'pydanticai', 'langgraph', 'strands', 'crewai'] %}
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
 {% endif %}
-{% if 'openai' in framework or framework == 'langgraph' %}
+{% if framework == 'openai-agents' %}
       OPENAI_API_KEY: ${OPENAI_API_KEY}
 {% endif %}
 {% if framework == 'google-adk' %}
       GOOGLE_API_KEY: ${GOOGLE_API_KEY}
 {% endif %}
-{% if framework == 'strands' %}
-      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
-      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
-      AWS_DEFAULT_REGION: ${AWS_DEFAULT_REGION:-us-east-1}
-{% endif %}
+      # Optional: override the agent model ids baked into backend/app/config.py
+      ANTHROPIC_MODEL: ${ANTHROPIC_MODEL:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-}
       CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-3000}
     depends_on:
       neo4j:

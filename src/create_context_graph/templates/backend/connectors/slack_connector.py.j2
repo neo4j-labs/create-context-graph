@@ -27,7 +27,16 @@ class SlackConnector:
                 "Install it with: pip install slack-sdk"
             )
 
-        self._client = WebClient(token=credentials["token"])
+        retry_handlers = []
+        try:
+            # Slack's 2025-05-29 tier change rate-limits conversations.history to
+            # 1 request/minute for new non-Marketplace apps; retry on 429 instead
+            # of silently dropping channels.
+            from slack_sdk.http_retry.builtin_handlers import RateLimitErrorRetryHandler
+            retry_handlers.append(RateLimitErrorRetryHandler(max_retry_count=3))
+        except ImportError:
+            pass
+        self._client = WebClient(token=credentials["token"], retry_handlers=retry_handlers)
         self._channel_filter = credentials.get("channels", "all")
 
     def fetch(self, **kwargs: Any) -> dict:

@@ -18,7 +18,7 @@ dev: start
 
 # Backend
 dev-backend:
-{% if framework in ['crewai', 'strands', 'google-adk'] %}
+{% if framework in ['crewai', 'strands'] %}
 	cd backend && uv run uvicorn app.main:app --reload --port $${BACKEND_PORT:-8000} --loop asyncio
 {% else %}
 	cd backend && uv run uvicorn app.main:app --reload --port $${BACKEND_PORT:-8000}
@@ -26,11 +26,6 @@ dev-backend:
 
 install-backend:
 	cd backend && uv sync --extra dev
-{% if not is_nams %}
-	@cd backend && uv run python -c "import spacy" 2>/dev/null && \
-		uv run python -m spacy download en_core_web_sm || \
-		echo "spacy not installed — skipping model download (NAMS backend or extraction extra disabled)"
-{% endif %}
 
 # Frontend
 dev-frontend:
@@ -104,16 +99,20 @@ neo4j-status:
 {% if is_nams %}
 # MCP Server for Claude Desktop (NAMS backend)
 mcp-server:  ## Start MCP server for Claude Desktop (NAMS)
-	cd backend && MEMORY_API_KEY=$${MEMORY_API_KEY} MEMORY_NAMS_ENDPOINT={{ nams_endpoint }} \
-		uv run python -m neo4j_agent_memory.mcp.server \
+	# The ``neo4j-agent-memory`` console script (extras [cli,mcp]) is the entry
+	# point that knows about the NAMS backend; ``python -m neo4j_agent_memory.mcp.server``
+	# is bolt-only and has no --backend flag.
+	cd backend && MEMORY_API_KEY=$${MEMORY_API_KEY} MEMORY_ENDPOINT={{ nams_endpoint }} \
+		uv run neo4j-agent-memory mcp serve \
 		--backend nams \
 		--profile {{ mcp_profile }}
 {% else %}
 # MCP Server for Claude Desktop (bolt backend)
 mcp-server:  ## Start MCP server for Claude Desktop
-	cd backend && uv run python -m neo4j_agent_memory.mcp.server \
-		--neo4j-uri $${NEO4J_URI:-neo4j://localhost:7687} \
-		--neo4j-password $${NEO4J_PASSWORD:-password} \
+	cd backend && uv run neo4j-agent-memory mcp serve \
+		--backend bolt \
+		--uri $${NEO4J_URI:-neo4j://localhost:7687} \
+		--password $${NEO4J_PASSWORD:-password} \
 		--profile {{ mcp_profile }}
 {% endif %}
 {% endif %}

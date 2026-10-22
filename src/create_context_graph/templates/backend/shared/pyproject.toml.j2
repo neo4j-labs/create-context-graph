@@ -3,54 +3,94 @@ name = "{{ project_slug }}-backend"
 version = "0.1.0"
 description = "{{ domain.name }} Context Graph Backend"
 {% if framework == 'crewai' -%}
+# crewai declares requires-python <3.14 (policy cap; no 3.14 support planned).
 requires-python = ">=3.11, <3.14"
 {% else -%}
-requires-python = ">=3.10, <3.14"
+# Python 3.10 is EOL (2026-10); 3.15 is blocked by litellm/spacy caps and
+# missing cp315 wheels for pydantic-core/uvloop/httptools/jiter.
+requires-python = ">=3.11, <3.15"
 {% endif -%}
+# Floors are versions create-context-graph verified; caps sit at the next major
+# so a fresh `uv sync` on some future day cannot pull an untested major.
 dependencies = [
-    "fastapi>=0.115",
-    "uvicorn[standard]>=0.30",
-    "pydantic>=2.0",
-    "pydantic-settings>=2.0",
-    "neo4j>=5.20",
-{% if is_nams %}
-    "neo4j-agent-memory[litellm]>=0.4.0,<0.6.0",
-{% else %}
-    "neo4j-agent-memory[litellm,sentence-transformers,extraction,fuzzy]>=0.4.0,<0.6.0",
+    "fastapi>=0.137",
+    # fastapi's own floor is starlette>=0.46; 1.3.1 closes the 2026 advisories.
+    "starlette>=1.3.1",
+    "uvicorn[standard]>=0.50",
+    "pydantic>=2.12,<3",
+    "pydantic-settings>=2.14.2,<3",
+    "python-dotenv>=1.1",
+    "neo4j>=6.1,<7",
+    "neo4j-agent-memory[{{ memory_extras }}]>=0.5.0,<0.6.0",
+{% if uses_litellm %}
+    # >=1.84 fixes CVE-2026-42208/-49468/-59822 (and caps openai<3).
+    "litellm>=1.84.0,<2",
 {% endif %}
 {% for dep in framework_deps %}
     "{{ dep }}",
 {% endfor %}
 {% if 'github' in saas_connectors %}
-    "PyGithub>=2.0",
+    "PyGithub>=2.6,<3",
 {% endif %}
 {% if 'notion' in saas_connectors %}
-    "notion-client>=2.0",
+    "notion-client>=3.0,<4",
 {% endif %}
 {% if 'jira' in saas_connectors %}
-    "atlassian-python-api>=3.0",
+    "atlassian-python-api>=4.0,<6",
 {% endif %}
 {% if 'slack' in saas_connectors %}
-    "slack-sdk>=3.0",
+    "slack-sdk>=3.20,<4",
 {% endif %}
 {% if 'salesforce' in saas_connectors %}
-    "simple-salesforce>=1.0",
+    "simple-salesforce>=1.12.6,<2",
 {% endif %}
 {% if 'gmail' in saas_connectors or 'gcal' in saas_connectors or 'google-workspace' in saas_connectors %}
-    "google-api-python-client>=2.0",
-    "google-auth-oauthlib>=1.0",
+    "google-api-python-client>=2.150,<3",
+    "google-auth-oauthlib>=1.2.4,<2",
+{% endif %}
+{% if 'local-file' in saas_connectors %}
+    # local-file connector document parsers
+    "markdown-it-py>=4.0,<5",
+    "mdit-py-plugins>=0.5,<1",
+{% endif %}
+{% if not is_nams %}
+    # spaCy model for local entity extraction, pinned to the spaCy 3.8 line.
+    # Declared as a dependency (not `spacy download`) so it is locked and
+    # survives `uv sync`, which removes packages that are not in the lockfile.
+    "en-core-web-sm @ https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.8.0/en_core_web_sm-3.8.0-py3-none-any.whl",
 {% endif %}
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=8.0",
-    "httpx>=0.27",  # for fastapi.testclient.TestClient
+    "pytest>=9.0.3,<10",
+    # Starlette's TestClient prefers httpx2 (it warns when only httpx is present).
+    "httpx2>=2.7",
 ]
 
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+{% if not is_nams %}
+
+# The spaCy model is a direct-URL dependency (PEP 508); hatchling refuses those
+# in project metadata unless explicitly allowed.
+[tool.hatch.metadata]
+allow-direct-references = true
+{% endif %}
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
+{% if not is_nams %}
+
+# Local extraction/embeddings run on CPU. PyPI's torch wheels drag the ~3 GB
+# CUDA 13 wheel set onto every Linux build (amd64 and arm64); the PyTorch CPU
+# index wheel is ~200 MB. macOS/Windows keep the PyPI wheels.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = [{ index = "pytorch-cpu", marker = "sys_platform == 'linux'" }]
+{% endif %}

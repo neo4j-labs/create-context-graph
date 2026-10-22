@@ -3,12 +3,21 @@
 from __future__ import annotations
 
 import json
+import os
 
-from agents import Agent, Runner, function_tool
+from agents import Agent, MaxTurnsExceeded, Runner, function_tool, set_tracing_disabled
 
 from app.config import settings
 from app.context_graph_client import execute_cypher, get_schema
 from app.memory import store_message, get_context, resolve_session_id
+
+# The SDK uploads prompts, tool inputs and tool outputs (i.e. Cypher text and
+# graph rows) to platform.openai.com traces by default. Opt in explicitly.
+set_tracing_disabled(os.getenv("OPENAI_AGENTS_TRACING", "0") != "1")
+
+# Other frameworks bound their agentic loops at 15 iterations with a fallback
+# message; the SDK's default is 10 turns and raises MaxTurnsExceeded.
+MAX_TURNS = int(os.getenv("OPENAI_AGENTS_MAX_TURNS", "15"))
 
 
 SYSTEM_PROMPT = """{{ system_prompt }}
@@ -59,9 +68,13 @@ async def get_graph_schema() -> str:
     return json.dumps(result, default=str)
 {% endraw %}
 
+# Pin the model explicitly: the SDK's implicit default has changed repeatedly
+# (gpt-4.1 -> gpt-5.4-mini -> gpt-5.6-luna) and would otherwise be decided by
+# whichever openai-agents version ``uv sync`` picks on the day.
 agent = Agent(
     name="{{ domain.name }} Assistant",
     instructions=SYSTEM_PROMPT,
+    model=settings.openai_model,
     tools=[
 {% for tool in agent_tools %}
         {{ tool.name }},
@@ -98,9 +111,14 @@ async def handle_message(message: str, session_id: str | None = None) -> dict:
     else:
         input_message = message
 
-    result = await Runner.run(agent, input_message)
-
-    response_text = result.final_output
+    try:
+        result = await Runner.run(agent, input_message, max_turns=MAX_TURNS)
+        response_text = result.final_output or ""
+    except MaxTurnsExceeded:
+        response_text = (
+            "I reached the maximum number of tool-use steps for this question. "
+            "Please try a more specific question."
+        )
     assistant_result = await store_message(session_id, "assistant", response_text)
 
     return {
@@ -135,7 +153,7 @@ async def handle_message_stream(message: str, session_id: str | None = None) -> 
     else:
         input_message = message
 
-    result = Runner.run_streamed(agent, input_message)
+    result = Runner.run_streamed(agent, input_message, max_turns=MAX_TURNS)
     response_text = ""
     async for event in result.stream_events():
         if event.type == "raw_response_event":

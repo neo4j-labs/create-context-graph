@@ -98,19 +98,32 @@ def get_graph_schema() -> str:
     return json.dumps(result, default=str)
 {% endraw %}
 
-model = AnthropicModel(model_id="claude-sonnet-4-20250514", max_tokens=4096)
+model = AnthropicModel(model_id=settings.anthropic_model, max_tokens=4096)
 
-agent = Agent(
-    model=model,
-    system_prompt=SYSTEM_PROMPT,
-    tools=[
+TOOLS = [
 {% for tool in agent_tools %}
-        {{ tool.name }},
+    {{ tool.name }},
 {% endfor %}
-        run_cypher,
-        get_graph_schema,
-    ],
-)
+    run_cypher,
+    get_graph_schema,
+]
+
+
+def _build_agent() -> Agent:
+    """Build a fresh Agent for one request.
+
+    A module-global Agent would (a) raise ``ConcurrencyException`` on any two
+    overlapping chat requests (Strands >=1.22 default THROW mode), (b) keep
+    ``agent.messages`` across every session and user, and (c) echo every token
+    to stdout through the default ``PrintingCallbackHandler``. Conversation
+    history is injected explicitly from the memory layer instead.
+    """
+    return Agent(
+        model=model,
+        system_prompt=SYSTEM_PROMPT,
+        tools=TOOLS,
+        callback_handler=None,
+    )
 
 {% raw %}
 
@@ -172,6 +185,7 @@ async def handle_message(message: str, session_id: str | None = None) -> dict:
         input_message = message
 
     _capture_loop()
+    agent = _build_agent()
     try:
         result = await asyncio.wait_for(
             asyncio.to_thread(agent, input_message),
@@ -227,6 +241,7 @@ async def handle_message_stream(message: str, session_id: str | None = None) -> 
         input_message = message
 
     _capture_loop()
+    agent = _build_agent()
 
     response_text = ""
     full_text_parts: list[str] = []

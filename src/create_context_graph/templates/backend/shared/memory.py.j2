@@ -7,7 +7,7 @@ Supports two backends, selected by the ``MEMORY_BACKEND`` env var:
 LLM and embedding providers are configured via two env vars
 (``MEMORY_LLM`` and ``MEMORY_EMBEDDING``) using LiteLLM-style provider
 strings (e.g. ``anthropic/claude-haiku-4-5``, ``openai/gpt-4o-mini``,
-``bedrock/anthropic.claude-3-haiku-20240307-v1:0``, ``vertex_ai/gemini-1.5-flash``,
+``{{ model_defaults.memory_llm_bedrock_example }}``, ``{{ model_defaults.memory_llm_vertex_example }}``,
 ``ollama/llama3``, ``sentence-transformers/all-MiniLM-L6-v2``).
 Native adapters are resolved first; everything else routes through LiteLLM.
 """
@@ -433,20 +433,65 @@ async def get_context(
 ) -> dict:
     """Get rich context for a session.
 
-    Returns a dict with keys: messages, entities, preferences, traces.
+    Returns a dict with keys: messages, entities, preferences, traces, context.
     Falls back to empty lists if memory is unavailable.
     """
-    empty = {"messages": [], "entities": [], "preferences": [], "traces": []}
+    empty = {"messages": [], "entities": [], "preferences": [], "traces": [], "context": ""}
     if _memory is None:
         return empty
     try:
         target_session = await _resolve_nams_conversation(session_id)
-        return await _memory.get_context(
+        raw = await _memory.get_context(
             session_id=target_session, query=query, max_items=max_items
         )
     except Exception as e:
         logger.warning("Failed to get context: %s", e)
         return empty
+
+    # neo4j-agent-memory 0.5.x returns ``{session_id, context: str, has_context}``
+    # (or ``{error}``); it never carries the message list the agents need.
+    # Merge whatever rich keys are present, then fill ``messages`` from the
+    # conversation store so multi-turn context actually reaches the agent.
+    result: dict = dict(empty)
+    if isinstance(raw, dict):
+        for key in ("messages", "entities", "preferences", "traces"):
+            value = raw.get(key)
+            if isinstance(value, list):
+                result[key] = value
+        if isinstance(raw.get("context"), str):
+            result["context"] = raw["context"]
+    if not result["messages"]:
+        result["messages"] = await _recent_messages(target_session, query, max_items)
+    return result
+
+
+async def _recent_messages(session_id: str, query: str | None, max_items: int) -> list[dict]:
+    """Return the recent conversation turns as ``[{"role", "content"}]`` (oldest first).
+
+    The current user prompt is stored *before* ``get_context`` is called, so it
+    is dropped from the tail to avoid the agent seeing it twice.
+    """
+    if _client is None:
+        return []
+    try:
+        conversation = await _client.short_term.get_conversation(session_id, limit=max_items)
+    except Exception as e:  # noqa: BLE001 — history is best-effort
+        logger.debug("Conversation history unavailable for %s: %s", session_id, e)
+        return []
+    messages: list[dict] = []
+    for msg in getattr(conversation, "messages", None) or []:
+        role = getattr(msg, "role", None)
+        role = getattr(role, "value", role)
+        content = getattr(msg, "content", None)
+        if not role or not isinstance(content, str) or not content.strip():
+            continue
+        role = str(role).lower()
+        if role not in ("user", "assistant"):
+            continue
+        messages.append({"role": role, "content": content})
+    if query and messages and messages[-1]["role"] == "user" and messages[-1]["content"] == query:
+        messages.pop()
+    return messages
 
 
 def resolve_session_id(hint: str | None = None) -> str:

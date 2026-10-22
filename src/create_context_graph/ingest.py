@@ -41,7 +41,9 @@ Two backend-specific paths:
 from __future__ import annotations
 
 import asyncio
+import importlib.util
 import json
+import os
 import re
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
@@ -49,6 +51,7 @@ from typing import TYPE_CHECKING, Any
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from create_context_graph.constants import DEFAULT_MEMORY_EMBEDDING_LOCAL
 from create_context_graph.ontology import (
     DomainOntology,
     build_nams_ontology_document,
@@ -577,7 +580,33 @@ async def _ingest_with_memory_client(
     if neo4j_database:
         neo4j_config["database"] = neo4j_database
 
-    settings = MemorySettings(neo4j=neo4j_config)
+    # The CLI only writes fixture entities; it never runs entity extraction,
+    # so disable the extraction pipeline (avoids importing spacy/gliner/torch).
+    # Embeddings: neo4j-agent-memory defaults to OpenAI and embeds *before*
+    # writing, so without a key every add_entity would fail silently. Prefer a
+    # local sentence-transformers embedder when installed, OpenAI when a key
+    # is present, and otherwise write entities without embeddings.
+    settings_kwargs: dict = {"neo4j": neo4j_config}
+    try:
+        from neo4j_agent_memory import ExtractionConfig, ExtractorType
+
+        settings_kwargs["extraction"] = ExtractionConfig(extractor_type=ExtractorType.NONE)
+    except ImportError:
+        pass
+    generate_embedding = True
+    if os.environ.get("OPENAI_API_KEY"):
+        pass  # library default: openai/text-embedding-3-small
+    elif importlib.util.find_spec("sentence_transformers") is not None:
+        settings_kwargs["embedding"] = DEFAULT_MEMORY_EMBEDDING_LOCAL
+    else:
+        generate_embedding = False
+        console.print(
+            "  [yellow]Note:[/yellow] no embedding provider available "
+            "(set OPENAI_API_KEY or install sentence-transformers) — "
+            "entities are written without embeddings; vector search will be empty."
+        )
+
+    settings = MemorySettings(**settings_kwargs)
 
     async with MemoryClient(settings) as client:
         with Progress(
@@ -612,6 +641,7 @@ async def _ingest_with_memory_client(
                             entity_type=pole_type,
                             description=item.get("description", f"{label}: {name}"),
                             attributes=attrs,
+                            generate_embedding=generate_embedding,
                         )
                         entity_count += 1
                     except Exception as e:
@@ -752,6 +782,7 @@ async def _ingest_with_driver(
         await driver.verify_connectivity()
     except Exception as e:
         console.print(f"  [red]Cannot connect to Neo4j:[/red] {e}")
+        await driver.close()
         return
 
     with Progress(
@@ -915,10 +946,9 @@ def reset_neo4j(
     """Clear all data from Neo4j (bolt backend)."""
     from neo4j import GraphDatabase
 
-    driver = GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password))
-    with driver.session(database=neo4j_database or None) as session:
-        session.run("MATCH (n) DETACH DELETE n")
-    driver.close()
+    with GraphDatabase.driver(neo4j_uri, auth=(neo4j_username, neo4j_password)) as driver:
+        with driver.session(database=neo4j_database or None) as session:
+            session.run("MATCH (n) DETACH DELETE n")
 
 
 async def _reset_nams(api_key: str, endpoint: str) -> None:

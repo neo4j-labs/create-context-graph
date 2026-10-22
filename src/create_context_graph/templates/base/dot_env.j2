@@ -30,6 +30,15 @@ MEMORY_EMBEDDING={{ memory_embedding }}
 ANTHROPIC_API_KEY={{ anthropic_api_key }}
 OPENAI_API_KEY={{ openai_api_key }}
 GOOGLE_API_KEY={{ google_api_key }}
+# Agent model overrides (defaults: {{ model_defaults.anthropic }} / {{ model_defaults.openai_agent }} / {{ model_defaults.gemini }})
+# ANTHROPIC_MODEL=
+# OPENAI_MODEL=
+# GEMINI_MODEL=
+{% if framework == 'crewai' %}
+# CrewAI phones home (OTLP telemetry to telemetry.crewai.com) unless disabled
+CREWAI_DISABLE_TELEMETRY=true
+CREWAI_TRACING_ENABLED=false
+{% endif %}
 
 # Application
 DOMAIN_ID={{ domain.id }}

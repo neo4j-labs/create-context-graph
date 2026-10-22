@@ -29,6 +29,7 @@ def validate_connection(
     database; pass a name to validate a specific database (e.g. Aura
     instances whose database isn't named "neo4j").
     """
+    driver = None
     try:
         driver = GraphDatabase.driver(uri, auth=(username, password))
         driver.verify_connectivity()
@@ -36,7 +37,6 @@ def validate_connection(
         with driver.session(database=database or None) as session:
             result = session.run("RETURN 1 AS n")
             result.single()
-        driver.close()
         return True, "Connected successfully"
     except AuthError:
         return False, "Authentication failed. Check username and password."
@@ -44,3 +44,11 @@ def validate_connection(
         return False, f"Cannot connect to Neo4j at {uri}. Is it running?"
     except Exception as e:
         return False, f"Connection error: {e}"
+    finally:
+        # Driver 6.x no longer closes drivers in ``__del__`` (it warns about
+        # unclosed resources), so close on every path, including failures.
+        if driver is not None:
+            try:
+                driver.close()
+            except Exception:  # noqa: BLE001 — best-effort cleanup
+                pass

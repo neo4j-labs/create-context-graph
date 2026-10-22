@@ -25,6 +25,7 @@ from pathlib import Path
 from jinja2 import Environment, PackageLoader
 from jinja2.exceptions import TemplateNotFound
 
+from create_context_graph.constants import MODEL_DEFAULTS
 from create_context_graph.config import ProjectConfig
 from create_context_graph.ontology import (
     DomainOntology,
@@ -276,6 +277,9 @@ class ProjectRenderer:
             "nams_endpoint": self.config.nams_endpoint,
             "memory_llm": self.config.memory_llm or "",
             "memory_embedding": self.config.memory_embedding or "",
+            "model_defaults": MODEL_DEFAULTS,
+            "memory_extras": self._memory_extras(),
+            "uses_litellm": self._uses_litellm(),
             "system_prompt": self._build_system_prompt(),
             "cypher_schema": generate_cypher_schema(self.ontology),
             "pydantic_models": generate_pydantic_models(self.ontology),
@@ -288,6 +292,34 @@ class ProjectRenderer:
             "auto_extract": self.config.auto_extract,
             "auto_preferences": self.config.effective_auto_preferences,
         }
+
+    def _uses_litellm(self) -> bool:
+        """Whether the scaffold installs neo4j-agent-memory's ``[litellm]`` extra.
+
+        litellm is only the *fallback* provider in the memory layer (openai /
+        anthropic / bedrock have native adapters). litellm >=1.84 caps
+        ``openai<3`` while pydantic-ai-slim >=2.35 and openai-agents >=0.21
+        require ``openai>=3`` — with the extra present uv silently backtracks
+        litellm to 1.83.0 (inside CVE-2026-42208's range). Those two frameworks
+        ship the native SDKs the defaults need, so they omit the extra.
+        """
+        return self.config.framework not in ("pydanticai", "openai-agents")
+
+    def _memory_extras(self) -> str:
+        """Extras string for the generated ``neo4j-agent-memory`` dependency."""
+        if self.config.is_nams:
+            extras = ["nams"]  # httpx for the hosted backend
+            if self._uses_litellm():
+                extras.append("litellm")
+        else:
+            extras = ["sentence-transformers", "extraction", "fuzzy"]
+            if self._uses_litellm():
+                extras.insert(0, "litellm")
+        # The MCP server needs the console script ([cli]) and fastmcp ([mcp]).
+        # fastmcp<3 pins mcp<2, which conflicts with pydantic-ai-slim's mcp 2.x.
+        if self.config.with_mcp and self.config.framework != "pydanticai":
+            extras.extend(["cli", "mcp"])
+        return ",".join(extras)
 
     def _build_system_prompt(self) -> str:
         """Build system prompt, appending connector context if active."""
@@ -530,6 +562,7 @@ class ProjectRenderer:
             "frontend/package.json.j2": "package.json",
             "frontend/next.config.ts.j2": "next.config.ts",
             "frontend/tsconfig.json.j2": "tsconfig.json",
+            "frontend/eslint.config.mjs.j2": "eslint.config.mjs",
             "frontend/app/layout.tsx.j2": "app/layout.tsx",
             "frontend/app/page.tsx.j2": "app/page.tsx",
             "frontend/app/globals.css.j2": "app/globals.css",

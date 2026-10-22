@@ -159,7 +159,11 @@ class _FakeSession:
         self.queries: list[tuple[str, dict, Any]] = []
 
     async def run(self, query, parameters=None, timeout=None, **kw):
-        self.queries.append((query, dict(parameters or {}), timeout))
+        # execute_cypher wraps the text in ``neo4j.Query`` so the transaction
+        # timeout is honoured (a ``timeout=`` kwarg would become ``$timeout``).
+        text = getattr(query, "text", query)
+        timeout = getattr(query, "timeout", timeout)
+        self.queries.append((text, dict(parameters or {}), timeout))
         return _FakeResult(self._records)
 
 

@@ -25,6 +25,7 @@ Five-stage pipeline:
 from __future__ import annotations
 
 import json
+import os
 import random
 import re
 from pathlib import Path
@@ -33,6 +34,7 @@ from typing import Any
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
+from create_context_graph.constants import DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL
 from create_context_graph.ontology import DomainOntology
 
 console = Console()
@@ -40,6 +42,20 @@ console = Console()
 # ---------------------------------------------------------------------------
 # LLM client abstraction
 # ---------------------------------------------------------------------------
+
+
+def _response_text(response) -> str:
+    """Return the first text block of an Anthropic response.
+
+    Thinking-enabled models may put a ``thinking`` block first, so
+    ``response.content[0].text`` is not safe.
+    """
+    for block in getattr(response, "content", None) or []:
+        if getattr(block, "type", None) == "text" or hasattr(block, "text"):
+            text = getattr(block, "text", None)
+            if isinstance(text, str):
+                return text
+    return ""
 
 
 def _get_llm_client(api_key: str, provider: str = "anthropic"):
@@ -83,12 +99,12 @@ def _llm_generate(
 
     if provider == "anthropic":
         response = client.messages.create(
-            model="claude-sonnet-4-20250514",
+            model=os.environ.get("ANTHROPIC_MODEL", DEFAULT_ANTHROPIC_MODEL),
             max_tokens=max_tokens,
             system=system,
             messages=[{"role": "user", "content": prompt}],
         )
-        text = response.content[0].text
+        text = _response_text(response)
         stop_reason = getattr(response, "stop_reason", None)
     elif provider == "openai":
         messages = []
@@ -96,9 +112,11 @@ def _llm_generate(
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": prompt})
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model=os.environ.get("OPENAI_MODEL", DEFAULT_OPENAI_MODEL),
             messages=messages,
-            max_tokens=max_tokens,
+            # ``max_tokens`` is deprecated on chat completions in favour of
+            # ``max_completion_tokens`` (required by reasoning models).
+            max_completion_tokens=max_tokens,
         )
         choice = response.choices[0]
         text = choice.message.content or ""

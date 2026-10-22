@@ -114,7 +114,7 @@ All of the following imply `--self-hosted` if passed without `--nams-api-key`.
 | Option | Type | Env Variable | Description |
 |--------|------|-------------|-------------|
 | `--anthropic-api-key` | `string` | `ANTHROPIC_API_KEY` | For LLM data generation and custom domains. |
-| `--openai-api-key` | `string` | `OPENAI_API_KEY` | For OpenAI Agents and LangGraph frameworks. |
+| `--openai-api-key` | `string` | `OPENAI_API_KEY` | For the OpenAI Agents framework (also enables OpenAI embeddings for memory). |
 | `--google-api-key` | `string` | `GOOGLE_API_KEY` | For the `google-adk` framework (Gemini models). |
 
 ### Output & Debug

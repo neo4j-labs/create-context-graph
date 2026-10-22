@@ -37,6 +37,12 @@ class Settings(BaseSettings):
     # LLM provider keys for the agent
     anthropic_api_key: str = ""
     openai_api_key: str = ""
+
+    # Agent model ids — the single source of truth for every model literal in
+    # this backend. Override with ANTHROPIC_MODEL / OPENAI_MODEL / GEMINI_MODEL.
+    anthropic_model: str = "{{ model_defaults.anthropic }}"
+    openai_model: str = "{{ model_defaults.openai_agent }}"
+    gemini_model: str = "{{ model_defaults.gemini }}"
     domain_id: str = "{{ domain.id }}"
     session_strategy: str = "{{ session_strategy }}"
     backend_port: int = 8000

@@ -13,25 +13,37 @@ on:
 # a new anyio release made that skew fatal (typing_extensions ImportError at
 # collection). If `--locked` fails, run `uv lock` locally and commit the
 # refreshed lockfile.
+#
+# Action pins: every JavaScript action must run on the Node 24 runtime (GitHub
+# removed Node 20 from hosted runners on 2026-09-23). astral-sh/setup-uv stopped
+# publishing floating major tags at v8, so it is pinned by SHA (v10.0.1).
+# The uv version is pinned to match `[tool.uv] required-version` in pyproject.
+
+# Least-privilege token for every job; nothing in CI writes to the repo.
+permissions:
+  contents: read
+
+env:
+  UV_VERSION: "0.12.10"
 
 jobs:
   test:
     name: Test (Python ${{ matrix.python-version }})
     runs-on: ubuntu-latest
     strategy:
-      # One version's failure shouldn't cancel the other's signal.
+      # One version's failure shouldn't cancel the others' signal.
       fail-fast: false
       matrix:
-        python-version: ["3.11", "3.12"]
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python ${{ matrix.python-version }}
-        run: uv python install ${{ matrix.python-version }}
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies (locked)
         run: uv sync --locked --extra dev --python ${{ matrix.python-version }}
@@ -43,13 +55,13 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        run: uv python install 3.12
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
 
       - name: Install dependencies (locked)
         run: uv sync --locked --extra dev --python 3.12
@@ -57,27 +69,100 @@ jobs:
       - name: Run ruff
         run: uv run --no-sync ruff check src/ tests/
 
+      - name: Audit locked dependencies
+        # Advisory only: the lock is refreshed monthly; unfixable transitive
+        # leaves are tolerated but must be visible.
+        run: |
+          uv export --frozen --all-extras --no-hashes -o /tmp/requirements.txt
+          uvx pip-audit --disable-pip --no-deps -r /tmp/requirements.txt || true
+
+      - name: Check template version pins against upstream
+        run: uv run --no-sync python scripts/check_template_versions.py || true
+
   full-suite:
     # Full test suite — slow markers (domain x framework matrix, performance,
     # generated-project venv suites) plus the functional local-file vault
     # tests. Runs on every PR and on pushes to main.
     name: Full Suite + Domain x Framework Matrix
     runs-on: ubuntu-latest
+    env:
+      # Generated bolt scaffolds pull torch; keep CI on the CPU wheels.
+      UV_TORCH_BACKEND: cpu
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        run: uv python install 3.12
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
 
       - name: Install dependencies (locked)
         run: uv sync --locked --extra dev --extra connectors --python 3.12
 
       - name: Run full test suite (slow + functional)
         run: uv run --no-sync pytest tests/ -v --tb=short --slow --functional
+
+  frontend:
+    # Scaffold one project and type-check, lint and build the generated
+    # Next.js frontend — the TypeScript validation that unit tests cannot do.
+    name: Generated Frontend (tsc + lint + next build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Install dependencies (locked)
+        run: uv sync --locked --python 3.12
+
+      - name: Scaffold a project
+        run: >
+          uv run --no-sync create-context-graph frontend-check
+          --domain healthcare --framework pydanticai
+          --nams-api-key sk-ci-placeholder
+          --output-dir /tmp/frontend-check
+
+      - name: Install, type-check, lint and build the frontend
+        working-directory: /tmp/frontend-check/frontend
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: |
+          npm install --no-audit --no-fund
+          npx tsc --noEmit
+          npm run lint
+          npm run build
+          test -d .next/standalone
+
+  docs:
+    # The docs site had no CI gate — a broken dependency bump only surfaced
+    # as a failed Vercel deploy.
+    name: Docs site (typecheck + build)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: docs/package-lock.json
+
+      - name: Install, type-check and build
+        working-directory: docs
+        run: |
+          npm ci
+          npm run typecheck
+          npm run build
 
   smoke-test:
     # Needs repository secrets (Neo4j + LLM API keys), which aren't available
@@ -102,13 +187,15 @@ jobs:
           - { domain: "data-journalism", framework: "langgraph" }
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v4
-
-      - name: Set up Python
-        run: uv python install 3.12
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+          # --all-extras pulls large ML wheels; don't fill the Actions cache.
+          enable-cache: false
 
       - name: Install dependencies (locked)
         run: uv sync --locked --all-extras --python 3.12
@@ -133,3 +220,43 @@ jobs:
           --domain ${{ matrix.test.domain }}
           --framework ${{ matrix.test.framework }}
           --quick
+
+  integration-calendar:
+    # Forward-compatibility leg: the generated Cypher must keep working on the
+    # calendar-versioned Neo4j line (Cypher 25 is the default language for new
+    # databases from 2026.02; Aura runs this line). Pin an exact YYYY.MM.P tag —
+    # GDS pairs with exactly one server minor, so floating tags can break.
+    name: Neo4j 2026.x integration
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'push' && github.ref == 'refs/heads/main'
+      && vars.SMOKE_TESTS_ENABLED == 'true'
+    services:
+      neo4j:
+        image: neo4j:2026.07.1
+        env:
+          NEO4J_AUTH: neo4j/ci-password
+          NEO4J_PLUGINS: '["apoc"]'
+        ports:
+          - 7687:7687
+        options: >-
+          --health-cmd "wget -qO- http://localhost:7474 || exit 1"
+          --health-interval 10s --health-timeout 5s --health-retries 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@20cfd1bf945f4377ade1205e4dbc17946fc9a30d # v10.0.1
+        with:
+          version: ${{ env.UV_VERSION }}
+          python-version: "3.12"
+
+      - name: Install dependencies (locked)
+        run: uv sync --locked --extra dev --extra ingest --python 3.12
+
+      - name: Run integration tests against Neo4j 2026.x
+        env:
+          NEO4J_URI: bolt://localhost:7687
+          NEO4J_USERNAME: neo4j
+          NEO4J_PASSWORD: ci-password
+        run: uv run --no-sync pytest tests/test_integration.py --integration -v --tb=short

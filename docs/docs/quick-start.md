@@ -13,7 +13,7 @@ This page walks the **NAMS-default flow** — your project's memory lives in the
 ## Prerequisites
 
 - **Python 3.11+** -- verify with `python3 --version`
-- **Node.js 18+** -- verify with `node --version` (required for the Next.js frontend)
+- **Node.js 22+ (24 LTS recommended)** -- verify with `node --version` (required for the Next.js frontend)
 - **NAMS API key** -- sign up at [memory.neo4jlabs.com](https://memory.neo4jlabs.com) and provision a key
 - **Anthropic API key** -- for the AI agent ([get one here](https://console.anthropic.com))
 
@@ -137,7 +137,7 @@ After scaffold, copy `mcp/claude_desktop_config.json` into your Claude Desktop c
 | Problem | Solution |
 |---------|----------|
 | `python3: command not found` | Install Python 3.11+ from [python.org](https://www.python.org/downloads/) or via your package manager |
-| `node: command not found` | Install Node.js 18+ from [nodejs.org](https://nodejs.org/) |
+| `node: command not found` | Install Node.js 22+ (24 LTS recommended) from [nodejs.org](https://nodejs.org/) |
 | `ANTHROPIC_API_KEY not set` at chat time | Add your key to `.env`: `ANTHROPIC_API_KEY=sk-ant-...` |
 | NAMS authentication failure | Verify your API key is current. Regenerate at [memory.neo4jlabs.com](https://memory.neo4jlabs.com) |
 | Graph view shows no edges (NAMS) | Expected — NAMS REST does not yet expose relationship writes. Use `--self-hosted` for the full graph experience |

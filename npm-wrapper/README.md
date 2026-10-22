@@ -23,7 +23,7 @@ npx create-context-graph my-app --domain healthcare --framework pydanticai --dem
 ## Requirements
 
 - **Python 3.11+** with `uv` (recommended) or `pip`
-- **Node.js 18+** (for the generated frontend)
+- **Node.js 22+ (24 LTS recommended)** (for the generated frontend)
 - **Neo4j 5+** (Docker, Aura, or local)
 
 ## Documentation

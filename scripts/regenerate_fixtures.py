@@ -19,6 +19,7 @@ from pathlib import Path
 # Add src to path so we can import project modules
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
 
+from create_context_graph.constants import DEFAULT_ANTHROPIC_MODEL
 from create_context_graph.ontology import list_available_domains, load_domain
 
 try:
@@ -29,7 +30,16 @@ except ImportError:
 
 
 FIXTURES_DIR = Path(__file__).parent.parent / "src" / "create_context_graph" / "fixtures"
-MODEL = "claude-sonnet-4-20250514"
+MODEL = os.environ.get("ANTHROPIC_MODEL", DEFAULT_ANTHROPIC_MODEL)
+
+
+def _response_text(response) -> str:
+    """First text block of an Anthropic response (thinking blocks may come first)."""
+    for block in getattr(response, "content", None) or []:
+        text = getattr(block, "text", None)
+        if isinstance(text, str):
+            return text
+    return ""
 MAX_RETRIES = 3
 
 
@@ -97,7 +107,7 @@ Respond with ONLY the JSON. No markdown fences, no explanation."""
         system="You are generating realistic, high-quality sample data for a knowledge graph application. All data should be believable and internally consistent.",
         messages=[{"role": "user", "content": prompt}],
     )
-    text = _strip_fences(response.content[0].text)
+    text = _strip_fences(_response_text(response))
     return json.loads(text)
 
 
@@ -141,7 +151,7 @@ Respond with ONLY the JSON array. No markdown fences."""
                 system=f"You are generating realistic {ontology.domain.name.lower()} documents. Write professional, detailed content.",
                 messages=[{"role": "user", "content": prompt}],
             )
-            text = _strip_fences(response.content[0].text)
+            text = _strip_fences(_response_text(response))
             items = json.loads(text)
 
             for item in items:
@@ -223,7 +233,7 @@ Respond with ONLY the JSON."""
                 system="Generate realistic, domain-appropriate observations and outcomes. Be specific and detailed.",
                 messages=[{"role": "user", "content": prompt}],
             )
-            text = _strip_fences(response.content[0].text)
+            text = _strip_fences(_response_text(response))
             result = json.loads(text)
 
             steps = []

@@ -10,6 +10,23 @@ ENTITY_LABELS = [{% for et in entity_types %}"{{ et.label }}"{% if not loop.last
 {% raw %}
 
 
+def _project_query(graph_name: str, label: str) -> str:
+    """Cypher projection for ``label`` (``*`` = every node).
+
+    Native projections (``gds.graph.project(name, labels, rels)``) are slated
+    for deprecation in GDS; the Cypher-projection aggregation is the supported
+    form on both the 2.x line and calendar releases. ``label`` is validated
+    against ENTITY_LABELS by every caller before it reaches this f-string.
+    """
+    pattern = "" if label == "*" else f":{label}"
+    return f"""
+        MATCH (s{pattern})
+        OPTIONAL MATCH (s)-[r]->(t{pattern})
+        WITH gds.graph.project('{graph_name}', s, t) AS g
+        RETURN g.graphName AS graph, g.nodeCount AS nodes, g.relationshipCount AS relationships
+    """
+
+
 async def check_gds_available() -> bool:
     """Check if GDS plugin is available."""
     try:
@@ -24,9 +41,7 @@ async def run_community_detection(label: str = "*") -> list[dict]:
     if label != "*" and label not in ENTITY_LABELS:
         return [{"error": f"Invalid label: {label}"}]
     try:
-        await execute_cypher(f"""
-            CALL gds.graph.project('{COMMUNITY_GRAPH}', '{label}', '*')
-        """)
+        await execute_cypher(_project_query(COMMUNITY_GRAPH, label))
         result = await execute_cypher(f"""
             CALL gds.louvain.stream('{COMMUNITY_GRAPH}')
             YIELD nodeId, communityId
@@ -44,9 +59,7 @@ async def run_pagerank(label: str = "*") -> list[dict]:
     if label != "*" and label not in ENTITY_LABELS:
         return [{"error": f"Invalid label: {label}"}]
     try:
-        await execute_cypher(f"""
-            CALL gds.graph.project('{PAGERANK_GRAPH}', '{label}', '*')
-        """)
+        await execute_cypher(_project_query(PAGERANK_GRAPH, label))
         result = await execute_cypher(f"""
             CALL gds.pageRank.stream('{PAGERANK_GRAPH}')
             YIELD nodeId, score
@@ -65,9 +78,7 @@ async def run_similarity(label: str = "*") -> list[dict]:
     if label != "*" and label not in ENTITY_LABELS:
         return [{"error": f"Invalid label: {label}"}]
     try:
-        await execute_cypher(f"""
-            CALL gds.graph.project('{SIMILARITY_GRAPH}', '{label}', '*')
-        """)
+        await execute_cypher(_project_query(SIMILARITY_GRAPH, label))
         await execute_cypher(f"""
             CALL gds.fastRP.mutate('{SIMILARITY_GRAPH}', {{
                 embeddingDimension: {FASTRP_EMBEDDING_DIMENSIONS},

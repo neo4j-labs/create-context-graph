@@ -52,15 +52,29 @@ FRAMEWORK_DISPLAY_NAMES = {
     "anthropic-tools": "Anthropic Tools (Agentic Loop)",
 }
 
+# Every entry has a floor create-context-graph verified against and a cap at
+# the next major (0.x packages that ship behaviour changes in minors are capped
+# at the next minor). See DEPENDENCY_UPGRADE_PLAN.md §4.4 for the per-framework
+# rationale and the upstream pins that constrain these choices:
+# - strands-agents[anthropic] pins anthropic<1 and crewai[anthropic] pins
+#   anthropic~=0.73, so no framework-wide anthropic floor is possible.
+# - pydantic-ai-slim[anthropic] instead of the ``pydantic-ai`` meta-package:
+#   76 fewer distributions and no openai>=3 pin (which forces a litellm downgrade).
+# - claude-agent-sdk was declared but never imported (the template uses the
+#   Anthropic SDK directly); it added a 190 MB bundled CLI to every scaffold.
+# - nest-asyncio is unnecessary for google-adk (FunctionTool awaits async tools)
+#   and is archived upstream / incompatible with Python 3.14 semantics.
+# - langchain>=1 ships ``langchain.agents.create_agent``, the replacement for
+#   ``langgraph.prebuilt.create_react_agent`` (removed in LangGraph 2.0).
 FRAMEWORK_DEPENDENCIES = {
-    "pydanticai": ["pydantic-ai>=0.1"],
-    "claude-agent-sdk": ["claude-agent-sdk>=0.1", "anthropic>=0.30"],
-    "strands": ["strands-agents[anthropic]>=0.1"],
-    "google-adk": ["google-adk>=0.1", "nest-asyncio>=1.5"],
-    "openai-agents": ["openai-agents>=0.1"],
-    "langgraph": ["langgraph>=0.1", "langchain-anthropic>=0.3"],
-    "crewai": ["crewai[anthropic]>=0.1"],
-    "anthropic-tools": ["anthropic>=0.30"],
+    "pydanticai": ["pydantic-ai-slim[anthropic]>=2.30,<3"],
+    "claude-agent-sdk": ["anthropic>=1.0,<2"],
+    "strands": ["strands-agents[anthropic]>=1.53,<2.0"],
+    "google-adk": ["google-adk>=2.2,<3"],
+    "openai-agents": ["openai-agents>=0.21,<0.23"],
+    "langgraph": ["langchain>=1.4,<2", "langchain-anthropic>=1.7,<2"],
+    "crewai": ["crewai[anthropic]>=1.15,<2"],
+    "anthropic-tools": ["anthropic>=1.0,<2"],
 }
 
 

@@ -161,37 +161,37 @@ The AI agent has access to the following domain-specific tools:
 ## Agent Framework: {{ framework_display_name }}
 
 {% if framework == 'pydanticai' %}
-This project uses [PydanticAI](https://ai.pydantic.dev/) with tool decorators and typed dependencies. The agent is defined in `backend/app/agent.py` using `@agent.tool` decorators for each domain tool. Supports full streaming via `agent.run_stream()`.
+This project uses [PydanticAI](https://ai.pydantic.dev/) (`pydantic-ai-slim[anthropic]`) with tool decorators and typed dependencies. The agent is defined in `backend/app/agent.py` using `@agent.tool` decorators for each domain tool. Tool calls stream in real time; the final text is emitted once the agent loop completes.
 
-To change the LLM model, edit the `Agent(model=...)` parameter in `agent.py`.
-{% elif framework == 'claude_agent_sdk' %}
-This project uses the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk) with a dict-based tool list and an agentic while loop. The agent handles tool calls iteratively until the model stops requesting tools. Supports full streaming via `client.messages.stream()`.
+To change the model, set `ANTHROPIC_MODEL` in `.env` (default: `{{ model_defaults.anthropic }}`).
+{% elif framework == 'claude-agent-sdk' %}
+This project calls the [Anthropic Messages API](https://docs.anthropic.com/) directly (the `anthropic` SDK) with a dict-based tool list and a bounded agentic loop in the style of the Claude Agent SDK. The agent handles tool calls iteratively until the model stops requesting tools. Supports full streaming via `client.messages.stream()`.
 
-Requires `ANTHROPIC_API_KEY` in `.env`.
-{% elif framework == 'openai_agents' %}
+Requires `ANTHROPIC_API_KEY` in `.env`. Override the model with `ANTHROPIC_MODEL` (default: `{{ model_defaults.anthropic }}`).
+{% elif framework == 'openai-agents' %}
 This project uses the [OpenAI Agents SDK](https://github.com/openai/openai-agents-python) with `@function_tool` decorators and `Runner.run()`. Supports full streaming via `Runner.run_streamed()`.
 
-Requires `OPENAI_API_KEY` in `.env`.
+Requires `OPENAI_API_KEY` in `.env`. Override the model with `OPENAI_MODEL` (default: `{{ model_defaults.openai_agent }}`). SDK tracing (which uploads prompts and tool outputs to OpenAI) is off unless `OPENAI_AGENTS_TRACING=1`.
 {% elif framework == 'langgraph' %}
-This project uses [LangGraph](https://langchain-ai.github.io/langgraph/) with `@tool` decorators and `create_react_agent()`. The agent is a compiled graph that manages tool execution state. Supports full streaming via `graph.astream_events()`.
+This project uses [LangChain / LangGraph](https://docs.langchain.com/) with `@tool` decorators and `langchain.agents.create_agent()`. The agent is a compiled graph that manages tool execution state. Supports full streaming via `graph.astream_events()`.
 
-Requires `ANTHROPIC_API_KEY` in `.env` (uses `langchain-anthropic`).
+Requires `ANTHROPIC_API_KEY` in `.env` (uses `langchain-anthropic`). Override the model with `ANTHROPIC_MODEL` (default: `{{ model_defaults.anthropic }}`).
 {% elif framework == 'crewai' %}
-This project uses [CrewAI](https://www.crewai.com/) with an Agent/Task/Crew architecture. Tools are decorated with `@tool` and the crew orchestrates execution. Runs synchronously via `asyncio.to_thread()`.
+This project uses [CrewAI](https://www.crewai.com/) with an Agent/Task/Crew architecture. Tools are decorated with `@tool` and the crew orchestrates execution. Runs synchronously via `asyncio.to_thread()`; text streams through CrewAI's `LLMStreamChunkEvent`.
 
-**Note:** CrewAI requires Python 3.11+. Streaming is limited to real-time tool call visualization; text arrives after the crew completes.
+**Note:** CrewAI caps Python at 3.13 (`requires-python <3.14`). CrewAI's telemetry is disabled in the generated `.env` (`CREWAI_DISABLE_TELEMETRY=true`). Override the model with `ANTHROPIC_MODEL` (default: `{{ model_defaults.anthropic }}`).
 {% elif framework == 'strands' %}
-This project uses [Strands Agents](https://github.com/strands-agents/strands-agents) with `@tool` decorators and an Anthropic-backed model. Requires `ANTHROPIC_API_KEY` in your `.env` file. Runs synchronously via `asyncio.to_thread()`.
+This project uses [Strands Agents](https://github.com/strands-agents/harness-sdk) with `@tool` decorators and an Anthropic-backed model. Requires `ANTHROPIC_API_KEY` in your `.env` file. Text streams via `agent.stream_async()`; a fresh `Agent` is built per request so concurrent chats and separate sessions never share state.
 
-Streaming is limited to real-time tool call visualization; text arrives after the agent completes.
-{% elif framework == 'google_adk' %}
-This project uses [Google ADK](https://github.com/google/adk-python) with `FunctionTool` wrappers and a Gemini model. The ADK runner manages sessions and tool execution. Supports full streaming via `runner.run_async()`.
+Override the model with `ANTHROPIC_MODEL` (default: `{{ model_defaults.anthropic }}`).
+{% elif framework == 'google-adk' %}
+This project uses [Google ADK](https://github.com/google/adk-python) with async `FunctionTool` wrappers and a Gemini model. The ADK runner manages sessions and tool execution. Supports full streaming via `runner.run_async()` with `StreamingMode.SSE`.
 
-Requires a Google Cloud API key or credentials configured for Gemini access.
-{% elif framework == 'anthropic_tools' %}
+Requires `GOOGLE_API_KEY` in `.env`. Override the model with `GEMINI_MODEL` (default: `{{ model_defaults.gemini }}`).
+{% elif framework == 'anthropic-tools' %}
 This project uses the [Anthropic API](https://docs.anthropic.com/) directly with a modular `@register_tool` registry and an agentic while loop. Supports full streaming via `client.messages.stream()`.
 
-Requires `ANTHROPIC_API_KEY` in `.env`.
+Requires `ANTHROPIC_API_KEY` in `.env`. Override the model with `ANTHROPIC_MODEL` (default: `{{ model_defaults.anthropic }}`).
 {% endif %}
 
 See `backend/app/agent.py` for the full implementation.
@@ -270,4 +270,4 @@ cp .env.example .env
 
 **Build errors after `npm install`**
 - Delete `node_modules` and `package-lock.json`, then run `npm install` again
-- Ensure Node.js 18+ is installed
+- Ensure Node.js 22+ (24 LTS recommended) is installed

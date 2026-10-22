@@ -13,6 +13,14 @@ const config: Config = {
 
   markdown: {
     mermaid: true,
+    // Docusaurus 3.10 + `future.v4: true` disables MDX v1 compatibility by
+    // default; the docs still use HTML comments and `:::type Title`
+    // admonitions, so keep the compat shims on until the content is migrated.
+    mdx1Compat: {
+      comments: true,
+      admonitions: true,
+      headingIds: true,
+    },
   },
   themes: [
     '@docusaurus/theme-mermaid',

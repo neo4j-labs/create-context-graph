@@ -233,14 +233,19 @@ class TestAgentToolQueriesExecute:
     TEST_DOMAIN = "test-agent-tools"
 
     @pytest.fixture(autouse=True, scope="class")
-    def _seed_data(self, neo4j_driver):
-        """Seed financial-services data once for all tool query tests."""
-        _seed_domain("financial-services", self.TEST_DOMAIN)
+    @classmethod
+    def _seed_data(cls, neo4j_driver):
+        """Seed financial-services data once for all tool query tests.
+
+        Class-scoped fixtures defined as instance methods are deprecated in
+        pytest 9.1 and removed in 10 — hence ``@classmethod``.
+        """
+        _seed_domain("financial-services", cls.TEST_DOMAIN)
         yield
         with neo4j_driver.session() as session:
             session.run(
                 "MATCH (n) WHERE n.domain = $domain DETACH DELETE n",
-                {"domain": self.TEST_DOMAIN},
+                {"domain": cls.TEST_DOMAIN},
             )
 
     @pytest.fixture()

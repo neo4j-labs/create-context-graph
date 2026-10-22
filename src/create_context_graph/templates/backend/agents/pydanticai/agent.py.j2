@@ -48,9 +48,12 @@ class AgentDeps:
     session_id: str
 
 
+# ``instructions`` (not ``system_prompt``) so the prompt is re-sent on every
+# turn even when ``message_history`` is non-empty (pydantic-ai drops
+# ``system_prompt`` when history is supplied).
 agent = Agent(
-    "anthropic:claude-sonnet-4-20250514",
-    system_prompt=SYSTEM_PROMPT,
+    f"anthropic:{settings.anthropic_model}",
+    instructions=SYSTEM_PROMPT,
     deps_type=AgentDeps,
     retries=2,
 )

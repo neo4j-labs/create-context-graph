@@ -7,7 +7,7 @@ import json as _json
 import logging
 import threading
 
-from neo4j import AsyncGraphDatabase, AsyncDriver
+from neo4j import AsyncGraphDatabase, AsyncDriver, Query
 from neo4j.graph import Node, Relationship, Path
 
 
@@ -274,7 +274,10 @@ async def execute_cypher(
     if tool_name and collect:
         _collector.emit_tool_start(tool_name, parameters or {})
     async with driver.session(database=settings.neo4j_database or None) as session:
-        result = await session.run(query, parameters or {}, timeout=timeout)
+        # ``session.run(..., timeout=...)`` would send ``timeout`` as a Cypher
+        # parameter (``$timeout``); the transaction timeout must be carried by
+        # ``neo4j.Query``.
+        result = await session.run(Query(query, timeout=timeout), parameters or {})
         records = []
         async for record in result:
             records.append({k: _serialize(v) for k, v in record.items()})

@@ -3238,3 +3238,23 @@ class TestClaudeCodeConnector:
         assert len(sessions) == 1
         assert sessions[0]["totalInputTokens"] > 0
         assert sessions[0]["totalOutputTokens"] > 0
+
+
+class TestJiraCloudDetection:
+    """Cloud routing must key off the parsed hostname, not a URL substring."""
+
+    def test_cloud_hosts(self):
+        from create_context_graph.connectors.jira_connector import _is_jira_cloud
+
+        assert _is_jira_cloud("https://acme.atlassian.net")
+        assert _is_jira_cloud("https://ACME.Atlassian.NET/jira")
+        assert _is_jira_cloud("https://atlassian.net")
+
+    def test_non_cloud_hosts(self):
+        from create_context_graph.connectors.jira_connector import _is_jira_cloud
+
+        assert not _is_jira_cloud("https://jira.example.com")
+        assert not _is_jira_cloud("https://evil.example/x.atlassian.net")
+        assert not _is_jira_cloud("https://evil.example/?next=acme.atlassian.net")
+        assert not _is_jira_cloud("https://notatlassian.net")
+        assert not _is_jira_cloud("not a url")

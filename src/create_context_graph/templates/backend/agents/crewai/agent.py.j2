@@ -112,7 +112,7 @@ agent = Agent(
         run_cypher,
         get_graph_schema,
     ],
-    llm="anthropic/claude-sonnet-4-20250514",
+    llm=f"anthropic/{settings.anthropic_model}",
     verbose=False,
 )
 
@@ -157,7 +157,7 @@ async def handle_message(message: str, session_id: str | None = None) -> dict:
             asyncio.to_thread(crew.kickoff),
             timeout=60.0,
         )
-        response_text = str(result)
+        response_text = (getattr(result, "raw", None) or str(result)).strip()
         logger.info("CrewAI: completed successfully, response length: %d", len(response_text))
     except asyncio.TimeoutError:
         logger.error("CrewAI: timed out after 60 seconds")
@@ -219,6 +219,13 @@ async def handle_message_stream(message: str, session_id: str | None = None) -> 
     full_text_parts: list[str] = []
 
     def _on_chunk(source, event):  # noqa: ARG001 — required signature
+        # Tool-call argument deltas also arrive as LLMStreamChunkEvent; skip
+        # them so Cypher/JSON tool inputs never leak into the chat text.
+        if getattr(event, "tool_call", None) is not None:
+            return
+        call_type = getattr(getattr(event, "call_type", None), "value", getattr(event, "call_type", None))
+        if isinstance(call_type, str) and "tool" in call_type.lower():
+            return
         chunk = getattr(event, "chunk", None) or ""
         if chunk:
             collector.emit_text_delta(chunk)
@@ -226,16 +233,38 @@ async def handle_message_stream(message: str, session_id: str | None = None) -> 
 
     crewai_event_bus.register_handler(LLMStreamChunkEvent, _on_chunk)
 
+    def _run_streaming_crew():
+        """Run the crew and drain its streaming output.
+
+        ``Crew(stream=True).kickoff()`` returns a lazy ``CrewStreamingOutput``
+        whose crew thread only starts when the iterator is consumed; without
+        draining it nothing executes and ``str(output)`` is the object repr.
+        """
+        output = crew.kickoff()
+        if hasattr(output, "__iter__") and not isinstance(output, (str, bytes, dict)):
+            for _chunk in output:
+                pass
+            final = getattr(output, "result", None)
+            if final is not None:
+                return final
+        return output
+
+    def _output_text(result) -> str:
+        raw = getattr(result, "raw", None)
+        if isinstance(raw, str) and raw.strip():
+            return raw.strip()
+        return str(result).strip()
+
     response_text = ""
     try:
         result = await asyncio.wait_for(
-            asyncio.to_thread(crew.kickoff),
+            asyncio.to_thread(_run_streaming_crew),
             timeout=60.0,
         )
         # Prefer the streamed concatenation; fall back to the crew's
-        # final output (str(result)) if no stream chunks were captured —
-        # for example, when the LLM provider didn't honor stream=True.
-        response_text = "".join(full_text_parts).strip() or str(result).strip()
+        # final output if no stream chunks were captured — for example,
+        # when the LLM provider didn't honor stream=True.
+        response_text = "".join(full_text_parts).strip() or _output_text(result)
     except asyncio.TimeoutError:
         logger.error("CrewAI streaming: timed out after 60 seconds")
         response_text = "The request timed out after 60 seconds. Please try a simpler question or try again."
